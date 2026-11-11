@@ -1,0 +1,60 @@
+name: Sugerir uma melhoria
+description: Ideia de recurso, ajuste de interface ou nova automação?
+title: "[Ideia] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de sugerir, confira se a ideia já não está no README ou nas issues.
+        Mudanças que dependam de endpoints não documentados podem não ser
+        possíveis sem uma conta de teste.
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve?
+      description: Descreva a limitação atual e quem é afetado.
+      placeholder: "Ex.: quando a live atual cai, o farm espera até 10 minutos para trocar."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solucao
+    attributes:
+      label: Solução sugerida
+      description: Como você imagina o comportamento ideal?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+      description: Outras formas de resolver ou contornar o problema.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Ranking / escolha de live
+        - Chat / comandos
+        - Equipamento / gemas / forja
+        - Interface / configurações
+        - Documentação / instalação
+        - Outro
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Li o README e a seção de limitações.
+          required: true
+        - label: Entendo que automação pode violar os Termos do RiftStream.
+          required: true

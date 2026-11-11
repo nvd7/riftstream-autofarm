@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "RiftStream AutoFarm",
+  "short_name": "RiftStream Farm",
+  "version": "1.0.0",
+  "description": "AutoFarm para RiftStream: escolhe a melhor live, mantém o personagem ativo e gerencia equipamentos, gemas e forja.",
+  "homepage_url": "https://github.com/nvd7/riftstream-autofarm",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://riftstream.com.br/*",
+    "https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com/*",
+    "https://www.twitch.tv/*",
+    "https://twitch.tv/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://riftstream.com.br/*"],
+      "js": ["content/riftstream.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.twitch.tv/*", "https://twitch.tv/*"],
+      "js": ["content/twitch.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "RiftStream AutoFarm",
+    "default_popup": "popup/popup.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,18 @@
+# Dependências e artefatos
+node_modules/
+dist/
+*.zip
+
+# Arquivos locais e segredos
+.env
+.env.*
+*.log
+*.pem
+*.key
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

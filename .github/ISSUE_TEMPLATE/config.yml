@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Instalação e solução de problemas
+    url: https://github.com/nvd7/riftstream-autofarm#solução-de-problemas
+    about: Confira o README e o roteiro de validação antes de abrir uma issue.
+  - name: Documentação técnica
+    url: https://github.com/nvd7/riftstream-autofarm/blob/main/docs/ARQUITETURA.md
+    about: Componentes, endpoints, estado e tratamento de falhas.

@@ -1,0 +1,94 @@
+name: Relatar um problema
+description: Encontrou um bug, falha no chat ou comportamento inesperado?
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar. Antes de enviar, leia a seção **Solução de
+        problemas** do README e rode `node tools/validate.mjs`.
+        **Nunca anexe o token (`og.token`), cookies ou prints com dados
+        pessoais.** Remova também nomes de outros jogadores.
+
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o comportamento observado e o esperado.
+      placeholder: "Ex.: o log mostra 'Não achei o campo do chat' mesmo com a live aberta."
+    validations:
+      required: true
+
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Abra o painel e clique em INICIAR AUTOFARM
+        2. Aguarde o ciclo escolher a live
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: navegador
+    attributes:
+      label: Navegador
+      options:
+        - Chrome
+        - Edge
+        - Brave
+        - Outro Chromium
+    validations:
+      required: true
+
+  - type: input
+    id: versao
+    attributes:
+      label: Versões
+      description: Versão da extensão (chrome://extensions) e do navegador.
+      placeholder: "Extensão 1.0.0 · Chrome 142.0.0.0 · Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: modo
+    attributes:
+      label: Modo de execução
+      options:
+        - Só chat (econômico)
+        - Live completa
+        - Ambos / não sei
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log do painel
+      description: Cole as últimas linhas do log. Remova qualquer token ou dado pessoal.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Contexto adicional
+      description: Print do painel/chat (sem dados pessoais), canal usado e horário.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Estou usando o Chrome/Edge/Brave normal, com a Twitch logada.
+          required: true
+        - label: Removi tokens, cookies e dados pessoais dos logs e prints.
+          required: true
+        - label: Li a seção de solução de problemas do README.
+          required: true
