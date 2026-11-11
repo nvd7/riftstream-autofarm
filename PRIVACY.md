@@ -19,7 +19,11 @@ acessa, onde guarda e para onde envia dados.
 | Personagem, itens, gemas, ouro, canal | Decidir entrada e manutenção | Memória/estado local |
 | Configurações do painel | Controlar o comportamento do farm | `chrome.storage.local` |
 | Log de ações | Diagnóstico e transparência | `chrome.storage.local` |
-| Mensagens enviadas no chat | `$jogar` e `$me` | Enviadas à Twitch |
+| Lives abertas e canal escolhido | Montar a lista e abrir o chat | Memória/estado local |
+
+A extensão **não lê nem escreve mensagens no chat da Twitch**. Ela apenas abre a
+aba e foca o campo de digitação; os comandos (`$jogar`, `$me`) são digitados por
+você.
 
 O token é lido do `localStorage` de `riftstream.com.br`, no seu próprio
 navegador, e usado no cabeçalho `Authorization: Bearer` das chamadas à API
@@ -33,7 +37,7 @@ A extensão só se comunica com:
 - `https://riftstream.com.br` — leitura do token;
 - `https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com` — API oficial usada
   pelo próprio site do RiftStream;
-- `https://www.twitch.tv` — carregamento do chat e envio das mensagens.
+- `https://www.twitch.tv` — abertura da aba da live e foco no campo do chat.
 
 Não há endpoint próprio, coleta de métricas, crash reporting ou atualização
 remota de código.
@@ -54,7 +58,7 @@ remota de código.
 | `tabs` | Abrir/reutilizar a aba da Twitch e impedir seu descarte |
 | `scripting` | Ler o token no site se o content script não estiver pronto |
 | Hosts do RiftStream/API | Autenticação e chamadas à API oficial |
-| Host da Twitch | Digitar e enviar mensagens no chat |
+| Host da Twitch | Abrir a aba da live e focar o campo do chat |
 
 ## Compartilhamento
 

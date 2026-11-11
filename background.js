@@ -3,9 +3,9 @@
 /* =========================================================================
  * RiftStream AutoFarm — service worker
  * =========================================================================
- * O jogo em si roda no chat da Twitch (comandos $jogar / $me). Este worker:
- *  - encontra as lives online com melhor zona/público pelo ranking público;
- *  - abre a live/chat da Twitch e envia $jogar / $me periodicamente;
+ * O jogo roda no chat da Twitch. Esta extensão NÃO envia mensagens no chat:
+ *  - lista as lives online do ranking público quando você pede;
+ *  - abre o chat/live que você escolher, para você digitar o comando;
  *  - usa a API do site para equipar itens melhores, subir gemas, forjar etc.
  *
  * Aviso: automação viola os Termos do RiftStream e possivelmente os da Twitch.
@@ -16,40 +16,40 @@ const API_BASE = "https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com";
 const SITE_URL = "https://riftstream.com.br";
 const STORAGE_KEY = "rsaf_state_v1";
 const ALARM_NAME = "rsaf_tick";
-const CLASS_CMD = { warrior: "guerreiro", cleric: "clerigo", archer: "arqueiro" };
 const EQUIP_SLOTS = ["weapon", "helmet", "armor", "ring"];
 const GEM_TYPES = ["ruby", "sapphire", "topaz", "emerald", "amethyst"];
 
+/* Páginas da Twitch que não são canais. */
+const TWITCH_RESERVED = new Set([
+  "directory", "downloads", "settings", "subscriptions", "inventory", "wallet",
+  "drops", "friends", "search", "videos", "jobs", "turbo", "prime", "store",
+  "following", "about", "security", "activate", "login", "signup", "onboarding",
+  "collections", "schedule", "p", "gift-cards", "legal", "creatorcamp", "polls"
+]);
+
 const DEFAULT_SETTINGS = {
   strategy: "zone",          // zone | players | balanced
-  heartbeatMin: 10,          // 5..25 (AFK normal = 30 min)
   maintenanceMin: 5,         // 2..60
+  minPlayers: 3,             // filtro da lista de lives
+  goldReserve: 50000,
+  sellRarity: 2,
+  sellLevel: 40,
   autoEquip: true,
   autoGems: true,
   autoForge: true,
   autoSocket: false,
   autoOrganize: false,
   autoSell: false,
-  sellRarity: 2,
-  sellLevel: 40,
-  autoSwitch: true,
-  minPlayers: 3,
-  switchHysteresis: 2,
-  goldReserve: 50000,
-  chatOnly: true,
-  muteTab: true,
-  fallbackClass: "archer"
+  chatOnly: true,            // abrir só o chat (popout) por padrão
+  muteTab: true
 };
 
 const DEFAULT_TIMERS = {
-  lastHeartbeat: 0,
-  lastAfkPoke: 0,
-  lastJoinSentAt: 0,
   lastMaintenance: 0,
-  lastChannelCheck: 0,
   lastForge: 0,
   lastGems: 0,
   lastOrganize: 0,
+  lastOrganizedAt: 0,
   lastEquipSig: "",
   autosellCfg: ""
 };
@@ -61,15 +61,16 @@ const DEFAULT_RUNTIME = {
   character: null,
   candidates: [],
   scanAt: 0,
-  channelMisses: 0,
+  scanError: null,
+  awaitingCharacter: false,
   autosellDisabled: false
 };
 
 const DEFAULT_STATE = {
-  running: false,
+  running: false,            // manutenção automática do inventário
   token: null,
   settings: { ...DEFAULT_SETTINGS },
-  current: null, // { login, tabId, joinedAt }
+  current: null,             // { login, tabId, openedAt }
   timers: { ...DEFAULT_TIMERS },
   runtime: { ...DEFAULT_RUNTIME },
   log: []
@@ -87,33 +88,41 @@ const num = (v, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const normLogin = (s) => String(s || "").replace(/^kick:/i, "").toLowerCase();
 const plural = (n, one, many) => `${num(n, 0)} ${num(n, 0) === 1 ? one : many}`;
+const bool = (v, fallback) => (v === undefined ? fallback : !!v);
 
 function normalizeSettings(raw = {}) {
-  const s = { ...DEFAULT_SETTINGS, ...(raw || {}) };
-  s.strategy = ["zone", "players", "balanced"].includes(s.strategy) ? s.strategy : "zone";
-  s.heartbeatMin = clamp(num(s.heartbeatMin, 10), 5, 25);
-  s.maintenanceMin = clamp(num(s.maintenanceMin, 5), 2, 60);
-  s.minPlayers = clamp(num(s.minPlayers, 3), 1, 500);
-  s.switchHysteresis = clamp(num(s.switchHysteresis, 2), 1, 10);
-  s.goldReserve = clamp(num(s.goldReserve, 50000), 0, 1000000000);
-  s.sellRarity = clamp(num(s.sellRarity, 2), -1, 3);
-  s.sellLevel = clamp(num(s.sellLevel, 40), 0, 9999);
-  s.fallbackClass = ["warrior", "cleric", "archer"].includes(s.fallbackClass)
-    ? s.fallbackClass
-    : "archer";
-  ["autoEquip", "autoGems", "autoForge", "autoSocket", "autoOrganize", "autoSell",
-    "autoSwitch", "chatOnly", "muteTab"].forEach((k) => { s[k] = !!s[k]; });
+  const r = raw && typeof raw === "object" ? raw : {};
+  const s = {
+    strategy: ["zone", "players", "balanced"].includes(r.strategy) ? r.strategy : "zone",
+    maintenanceMin: clamp(num(r.maintenanceMin, 5), 2, 60),
+    minPlayers: clamp(num(r.minPlayers, 3), 1, 500),
+    goldReserve: clamp(num(r.goldReserve, 50000), 0, 1000000000),
+    sellRarity: clamp(num(r.sellRarity, 2), -1, 3),
+    sellLevel: clamp(num(r.sellLevel, 40), 0, 9999),
+    chatOnly: bool(r.chatOnly, true),
+    muteTab: bool(r.muteTab, true)
+  };
+  for (const k of ["autoEquip", "autoGems", "autoForge", "autoSocket", "autoOrganize", "autoSell"]) {
+    s[k] = bool(r[k], DEFAULT_SETTINGS[k]);
+  }
   return s;
 }
 
 function normalizeState(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
+  const current = r.current && typeof r.current === "object"
+    ? {
+        login: r.current.login || null,
+        tabId: r.current.tabId ?? null,
+        openedAt: r.current.openedAt ?? r.current.since ?? 0
+      }
+    : null;
   return {
     ...DEFAULT_STATE,
     ...r,
     settings: normalizeSettings(r.settings),
+    current,
     timers: { ...DEFAULT_TIMERS, ...(r.timers || {}) },
     runtime: { ...DEFAULT_RUNTIME, ...(r.runtime || {}) },
     log: Array.isArray(r.log) ? r.log.slice(0, 80) : []
@@ -229,7 +238,7 @@ async function ensureToken(state, force = false) {
   if (state.token && !force) return state.token;
   const token = await tokenFromOpenTab();
   if (!token) {
-    throw new Error("Abra riftstream.com.br, entre com a Twitch e clique em Iniciar.");
+    throw new Error("Abra riftstream.com.br, entre com a Twitch e clique em Ativar de novo.");
   }
   state.token = token;
   await saveState();
@@ -296,10 +305,6 @@ async function getCharacterSafe(state) {
   }
 }
 
-function classCommand(cls) {
-  return CLASS_CMD[cls] || CLASS_CMD.archer;
-}
-
 /* --------------------------------- tabs --------------------------------- */
 
 async function getTab(tabId) {
@@ -320,80 +325,35 @@ function channelUrl(login, chatOnly) {
     : `https://www.twitch.tv/${encodeURIComponent(login)}`;
 }
 
-async function sendChat(state, tabId, text, attempts = 4) {
-  let lastErr = null;
-  for (let i = 0; i < attempts; i++) {
-    const tab = await getTab(tabId);
-    if (!tab) throw new Error("A aba da Twitch foi fechada.");
-    try {
-      const res = await chrome.tabs.sendMessage(tabId, { type: "RSAF_SEND_CHAT", text });
-      if (res?.ok) return true;
-      lastErr = new Error(res?.error || "A Twitch não aceitou a mensagem.");
-    } catch (e) {
-      lastErr = e;
-    }
-    if (i < attempts - 1) await delay(2500 + i * 800);
-  }
-  throw lastErr || new Error("Falha ao enviar mensagem no chat.");
-}
-
-async function openChannel(state, login, reason = "") {
-  const clean = String(login || "").trim().replace(/^kick:/i, "");
+/* Abre o chat/live do canal escolhido. Não envia nenhuma mensagem: o usuário
+ * digita o comando no chat. */
+async function openChannel(state, login, { active = true, reason = "" } = {}) {
+  const clean = String(login || "").trim().replace(/^kick:/i, "").toLowerCase();
   if (!clean) throw new Error("Canal inválido.");
 
   const url = channelUrl(clean, state.settings.chatOnly);
 
-  // Reaproveita a aba atual do farm quando possível.
   let tabId = state.current?.tabId || null;
-  let tab = await getTab(tabId);
-  if (!tab) tabId = null;
+  const existing = await getTab(tabId);
+  if (!existing) tabId = null;
 
   if (tabId) {
-    await chrome.tabs.update(tabId, { url, active: false });
+    await chrome.tabs.update(tabId, { url, active });
   } else {
-    const created = await chrome.tabs.create({ url, active: false });
+    const created = await chrome.tabs.create({ url, active });
     tabId = created.id;
   }
 
-  state.current = { login: clean, tabId, joinedAt: 0, since: Date.now() };
+  state.current = { login: clean, tabId, openedAt: Date.now() };
   try { await chrome.tabs.update(tabId, { autoDiscardable: false }); } catch { /* ignore */ }
   if (state.settings.muteTab) {
     try { await chrome.tabs.update(tabId, { muted: true }); } catch { /* ignore */ }
   }
-  const where = state.settings.chatOnly ? "chat" : "live";
-  log(state, `Abrindo ${where} de ${clean}${reason ? ` (${reason})` : ""}.`);
-  await saveState();
 
-  // Espera a página carregar o suficiente e manda o $jogar.
-  const ch = await getCharacterSafe(state).catch(() => null);
-  const cls = ch?.cls || state.settings.fallbackClass;
-  await sendChat(state, tabId, `$jogar ${classCommand(cls)}`, 6);
-  state.timers.lastHeartbeat = Date.now();
-  state.timers.lastJoinSentAt = Date.now();
-  state.current.joinedAt = Date.now();
-  log(state, `Entrou em ${clean} com $jogar ${classCommand(cls)}.`);
+  const where = state.settings.chatOnly ? "chat" : "live";
+  log(state, `Abrindo ${where} de ${clean}${reason ? ` (${reason})` : ""}. Envie o comando no chat.`, "ok");
   await saveState();
   return state.current;
-}
-
-async function ensureTargetTab(state) {
-  const cur = state.current;
-  if (!cur?.tabId) return false;
-  const tab = await getTab(cur.tabId);
-  if (!tab) {
-    state.current = null;
-    await saveState();
-    return false;
-  }
-  if (tab.discarded) {
-    try { await chrome.tabs.reload(cur.tabId); } catch { /* ignore */ }
-    return true;
-  }
-  if (!urlMatchesLogin(tab.url, cur.login)) {
-    await openChannel(state, cur.login, "aba estava em outra página");
-    return true;
-  }
-  return false;
 }
 
 /* ------------------------------ ranking/lives --------------------------- */
@@ -421,11 +381,48 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-async function scanChannels(state) {
+function twitchLoginFromUrl(url) {
+  try {
+    const u = new URL(String(url || ""));
+    if (!/(^|\.)twitch\.tv$/i.test(u.hostname)) return null;
+    const parts = u.pathname.split("/").filter(Boolean).map((p) => decodeURIComponent(p).toLowerCase());
+    if (!parts.length) return null;
+    if (parts[0] === "popout" && parts[1]) return TWITCH_RESERVED.has(parts[1]) ? null : parts[1];
+    if (parts.length === 1) return TWITCH_RESERVED.has(parts[0]) ? null : parts[0];
+  } catch { /* ignore */ }
+  return null;
+}
+
+async function openTwitchLogins() {
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: ["https://www.twitch.tv/*", "https://twitch.tv/*"] });
+  } catch { return []; }
+  const out = new Map();
+  for (const t of tabs) {
+    const login = twitchLoginFromUrl(t.url);
+    if (login && !out.has(login)) out.set(login, t.id ?? null);
+  }
+  return [...out.keys()].map((login) => ({ login }));
+}
+
+async function scanChannels(state, { force = false } = {}) {
   const s = state.settings;
+  const now = Date.now();
+  if (!force && state.runtime.candidates?.length && now - num(state.runtime.scanAt, 0) < 60000) {
+    return state.runtime.candidates;
+  }
+
+  const problems = [];
+  const getList = (path) =>
+    publicApi(path).catch((e) => {
+      problems.push(`${path}: ${e.message}`);
+      return { items: [] };
+    });
+
   const [runs, crowds] = await Promise.all([
-    publicApi("/api/ranking/runs?page=1&size=40&online=true").catch(() => ({ items: [] })),
-    publicApi("/api/ranking/crowds?page=1&size=40&online=true").catch(() => ({ items: [] }))
+    getList("/api/ranking/runs?page=1&size=40&online=true"),
+    getList("/api/ranking/crowds?page=1&size=40&online=true")
   ]);
 
   const map = new Map();
@@ -436,7 +433,7 @@ async function scanChannels(state) {
 
   let picked = [...pick(runs?.items, 12), ...pick(crowds?.items, 6)];
   if (!picked.length) {
-    // Se ninguém atingiu o mínimo, não deixa o farm sem candidatos.
+    // Se ninguém atingiu o mínimo, não deixa a lista vazia.
     picked = [
       ...(runs?.items || []).filter((x) => x?.login && x.online).slice(0, 12),
       ...(crowds?.items || []).filter((x) => x?.login && x.online).slice(0, 6)
@@ -446,85 +443,71 @@ async function scanChannels(state) {
 
   const base = [...map.values()];
   const details = await mapLimit(base, 6, async (item) => {
-    const d = await publicApi(`/api/ranking/channel/${encodeURIComponent(item.login)}`);
-    if (!d?.login) return null;
-    const login = d.twitchLogin || (String(d.login).startsWith("kick:") ? null : d.login);
-    if (!login) return null; // canal só da Kick
-    if (!d.live && !d.online) return null;
+    try {
+      const d = await publicApi(`/api/ranking/channel/${encodeURIComponent(item.login)}`);
+      if (!d?.login) return null;
+      const login = d.twitchLogin || (String(d.login).startsWith("kick:") ? null : d.login);
+      if (!login) return null; // canal só da Kick
+      if (!d.live && !d.online) return null;
+      const c = {
+        login: String(login).toLowerCase(),
+        name: d.displayName || item.name || login,
+        zone: num(d.zone, 0),
+        wave: num(d.wave, 0),
+        playersNow: num(d.playersNow, 0),
+        live: !!d.live,
+        online: !!d.online,
+        open: false,
+        score: 0
+      };
+      c.score = scoreChannel(c, s.strategy);
+      return c;
+    } catch (e) {
+      problems.push(`${item.login}: ${e.message}`);
+      return null;
+    }
+  });
+
+  const list = details.filter(Boolean);
+
+  // Inclui as lives que o usuário já tem abertas na Twitch.
+  const open = await openTwitchLogins();
+  for (const item of open) {
+    const found = list.find((c) => c.login === item.login);
+    if (found) {
+      found.open = true;
+      continue;
+    }
+    let d = null;
+    try { d = await publicApi(`/api/ranking/channel/${encodeURIComponent(item.login)}`); } catch { /* ignore */ }
+    if (d?.login && !d.twitchLogin && String(d.login).startsWith("kick:")) continue;
     const c = {
-      login,
-      name: d.displayName || item.name || login,
-      zone: num(d.zone, 0),
-      wave: num(d.wave, 0),
-      bestZone: num(d.bestZone, 0),
-      bestWave: num(d.bestWave, 0),
-      playersNow: num(d.playersNow, 0),
-      live: !!d.live,
-      online: !!d.online,
+      login: item.login,
+      name: d?.displayName || item.login,
+      zone: num(d?.zone, 0),
+      wave: num(d?.wave, 0),
+      playersNow: num(d?.playersNow, 0),
+      live: d ? !!d.live : true,
+      online: d ? !!d.online : true,
+      open: true,
       score: 0
     };
     c.score = scoreChannel(c, s.strategy);
-    return c;
-  });
+    list.push(c);
+  }
 
-  const list = details.filter(Boolean).sort((a, b) => b.score - a.score);
-  state.runtime.candidates = list.slice(0, 8);
+  const sorted = list.slice().sort((a, b) => b.score - a.score);
+  const finalList = [...sorted.filter((c) => c.open), ...sorted.filter((c) => !c.open)];
+
+  state.runtime.candidates = finalList.slice(0, 8);
   state.runtime.scanAt = Date.now();
-  return list;
-}
+  state.runtime.scanError = state.runtime.candidates.length
+    ? null
+    : (problems.length
+        ? `Não consegui consultar o ranking: ${problems[0]}`
+        : "O ranking não retornou nenhuma live online agora.");
 
-async function currentChannelDetail(state) {
-  if (!state.current?.login) return null;
-  try {
-    return await publicApi(`/api/ranking/channel/${encodeURIComponent(state.current.login)}`);
-  } catch {
-    // undefined = falha transitória (503, rede). Não confundir com "offline".
-    return undefined;
-  }
-}
-
-async function ensureChannel(state) {
-  const s = state.settings;
-  const list = await scanChannels(state);
-  const best = list[0];
-  const cur = await currentChannelDetail(state);
-  const misses = num(state.runtime.channelMisses, 0);
-
-  if (!state.current?.tabId) {
-    if (!best) throw new Error("Nenhuma live online encontrada agora.");
-    return openChannel(state, best.login, "primeira live");
-  }
-
-  // Ranking sem resposta: mantém o canal atual e tenta de novo no próximo ciclo.
-  if (cur === undefined && misses < 2) {
-    state.runtime.channelMisses = misses + 1;
-    state.runtime.candidates = list.slice(0, 8);
-    return state.current;
-  }
-  if (cur !== undefined) state.runtime.channelMisses = 0;
-
-  const curOk = cur && cur.online && cur.live &&
-    (cur.twitchLogin || !String(cur.login).startsWith("kick:"));
-  if (!curOk) {
-    if (!best) {
-      if (cur === undefined) return state.current;
-      throw new Error("Seu canal saiu do ar e nenhuma live online foi encontrada agora.");
-    }
-    return openChannel(state, best.login, cur === undefined ? "ranking sem resposta" : "canal anterior offline");
-  }
-  // Escolha manual do usuário vale por 30 min (a não ser que a live caia).
-  if (state.current.manualUntil && Date.now() < state.current.manualUntil) {
-    return state.current;
-  }
-  if (!s.autoSwitch) return state.current;
-
-  const curZone = num(cur.zone, 0);
-  const bestZone = num(best?.zone, 0);
-  if (best && bestZone > 0 && (bestZone >= curZone + s.switchHysteresis || curZone === 0)) {
-    return openChannel(state, best.login, `zona ${bestZone}-${best.wave} vs ${curZone}-${num(cur.wave, 0)}`);
-  }
-  state.runtime.candidates = list.slice(0, 8);
-  return state.current;
+  return state.runtime.candidates;
 }
 
 /* ------------------------------- manutenção ----------------------------- */
@@ -539,7 +522,6 @@ function invSignature(ch) {
 }
 
 async function autoEquip(state, ch) {
-  const s = state.settings;
   const sig = invSignature(ch);
   if (sig === state.timers.lastEquipSig) return 0;
 
@@ -683,10 +665,7 @@ async function applyAutosell(state) {
     // Só desliga no servidor se foi a extensão que configurou.
     if (state.timers.autosellCfg && state.timers.autosellCfg !== "off") {
       try {
-        await api(state, "/api/shop/autosell", {
-          method: "PUT",
-          body: { rarity: -1, level: 0 }
-        });
+        await api(state, "/api/shop/autosell", { method: "PUT", body: { rarity: -1, level: 0 } });
         state.timers.autosellCfg = "off";
         log(state, "Venda automática desligada.", "info");
       } catch { /* ignore */ }
@@ -791,63 +770,35 @@ async function tick() {
 
     await ensureToken(state);
 
-    // Garante que a aba é a da live certa.
-    if (!state.current?.tabId) {
-      await ensureChannel(state);
-    } else {
-      const navigated = await ensureTargetTab(state);
-      if (navigated) {
-        state.runtime.status = "rodando";
-        return;
-      }
-      if (!state.current?.tabId) {
-        await ensureChannel(state);
-        state.runtime.status = "rodando";
-        return;
-      }
-    }
-
-    let ch = await getCharacterSafe(state);
+    const ch = await getCharacterSafe(state);
+    const now = Date.now();
 
     if (!ch) {
-      const cls = state.settings.fallbackClass;
-      await sendChat(state, state.current.tabId, `$jogar ${classCommand(cls)}`, 3);
-      state.timers.lastJoinSentAt = Date.now();
-      await delay(6000);
-      ch = await getCharacterSafe(state);
-      if (!ch) throw new Error("Personagem ainda não apareceu. Confirme se a live tem o bot e tente de novo.");
+      state.runtime.status = "aguardando";
+      state.runtime.lastError = null;
+      if (!state.runtime.awaitingCharacter) {
+        state.runtime.awaitingCharacter = true;
+        log(state, "Sem personagem ainda. Procure uma live, entre no chat e use $jogar.", "info");
+      }
+      return;
     }
-
-    const now = Date.now();
-    const joined = ch.currentChannel &&
-      normLogin(ch.currentChannel.login) === normLogin(state.current.login);
-    const afk = isAfk(ch);
-    const heartbeatDue = now - num(state.timers.lastHeartbeat, 0) >= state.settings.heartbeatMin * 60000;
-    const joinCooldownOk = now - num(state.timers.lastJoinSentAt, 0) > 2 * 60000;
-
-    if (!joined && joinCooldownOk) {
-      await sendChat(state, state.current.tabId, `$jogar ${classCommand(ch.cls)}`, 3);
-      state.timers.lastJoinSentAt = now;
-      state.timers.lastHeartbeat = now;
-      log(state, `Personagem fora do canal: enviado $jogar ${classCommand(ch.cls)}.`, "ok");
-    } else if (joined && ((afk && now - num(state.timers.lastAfkPoke, 0) > 90000) || heartbeatDue)) {
-      await sendChat(state, state.current.tabId, "$me", 2);
-      state.timers.lastHeartbeat = now;
-      if (afk) state.timers.lastAfkPoke = now;
-      log(state, afk ? "AFK detectado: enviado $me." : "Heartbeat $me enviado.", afk ? "warn" : "info");
-    }
+    state.runtime.awaitingCharacter = false;
 
     if (now - num(state.timers.lastMaintenance, 0) >= state.settings.maintenanceMin * 60000) {
       state.timers.lastMaintenance = now;
-      ch = await maintain(state, ch);
+      await maintain(state, ch);
     }
 
-    if (now - num(state.timers.lastChannelCheck, 0) >= 10 * 60000) {
-      state.timers.lastChannelCheck = now;
-      await ensureChannel(state);
+    if (state.current?.tabId) {
+      const tab = await getTab(state.current.tabId);
+      if (!tab) {
+        state.current = null;
+      } else if (tab.discarded) {
+        try { await chrome.tabs.reload(state.current.tabId); } catch { /* ignore */ }
+      }
     }
 
-    state.runtime.status = "rodando";
+    state.runtime.status = "ativo";
     state.runtime.lastError = null;
     state.runtime.character = summarizeCharacter(ch);
   } catch (e) {
@@ -889,12 +840,13 @@ async function handleMessage(msg) {
         await ensureToken(state, true);
       } catch (e) {
         try { await chrome.tabs.create({ url: `${SITE_URL}/character`, active: true }); } catch { /* ignore */ }
-        throw new Error("Abra riftstream.com.br, entre com a Twitch e clique em Iniciar de novo.");
+        throw new Error("Abra riftstream.com.br, entre com a Twitch e clique em Ativar de novo.");
       }
       state.running = true;
       state.runtime.status = "iniciando";
       state.runtime.lastError = null;
-      log(state, "AutoFarm iniciado.");
+      state.runtime.awaitingCharacter = false;
+      log(state, "Manutenção automática ligada.");
       await saveState();
       try { chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 }); } catch { /* ignore */ }
       tick();
@@ -904,7 +856,7 @@ async function handleMessage(msg) {
     case "RSAF_STOP": {
       state.running = false;
       state.runtime.status = "parado";
-      log(state, "AutoFarm parado.");
+      log(state, "Manutenção automática pausada.");
       await saveState();
       try { await chrome.alarms.clear(ALARM_NAME); } catch { /* ignore */ }
       updateBadge(state);
@@ -924,43 +876,33 @@ async function handleMessage(msg) {
       return publicState(state);
     }
 
-    case "RSAF_REFRESH_CHANNELS": {
-      await scanChannels(state);
+    case "RSAF_SCAN": {
+      const list = await scanChannels(state, { force: true });
+      if (list.length) {
+        log(state, `Busca de lives: ${plural(list.length, "live encontrada", "lives encontradas")}.`);
+      } else {
+        log(state, state.runtime.scanError || "Nenhuma live encontrada.", "warn");
+      }
       await saveState();
       return publicState(state);
     }
 
-    case "RSAF_SWITCH_CHANNEL": {
-      const login = String(msg.login || "").trim().replace(/^kick:/i, "");
+    case "RSAF_OPEN_CHANNEL": {
+      const login = String(msg.login || "").trim();
       if (!login) throw new Error("Canal inválido.");
-      await ensureToken(state);
-      await openChannel(state, login, "escolhido no painel");
-      if (state.current) state.current.manualUntil = Date.now() + 30 * 60000;
-      state.running = true;
-      state.runtime.status = "rodando";
-      await saveState();
-      try { chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 }); } catch { /* ignore */ }
-      tick();
+      await openChannel(state, login, { active: true, reason: "escolhida por você" });
       return publicState(state);
     }
 
     case "RSAF_MAINTENANCE": {
       await ensureToken(state);
       const ch = await getCharacterSafe(state);
-      if (!ch) throw new Error("Personagem não encontrado. Entre na live com $jogar primeiro.");
+      if (!ch) throw new Error("Personagem não encontrado. Entre em uma live e use $jogar no chat.");
       await maintain(state, ch);
+      state.runtime.status = "ativo";
+      state.runtime.lastError = null;
       await saveState();
       return publicState(state);
-    }
-
-    case "RSAF_TEST_CHAT": {
-      if (!state.current?.tabId) {
-        throw new Error("Nenhuma live aberta ainda. Inicie o AutoFarm primeiro.");
-      }
-      await sendChat(state, state.current.tabId, "$me", 2);
-      log(state, "Teste de chat enviado ($me).", "ok");
-      await saveState();
-      return { ok: true };
     }
 
     case "RSAF_OPEN_SITE": {

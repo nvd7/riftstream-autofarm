@@ -21,7 +21,31 @@
   <main>
     <div id="errorBox" class="alert hidden"></div>
 
-    <button id="toggleBtn" class="bigbtn">INICIAR AUTOFARM</button>
+    <section class="card">
+      <div class="card-head">
+        <h2>Lives</h2>
+        <span id="scanAt" class="muted small">nunca buscou</span>
+      </div>
+
+      <label class="field">
+        <span>Ordenar por</span>
+        <select id="strategy">
+          <option value="zone">Maior zona</option>
+          <option value="players">Mais jogadores</option>
+          <option value="balanced">Equilibrado</option>
+        </select>
+      </label>
+
+      <button id="scanBtn" class="bigbtn">PROCURAR LIVES</button>
+      <p class="hint">
+        A extensão só busca e abre o chat. <b>Você digita o comando</b>
+        (<code>$jogar</code>) no chat da Twitch quando quiser.
+      </p>
+
+      <div id="candidates" class="candidates">
+        <span class="muted small">Clique em “Procurar lives” para ver as opções.</span>
+      </div>
+    </section>
 
     <section class="card">
       <div class="card-head">
@@ -32,27 +56,13 @@
         <span class="muted">Carregando...</span>
       </div>
       <div class="row">
-        <button id="openLive" class="btn ghost" type="button">Abrir live</button>
-        <button id="maintenanceBtn" class="btn ghost" type="button">Manutenção</button>
+        <button id="openLive" class="btn ghost" type="button">Abrir live atual</button>
+        <button id="maintenanceBtn" class="btn ghost" type="button">Manutenção agora</button>
       </div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>Melhor live</h2>
-        <button id="refreshBtn" class="link" type="button">atualizar</button>
-      </div>
-      <label class="field">
-        <span>Estratégia</span>
-        <select id="strategy">
-          <option value="zone">Maior zona</option>
-          <option value="players">Mais jogadores</option>
-          <option value="balanced">Equilibrado</option>
-        </select>
+      <label class="toggle maint">
+        <input id="autoMaint" type="checkbox" />
+        <span>Manutenção automática do inventário</span>
       </label>
-      <div id="candidates" class="candidates">
-        <span class="muted small">Clique em atualizar para buscar as lives.</span>
-      </div>
     </section>
 
     <details class="card" id="settingsCard">
@@ -60,48 +70,17 @@
 
       <div class="grid2">
         <label class="field">
-          <span>Heartbeat (min)</span>
-          <input id="heartbeatMin" type="number" min="5" max="25" step="1" />
-        </label>
-        <label class="field">
           <span>Manutenção (min)</span>
           <input id="maintenanceMin" type="number" min="2" max="60" step="1" />
         </label>
         <label class="field">
-          <span>Mín. jogadores</span>
+          <span>Mín. jogadores na lista</span>
           <input id="minPlayers" type="number" min="1" max="500" step="1" />
         </label>
         <label class="field">
           <span>Ouro reservado</span>
           <input id="goldReserve" type="number" min="0" step="1000" />
         </label>
-        <label class="field">
-          <span>Classe inicial</span>
-          <select id="fallbackClass">
-            <option value="archer">Arqueiro</option>
-            <option value="warrior">Guerreiro</option>
-            <option value="cleric">Clérigo</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Trocar se zona +</span>
-          <input id="switchHysteresis" type="number" min="1" max="10" step="1" />
-        </label>
-      </div>
-
-      <div class="toggles">
-        <label class="toggle"><input id="autoEquip" type="checkbox" /><span>Equipar os melhores itens</span></label>
-        <label class="toggle"><input id="autoGems" type="checkbox" /><span>Subir gemas automaticamente</span></label>
-        <label class="toggle"><input id="autoForge" type="checkbox" /><span>Forjar itens (VIP)</span></label>
-        <label class="toggle"><input id="autoSocket" type="checkbox" /><span>Engastar gemas nos equipados</span></label>
-        <label class="toggle"><input id="autoOrganize" type="checkbox" /><span>Organizar baús</span></label>
-        <label class="toggle"><input id="autoSell" type="checkbox" /><span>Venda automática (VIP)</span></label>
-        <label class="toggle"><input id="autoSwitch" type="checkbox" /><span>Trocar de live automaticamente</span></label>
-        <label class="toggle"><input id="chatOnly" type="checkbox" /><span>Modo econômico (só chat)</span></label>
-        <label class="toggle"><input id="muteTab" type="checkbox" /><span>Silenciar aba da live</span></label>
-      </div>
-
-      <div class="grid2 sellcfg">
         <label class="field">
           <span>Vender até raridade</span>
           <select id="sellRarity">
@@ -118,8 +97,23 @@
         </label>
       </div>
 
+      <p class="group-label">Inventário</p>
+      <div class="toggles">
+        <label class="toggle"><input id="autoEquip" type="checkbox" /><span>Equipar os melhores itens</span></label>
+        <label class="toggle"><input id="autoGems" type="checkbox" /><span>Subir gemas automaticamente</span></label>
+        <label class="toggle"><input id="autoForge" type="checkbox" /><span>Forjar itens (VIP)</span></label>
+        <label class="toggle"><input id="autoSocket" type="checkbox" /><span>Engastar gemas nos equipados</span></label>
+        <label class="toggle"><input id="autoOrganize" type="checkbox" /><span>Organizar baús</span></label>
+        <label class="toggle"><input id="autoSell" type="checkbox" /><span>Venda automática (VIP)</span></label>
+      </div>
+
+      <p class="group-label">Ao abrir uma live</p>
+      <div class="toggles">
+        <label class="toggle"><input id="chatOnly" type="checkbox" /><span>Modo econômico (só chat)</span></label>
+        <label class="toggle"><input id="muteTab" type="checkbox" /><span>Silenciar aba da live</span></label>
+      </div>
+
       <div class="row">
-        <button id="testChatBtn" class="btn ghost" type="button">Testar chat</button>
         <span id="saveHint" class="muted small"></span>
       </div>
     </details>
@@ -133,8 +127,9 @@
     </section>
 
     <p class="warn">
-      Automação viola os Termos do RiftStream (seção 5) e pode violar os da Twitch.
-      Sua conta pode ser banida. Use por sua conta e risco.
+      Esta extensão não envia mensagens no chat; você digita os comandos.
+      Mesmo assim, automatizar o inventário viola os Termos do RiftStream
+      (seção 5). Sua conta pode ser banida. Use por sua conta e risco.
     </p>
   </main>
 

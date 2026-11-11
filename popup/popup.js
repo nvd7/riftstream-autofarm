@@ -11,6 +11,7 @@ let busy = false;
 
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString("pt-BR") : "—");
 const clsLabel = (c) => CLASS_LABEL[c] || (c ? String(c) : "—");
+const timeLabel = (t) => new Date(t).toLocaleTimeString("pt-BR", { hour12: false });
 
 function setError(message) {
   localError = message || "";
@@ -67,27 +68,86 @@ function render() {
   } else if (status === "erro") {
     pill.textContent = "erro";
     pill.classList.add("err");
-  } else if (status === "iniciando") {
-    pill.textContent = "iniciando";
+  } else if (status === "iniciando" || status === "aguardando") {
+    pill.textContent = status;
     pill.classList.add("wait");
   } else {
-    pill.textContent = "farmando";
+    pill.textContent = "ativo";
     pill.classList.add("on");
   }
 
-  const btn = $("toggleBtn");
-  btn.textContent = state.running ? "PARAR AUTOFARM" : "INICIAR AUTOFARM";
-  btn.classList.toggle("stop", !!state.running);
-  btn.disabled = busy;
+  setCheck("autoMaint", !!state.running);
 
-  renderCharacter();
+  renderScan();
   renderCandidates();
+  renderCharacter();
   renderSettings();
   renderLog();
 
-  const openLive = $("openLive");
-  openLive.disabled = !state.current?.login;
+  $("openLive").disabled = !state.current?.login;
   $("maintenanceBtn").disabled = busy;
+  $("scanBtn").disabled = busy;
+}
+
+function renderScan() {
+  const at = state?.runtime?.scanAt || 0;
+  $("scanAt").textContent = at ? `busca às ${timeLabel(at)}` : "nunca buscou";
+}
+
+function renderCandidates() {
+  const box = $("candidates");
+  box.textContent = "";
+  const list = state?.runtime?.candidates || [];
+  const scanError = state?.runtime?.scanError;
+
+  if (!list.length) {
+    const s = document.createElement("span");
+    s.className = "muted small";
+    s.textContent = scanError
+      ? scanError
+      : "Clique em “Procurar lives” para ver as opções.";
+    box.appendChild(s);
+    return;
+  }
+
+  const currentLogin = String(state?.current?.login || "").toLowerCase();
+  for (const c of list.slice(0, 8)) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cand" + (String(c.login).toLowerCase() === currentLogin ? " current" : "");
+    b.dataset.login = c.login;
+    b.title = `Abrir o chat de ${c.name || c.login} (zona ${c.zone}-${c.wave})`;
+
+    const n = document.createElement("span");
+    n.className = "cname";
+    n.textContent = c.name || c.login;
+    if (c.open) {
+      const badge = document.createElement("span");
+      badge.className = "cbadge";
+      badge.textContent = "aberta";
+      n.appendChild(badge);
+    }
+    const z = document.createElement("span");
+    z.className = "czone";
+    z.textContent = `Z${c.zone ?? 0}-W${c.wave ?? 0}`;
+    const p = document.createElement("span");
+    p.className = "cplayers";
+    p.textContent = fmt(c.playersNow ?? 0);
+
+    b.append(n, z, p);
+    box.appendChild(b);
+  }
+
+  const hint = document.createElement("span");
+  hint.className = "muted small";
+  hint.textContent = "Clique em uma live para abrir o chat dela.";
+  box.appendChild(hint);
+}
+
+function bold(text) {
+  const b = document.createElement("b");
+  b.textContent = text;
+  return b;
 }
 
 function renderCharacter() {
@@ -99,7 +159,7 @@ function renderCharacter() {
     const s = document.createElement("span");
     s.className = "muted";
     s.textContent = state?.hasToken
-      ? "Sem personagem carregado. O farm busca assim que iniciar."
+      ? "Sem personagem carregado. Entre em uma live e use $jogar no chat."
       : "Sem login detectado. Abra o site e entre com a Twitch.";
     box.appendChild(s);
     return;
@@ -138,62 +198,18 @@ function renderCharacter() {
     ch.append(` — Z${c.channel.zone ?? 0}-W${c.channel.wave ?? 0}`);
     if (c.reviveIn > 0) ch.append(` · revive em ${Math.ceil(c.reviveIn / 60)} min`);
   } else {
-    ch.textContent = "Fora de uma live. O farm vai entrar na melhor.";
+    ch.textContent = "Fora de uma live. Use “Procurar lives” e entre no chat.";
   }
   box.appendChild(ch);
-}
-
-function bold(text) {
-  const b = document.createElement("b");
-  b.textContent = text;
-  return b;
-}
-
-function renderCandidates() {
-  const box = $("candidates");
-  box.textContent = "";
-  const list = state?.runtime?.candidates || [];
-  if (!list.length) {
-    const s = document.createElement("span");
-    s.className = "muted small";
-    s.textContent = "Nenhuma live carregada. Clique em atualizar.";
-    box.appendChild(s);
-    return;
-  }
-
-  const currentLogin = String(state?.current?.login || "").toLowerCase();
-  for (const c of list.slice(0, 5)) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "cand" + (String(c.login).toLowerCase() === currentLogin ? " current" : "");
-    b.dataset.login = c.login;
-    b.title = `Trocar para ${c.name || c.login} (zona ${c.zone}-${c.wave})`;
-
-    const n = document.createElement("span");
-    n.className = "cname";
-    n.textContent = c.name || c.login;
-    const z = document.createElement("span");
-    z.className = "czone";
-    z.textContent = `Z${c.zone ?? 0}-W${c.wave ?? 0}`;
-    const p = document.createElement("span");
-    p.className = "cplayers";
-    p.textContent = fmt(c.playersNow ?? 0);
-
-    b.append(n, z, p);
-    box.appendChild(b);
-  }
 }
 
 function renderSettings() {
   const s = state?.settings;
   if (!s) return;
   setVal("strategy", s.strategy);
-  setVal("heartbeatMin", s.heartbeatMin);
   setVal("maintenanceMin", s.maintenanceMin);
   setVal("minPlayers", s.minPlayers);
   setVal("goldReserve", s.goldReserve);
-  setVal("fallbackClass", s.fallbackClass);
-  setVal("switchHysteresis", s.switchHysteresis);
   setVal("sellRarity", s.sellRarity);
   setVal("sellLevel", s.sellLevel);
   setCheck("autoEquip", s.autoEquip);
@@ -202,7 +218,6 @@ function renderSettings() {
   setCheck("autoSocket", s.autoSocket);
   setCheck("autoOrganize", s.autoOrganize);
   setCheck("autoSell", s.autoSell);
-  setCheck("autoSwitch", s.autoSwitch);
   setCheck("chatOnly", s.chatOnly);
   setCheck("muteTab", s.muteTab);
 }
@@ -223,7 +238,7 @@ function renderLog() {
     row.className = "entry" + (item.level === "ok" ? " ok" : item.level === "warn" ? " warn" : item.level === "error" ? " error" : "");
     const t = document.createElement("span");
     t.className = "t";
-    t.textContent = new Date(item.t).toLocaleTimeString("pt-BR", { hour12: false });
+    t.textContent = timeLabel(item.t);
     const m = document.createElement("span");
     m.textContent = item.msg;
     row.append(t, m);
@@ -246,12 +261,9 @@ async function refresh() {
 function gatherSettings() {
   return {
     strategy: $("strategy").value,
-    heartbeatMin: Number($("heartbeatMin").value),
     maintenanceMin: Number($("maintenanceMin").value),
     minPlayers: Number($("minPlayers").value),
     goldReserve: Number($("goldReserve").value),
-    fallbackClass: $("fallbackClass").value,
-    switchHysteresis: Number($("switchHysteresis").value),
     sellRarity: Number($("sellRarity").value),
     sellLevel: Number($("sellLevel").value),
     autoEquip: $("autoEquip").checked,
@@ -260,7 +272,6 @@ function gatherSettings() {
     autoSocket: $("autoSocket").checked,
     autoOrganize: $("autoOrganize").checked,
     autoSell: $("autoSell").checked,
-    autoSwitch: $("autoSwitch").checked,
     chatOnly: $("chatOnly").checked,
     muteTab: $("muteTab").checked
   };
@@ -291,18 +302,41 @@ function scheduleSave() {
 }
 
 function wire() {
-  $("toggleBtn").addEventListener("click", async () => {
+  $("scanBtn").addEventListener("click", async () => {
     if (busy) return;
+    busy = true;
+    const b = $("scanBtn");
+    b.textContent = "BUSCANDO...";
+    render();
+    try {
+      const next = await send("RSAF_SCAN");
+      if (next) {
+        state = next;
+        render();
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      busy = false;
+      b.textContent = "PROCURAR LIVES";
+      render();
+    }
+  });
+
+  $("candidates").addEventListener("click", async (ev) => {
+    const btn = ev.target.closest(".cand");
+    if (!btn || busy) return;
+    const login = btn.dataset.login;
+    if (!login) return;
     busy = true;
     localError = "";
     render();
     try {
-      if (state?.running) {
-        await send("RSAF_STOP");
-      } else {
-        await send("RSAF_START");
+      const next = await send("RSAF_OPEN_CHANNEL", { login });
+      if (next) {
+        state = next;
+        render();
       }
-      await refresh();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -313,6 +347,27 @@ function wire() {
 
   $("openSite").addEventListener("click", () => send("RSAF_OPEN_SITE").catch((e) => setError(e.message)));
   $("openLive").addEventListener("click", () => send("RSAF_OPEN_LIVE").catch((e) => setError(e.message)));
+
+  $("autoMaint").addEventListener("change", async (ev) => {
+    if (busy) return;
+    busy = true;
+    const turnOn = ev.target.checked;
+    localError = "";
+    render();
+    try {
+      const next = await send(turnOn ? "RSAF_START" : "RSAF_STOP");
+      if (next) {
+        state = next;
+        render();
+      }
+    } catch (e) {
+      setError(e.message);
+      setCheck("autoMaint", !turnOn);
+    } finally {
+      busy = false;
+      render();
+    }
+  });
 
   $("maintenanceBtn").addEventListener("click", async () => {
     if (busy) return;
@@ -327,47 +382,7 @@ function wire() {
       setError(e.message);
     } finally {
       busy = false;
-      $("maintenanceBtn").textContent = "Manutenção";
-      render();
-    }
-  });
-
-  $("refreshBtn").addEventListener("click", async () => {
-    const b = $("refreshBtn");
-    b.disabled = true;
-    b.textContent = "buscando...";
-    try {
-      const next = await send("RSAF_REFRESH_CHANNELS");
-      if (next) {
-        state = next;
-        render();
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      b.disabled = false;
-      b.textContent = "atualizar";
-    }
-  });
-
-  $("candidates").addEventListener("click", async (ev) => {
-    const btn = ev.target.closest(".cand");
-    if (!btn || busy) return;
-    const login = btn.dataset.login;
-    if (!login) return;
-    busy = true;
-    localError = "";
-    render();
-    try {
-      const next = await send("RSAF_SWITCH_CHANNEL", { login });
-      if (next) {
-        state = next;
-        render();
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      busy = false;
+      $("maintenanceBtn").textContent = "Manutenção agora";
       render();
     }
   });
@@ -384,28 +399,9 @@ function wire() {
     }
   });
 
-  $("testChatBtn").addEventListener("click", async () => {
-    const b = $("testChatBtn");
-    b.disabled = true;
-    b.textContent = "Testando...";
-    try {
-      await send("RSAF_TEST_CHAT");
-      setError("");
-      $("saveHint").textContent = "chat ok";
-      $("saveHint").className = "small save-ok";
-      setTimeout(() => { $("saveHint").textContent = ""; }, 2500);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      b.disabled = false;
-      b.textContent = "Testar chat";
-    }
-  });
-
   for (const el of document.querySelectorAll(
-    "#strategy, #heartbeatMin, #maintenanceMin, #minPlayers, #goldReserve, #fallbackClass, " +
-    "#switchHysteresis, #sellRarity, #sellLevel, #autoEquip, #autoGems, #autoForge, #autoSocket, " +
-    "#autoOrganize, #autoSell, #autoSwitch, #chatOnly, #muteTab"
+    "#strategy, #maintenanceMin, #minPlayers, #goldReserve, #sellRarity, #sellLevel, " +
+    "#autoEquip, #autoGems, #autoForge, #autoSocket, #autoOrganize, #autoSell, #chatOnly, #muteTab"
   )) {
     el.addEventListener("change", scheduleSave);
     if (el.tagName === "INPUT" && el.type === "number") {

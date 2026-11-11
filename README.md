@@ -1,19 +1,19 @@
 <p align="center">
-  <img src="docs/banner.png" alt="RiftStream AutoFarm — a melhor live, o melhor loot, no automático" width="100%">
+  <img src="docs/banner.png" alt="RiftStream AutoFarm — encontre a live, abra o chat, cuide dos itens" width="100%">
 </p>
 
 <h1 align="center">RiftStream AutoFarm</h1>
 
 <p align="center">
-  Extensão <strong>Chrome/Edge (Manifest V3)</strong> que encontra a melhor live do
-  RiftStream, mantém o personagem ativo no chat da Twitch e cuida de
-  equipamentos, gemas e forja — tudo local, sem servidor intermediário.
+  Extensão <strong>Chrome/Edge (Manifest V3)</strong> para o RPG de chat do
+  RiftStream: encontra as melhores lives da Twitch, abre o chat que você
+  escolher e cuida do inventário. <strong>Você</strong> digita os comandos.
 </p>
 
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.0.0-f5c451" alt="Versão 1.0.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.1.0-f5c451" alt="Versão 1.1.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -34,20 +34,25 @@
   <img src="docs/screenshot.png" alt="Painel do RiftStream AutoFarm" width="380">
 </p>
 
-> [!WARNING]
-> **Automação viola os Termos do RiftStream.** A seção 5 proíbe o uso de bots,
-> scripts ou programas que automatizem o jogo, e a Twitch também restringe
-> mensagens automatizadas. **Sua conta pode ser suspensa ou banida.** Este
-> projeto é fornecido como está, sem garantia e sem vínculo com o RiftStream,
-> a Twitch ou a Amazon. Use preferencialmente uma conta alternativa e por sua
-> conta e risco.
-
 > [!IMPORTANT]
-> **Status: v1.0.0.** O ciclo de ranking, entrada (`$jogar`), heartbeat (`$me`),
-> equipar, gemas, forja, engaste, organização e venda automática está
-> implementado. Os endpoints autenticados seguem a API observada no próprio
-> front-end do site; mudanças no RiftStream podem exigir ajustes. O primeiro
-> uso deve ser supervisionado.
+> **A extensão não envia mensagens no chat.** Ela só busca as lives e abre o
+> chat da Twitch. Os comandos (`$jogar`, `$me`…) são digitados **por você**.
+> O único trabalho automático é a **manutenção do inventário** (equipar itens
+> melhores, combinar gemas, forjar), que usa a API oficial do site e **não passa
+> pelo chat**.
+
+> [!WARNING]
+> **Automatizar o inventário viola os Termos do RiftStream.** A seção 5 proíbe o
+> uso de bots, scripts ou programas que automatizem o jogo. **Sua conta pode ser
+> suspensa ou banida.** Este projeto é fornecido como está, sem garantia e sem
+> vínculo com o RiftStream, a Twitch ou a Amazon. Use preferencialmente uma
+> conta alternativa e por sua conta e risco.
+
+> [!NOTE]
+> **Status: v1.1.0.** Busca de lives, abertura de chat, equipar, gemas, forja,
+> engaste, organização e venda automática estão implementados. Os endpoints
+> autenticados seguem a API observada no próprio front-end do site; mudanças no
+> RiftStream podem exigir ajustes. O primeiro uso deve ser supervisionado.
 
 ---
 
@@ -55,53 +60,46 @@
 
 O **RiftStream** é um RPG que roda no chat da Twitch: a live precisa estar no ar,
 com o bot presente no chat, e o personagem progride enquanto você está em um
-canal. O **AutoFarm** automatiza esse ciclo no seu navegador:
+canal. O **AutoFarm** ajuda nesse ciclo, sem falar por você:
 
-1. Consulta o ranking público e escolhe a live online com a melhor
-   **zona/onda** (ou mais jogadores, conforme a estratégia).
-2. Abre o **chat** da live (modo econômico) ou a live completa.
-3. Entra no canal com `$jogar <classe>` sem trocar a classe do personagem.
-4. Mantém o personagem ativo com `$me` e detecta AFK pelo próprio personagem.
-5. Compara os itens do inventário com os equipados e equipa só o que aumenta a
-   **Força de Combate (FC)**.
-6. Sobe gemas, forja itens, engasta gemas e organiza os baús conforme as opções.
-7. Troca de live quando a atual cai ou quando aparece uma zona melhor.
+1. Você clica em **Procurar lives**.
+2. A extensão consulta o ranking público e mostra as lives online, ordenadas por
+   **zona/onda** (ou por público, se preferir).
+3. Você escolhe uma live e a extensão **abre o chat** dela na Twitch.
+4. **Você** manda o comando no chat (`$jogar arqueiro`, por exemplo) pelo seu
+   próprio teclado.
+5. Se quiser, ative a **manutenção automática do inventário**: a extensão compara
+   os itens com a FC, equipa o que for melhor, combina gemas e forja itens.
 
-Tudo acontece na sua máquina. O token de login fica no
-`chrome.storage.local` e é usado apenas para chamar a API oficial do RiftStream.
+Tudo acontece na sua máquina. O token de login fica no `chrome.storage.local` e
+é usado apenas para chamar a API oficial do RiftStream.
 
 ---
 
 ## Recursos
 
-- **Ranking automático de lives:** combina `/api/ranking/runs` e
-  `/api/ranking/crowds`, confirma `live`/`online` e o `twitchLogin` de cada
-  canal, e ignora canais exclusivos da Kick.
-- **Estratégias de escolha:** maior zona, mais jogadores ou equilíbrio entre os
-  dois, com histerese para evitar trocas desnecessárias.
-- **Modo econômico (padrão):** abre apenas o popout de chat
-  (`twitch.tv/popout/{canal}/chat`), sem carregar vídeo — menos banda, CPU e
-  distração. O botão **Abrir live** abre o stream completo quando você quiser.
-- **Entrada inteligente:** envia `$jogar guerreiro|clerigo|arqueiro` com a
-  classe atual, em vez de `$jogar` sem argumento (que escolheria a classe menos
-  populosa e poderia trocar a sua).
-- **Heartbeat e AFK:** `$me` a cada 10 minutos (configurável) e envio imediato
-  quando o campo `lastActiveAt` do personagem indica inatividade.
-- **Equipamento por FC:** usa `GET /api/me/items/{id}/compare` e só equipa
-  quando `newPower > power`, testando os melhores candidatos de cada slot.
+- **Procurar lives (manual):** nada é escolhido sozinho. Você clica no botão e
+  recebe a lista das lives online, com zona, onda e público.
+- **Ordenação configurável:** maior zona, mais jogadores ou equilibrado.
+- **Suas abas contam:** lives que você já tem abertas na Twitch aparecem no topo
+  da lista, marcadas como **aberta** — mesmo se o ranking falhar.
+- **Abre o chat pronto para digitar:** no modo econômico abre o popout de chat
+  (`twitch.tv/popout/{canal}/chat`), silencia a aba e tira o descarte automático.
+  O campo do chat já vem focado para você digitar o comando.
+- **Nenhuma mensagem automática:** a extensão nunca digita no chat. Slow mode,
+  followers-only e sub-only deixam de ser problema.
+- **Manutenção por FC:** usa `GET /api/me/items/{id}/compare` e só equipa quando
+  `newPower > power`, testando os melhores candidatos de cada slot.
 - **Gemas:** executa o mesmo “combinar todas” do site e respeita o ouro
   disponível.
 - **Forja:** “fundir tudo” automático (recurso VIP), com intervalo e reserva de
   ouro configuráveis.
 - **Extras opcionais:** engastar gemas nos itens equipados, organizar baús por
   nível e configurar a venda automática (VIP).
-- **Recuperação de aba:** recria a aba da Twitch se ela for fechada ou navegar
-  para outro site; impede o descarte automático da aba pelo navegador.
-- **Tolerância a falhas:** erros transitórios de ranking (HTTP 503) não fazem o
-  farm trocar de canal sem necessidade; a sessão expirada é detectada e o token
-  é limpo.
-- **Painel em PT-BR:** personagem, canal atual, candidatos, configurações e log
-  com timestamp. Tudo local, sem telemetria.
+- **Tolerância a falhas:** erros transitórios do ranking não apagam a lista; a
+  sessão expirada é detectada e o token é limpo.
+- **Painel em PT-BR:** personagem, lives encontradas, configurações e log com
+  timestamp. Tudo local, sem telemetria.
 
 ---
 
@@ -118,8 +116,7 @@ Tudo acontece na sua máquina. O token de login fica no
 
 > [!NOTE]
 > Navegadores embutidos (Electron, painéis de aplicativos e modos de visualização
-> internos) **não servem** para o chat da Twitch: a Twitch bloqueia o login com
-> “Não há suporte para seu navegador no momento”. Instale a extensão no seu
+> internos) **não servem** para o chat da Twitch. Instale a extensão no seu
 > Chrome/Edge/Brave normal, onde você já usa a Twitch.
 
 ---
@@ -129,17 +126,18 @@ Tudo acontece na sua máquina. O token de login fica no
 A extensão não está publicada na Chrome Web Store. A instalação é feita em modo
 de desenvolvedor, direto da pasta do projeto.
 
-1. Baixe este repositório (**Code → Download ZIP**) e extraia em uma pasta fixa,
-   por exemplo `C:\RiftStreamAutoFarm`.
+1. Baixe a **última release**
+   (<https://github.com/nvd7/riftstream-autofarm/releases>) e extraia em uma pasta
+   fixa, por exemplo `C:\RiftStreamAutoFarm`.
 2. Abra `chrome://extensions` (ou `edge://extensions`).
 3. Ative o **Modo do desenvolvedor** no canto superior direito.
 4. Clique em **Carregar sem compactação** / **Load unpacked**.
-5. Selecione a pasta que contém o `manifest.json` (a raiz do projeto).
+5. Selecione a pasta que contém o `manifest.json`.
 6. Fixe o ícone **RiftStream AutoFarm** na barra de extensões.
 
 > [!TIP]
 > Se o navegador avisar que a extensão pode ler dados do site, isso é esperado:
-> ela precisa acessar a API do RiftStream e o chat da Twitch para funcionar.
+> ela precisa acessar a API do RiftStream e a aba da Twitch para funcionar.
 > Nenhum dado é enviado para servidores do projeto.
 
 ### Atualizar
@@ -147,8 +145,7 @@ de desenvolvedor, direto da pasta do projeto.
 1. Substitua os arquivos da pasta pelos da versão nova.
 2. Abra `chrome://extensions` e clique no ícone de **recarregar** no cartão da
    extensão.
-3. Recarregue também a aba da Twitch aberta pelo farm (o content script é
-   reinjetado) e reabra o painel.
+3. Recarregue a aba da Twitch aberta pela extensão e reabra o painel.
 
 As configurações e o token continuam salvos entre atualizações.
 
@@ -159,43 +156,53 @@ As configurações e o token continuam salvos entre atualizações.
 ### Primeiro uso
 
 1. Abra <https://riftstream.com.br/character> e entre com a Twitch.
-2. Confirme que você consegue enviar uma mensagem no chat de uma live da Twitch
-   nesse mesmo navegador.
-3. Clique no ícone da extensão e depois em **INICIAR AUTOFARM**.
-4. A extensão abre uma aba da Twitch (só o chat, por padrão) e envia o `$jogar`.
-5. Se a Twitch pedir login nessa aba, entre e clique em **Testar chat** dentro de
-   **Configurações**.
-6. Deixe o navegador aberto. O painel mostra o status, o personagem e o log.
+2. Clique no ícone da extensão.
+3. Clique em **PROCURAR LIVES** e espere a lista aparecer.
+4. Escolha uma live. A extensão abre o **chat** dela na Twitch com o campo
+   pronto para digitar.
+5. No chat, mande o comando você mesmo: `$jogar arqueiro` (ou a sua classe).
+6. (Opcional) Marque **Manutenção automática do inventário** para a extensão
+   cuidar de equipar, gemas e forja em segundo plano.
 
-Na primeira execução, o personagem pode levar alguns segundos para aparecer no
-canal. Se o bot não responder, confira se a live está no ar e se o bot do
-RiftStream está presente no chat.
+O personagem aparece alguns segundos depois do `$jogar`. Se a live não tiver o
+bot do RiftStream, tente outra da lista.
 
 ### O que o painel mostra
 
 | Área | Conteúdo |
 |---|---|
-| **Personagem** | Nome, classe, nível, FC, ouro e canal atual (zona/onda) |
-| **Melhor live** | Ranking das lives online; clique em uma para trocar na hora |
-| **Estratégia** | Maior zona, mais jogadores ou equilibrado |
-| **Configurações** | Heartbeat, manutenção, limites, automações e teste de chat |
+| **Lives** | Lista das lives online (zona/onda/público) e o botão **Procurar lives** |
+| **Personagem** | Nome, classe, nível, FC, ouro e canal atual |
+| **Configurações** | Intervalos, filtros e o que a manutenção pode fazer |
 | **Log** | Últimas ações, avisos e erros com horário |
 
-### Estratégias
+### Ordenação
 
-- **Maior zona** — prioriza a zona atual mais alta, onde o loot costuma ser
-  melhor.
+- **Maior zona** — prioriza a zona mais alta, onde o loot costuma ser melhor.
 - **Mais jogadores** — prioriza público; chefes e eventos caem mais rápido.
 - **Equilibrado** — mistura zona, onda e público.
 
-A troca automática só acontece se a nova live estiver pelo menos
-`Trocar se zona +` zonas à frente (padrão: 2) ou se o canal atual cair. Uma
-escolha manual no painel vale por **30 minutos**, a menos que a live saia do ar.
+Isso muda apenas **a ordem da lista**. A escolha de entrar em uma live é sempre
+sua.
+
+### Comandos (no chat da Twitch, digitados por você)
+
+| Comando | Para que serve |
+|---|---|
+| `$jogar guerreiro` | Entra no canal com a classe escolhida |
+| `$jogar clerigo` | Idem, clérigo |
+| `$jogar arqueiro` | Idem, arqueiro |
+| `$me` | Mantém o personagem ativo antes do AFK (30 min normal, 2 h VIP) |
+
+> [!TIP]
+> Sem argumento, `$jogar` deixa o jogo escolher a classe **menos populosa**, o
+> que pode trocar a sua. Por isso o exemplo acima manda a classe junto.
 
 ### Parar
 
-Clique em **PARAR AUTOFARM** no painel. A aba da Twitch permanece aberta; você
-pode fechá-la manualmente. O estado e o log ficam salvos.
+Feche a aba da Twitch quando não quiser mais jogar. Se a manutenção automática
+estiver ligada, desmarque **Manutenção automática do inventário** para ela parar
+de rodar.
 
 ---
 
@@ -206,13 +213,10 @@ As opções ficam no painel e são salvas automaticamente em
 
 | Opção | Padrão | Descrição |
 |---|---:|---|
-| `strategy` | `zone` | `zone` (maior zona), `players` (mais público) ou `balanced` |
-| `heartbeatMin` | `10` | Intervalo do `$me`, em minutos (5–25) |
-| `maintenanceMin` | `5` | Intervalo de equipar/gemas/forjar, em minutos (2–60) |
-| `minPlayers` | `3` | Ignora lives com menos jogadores que isso |
+| `strategy` | `zone` | Ordem da lista: `zone`, `players` ou `balanced` |
+| `maintenanceMin` | `5` | Intervalo da manutenção automática, em minutos (2–60) |
+| `minPlayers` | `3` | Esconde da lista as lives com menos jogadores que isso |
 | `goldReserve` | `50000` | Não forja nem engasta abaixo desse ouro |
-| `switchHysteresis` | `2` | Zonas de vantagem necessárias para trocar de live |
-| `fallbackClass` | `archer` | Classe usada se o personagem ainda não existir |
 | `autoEquip` | `true` | Equipa automaticamente o melhor item por slot |
 | `autoGems` | `true` | Combina gemas de 3 em 3 |
 | `autoForge` | `true` | Funde itens automaticamente (**VIP**) |
@@ -221,50 +225,48 @@ As opções ficam no painel e são salvas automaticamente em
 | `autoSell` | `false` | Configura a venda automática (**VIP**) |
 | `sellRarity` | `2` | Vende até esta raridade (`-1` desliga, `3` = épico) |
 | `sellLevel` | `40` | Vende itens até este nível |
-| `autoSwitch` | `true` | Troca de live quando vale a pena |
 | `chatOnly` | `true` | Abre só o chat (menos banda) em vez da live completa |
 | `muteTab` | `true` | Silencia a aba da Twitch |
 
 > [!TIP]
-> O AFK normal do RiftStream é de **30 minutos** (2 horas para VIP). O padrão de
-> 10 minutos do `$me` dá margem para falhas de rede e mantém o personagem ativo
-> sem gerar mensagens demais no chat.
+> A manutenção automática só roda com a extensão **ativa** (o botão no topo do
+> painel mostra `ativo`). Ela precisa de um token válido: tenha
+> `riftstream.com.br` aberto e logado.
 
 ---
 
 ## Como funciona
 
 ```text
-ranking público ──► melhor live ──► popup do chat (Twitch)
-                                         │
-                                         ├── $jogar <classe>   (entrada)
-                                         └── $me               (heartbeat)
+ranking público ──► lista de lives ──► você escolhe ──► chat da Twitch
+                                                            │
+                                                            └─ você digita $jogar/$me
 
-API do RiftStream ──► personagem ──► equipar / gemas / forja / engaste
+API do RiftStream ──► personagem ──► manutenção (equipar/gemas/forja)
 ```
 
-### Ranking de lives
+### Busca de lives
 
 1. `GET /api/ranking/runs?online=true` e `GET /api/ranking/crowds?online=true`
    listam as lives em destaque.
 2. Para cada candidato, `GET /api/ranking/channel/{login}` confirma `live`,
    `online`, `zone`, `wave`, `playersNow` e o `twitchLogin`.
 3. Canais que só existem na Kick são descartados.
-4. A pontuação depende da estratégia:
+4. As lives que você já tem abertas na Twitch entram na lista, marcadas como
+   **aberta**, mesmo que o ranking falhe.
+5. A ordem depende da estratégia:
    - `zone`: `zona × 1000 + onda × 10 + log(público) × 50`
    - `players`: `público × 1000 + zona × 100 + onda`
    - `balanced`: `(zona × 100 + onda) × 10 + público limitado a 250 + log`
-5. A lista é refeita a cada 10 minutos; a aba atual é mantida se ainda estiver
-   online e não houver vantagem suficiente para trocar.
 
-### Entrada e heartbeat
+### Abrir a live
 
-- `$jogar` sem classe faz o jogo escolher a classe menos populosa e pode trocar
-  a sua. Por isso a extensão envia sempre a classe atual do personagem.
-- O `$me` é enviado a cada `heartbeatMin` e imediatamente se o personagem estiver
-  AFK (`lastActiveAt` + `afkMinutes`).
-- Se o personagem estiver em outro canal, a extensão reenvia o `$jogar` assim que
-  o cooldown permite.
+- No modo econômico, a extensão abre
+  `https://www.twitch.tv/popout/{login}/chat?popout=` e foca o campo do chat.
+- Desmarcando **Modo econômico**, ela abre a live completa
+  (`https://www.twitch.tv/{login}`).
+- A aba é silenciada (se marcado) e marcada como `autoDiscardable: false`.
+- **Nenhuma mensagem é enviada.** A extensão não lê nem escreve no seu chat.
 
 ### Manutenção do inventário
 
@@ -279,24 +281,16 @@ API do RiftStream ──► personagem ──► equipar / gemas / forja / engas
 
 Se a API recusar um recurso VIP, a opção é desativada e o motivo aparece no log.
 
-### Chat da Twitch
-
-O content script procura `[data-a-target="chat-input"]`, escreve com
-`document.execCommand("insertText")` (funciona com o editor Slate da Twitch e em
-aba de fundo), clica em `button[data-a-target="chat-send-button"]` e confirma o
-envio verificando se o campo foi limpo. Se o campo não limpar, ele procura a
-mensagem nas linhas do chat antes de considerar falha.
-
 ### Permissões
 
 | Permissão | Por quê |
 |---|---|
 | `storage` | Salvar token, configurações, timers e log localmente |
-| `alarms` | Executar o ciclo a cada minuto mesmo com o service worker dormindo |
+| `alarms` | Executar a manutenção a cada minuto mesmo com o service worker dormindo |
 | `tabs` | Abrir, reutilizar, silenciar e impedir o descarte da aba da Twitch |
 | `scripting` | Ler o token do site caso o content script ainda não tenha carregado |
 | `riftstream.com.br` | Ler `localStorage["og.token"]` e chamar a API oficial |
-| `twitch.tv` | Digitar e enviar as mensagens no chat |
+| `twitch.tv` | Abrir a aba e focar o campo do chat (sem enviar mensagens) |
 
 ---
 
@@ -304,9 +298,9 @@ mensagem nas linhas do chat antes de considerar falha.
 
 ```text
 manifest.json           permissões, ícones e injeção dos scripts
-background.js           service worker: ranking, ciclo, API, abas, manutenção
+background.js           service worker: ranking, abas e manutenção da API
 content/riftstream.js   ponte do token (localStorage → extensão)
-content/twitch.js       digitação e envio no chat da Twitch
+content/twitch.js       foca o campo do chat (não envia nada)
 popup/                  painel de controle (HTML/CSS/JS)
 icons/                  ícones 16, 48 e 128 px
 docs/                   banner, screenshot e documentação técnica
@@ -327,20 +321,18 @@ Documentação adicional:
 
 ## Limitações
 
+- **A extensão não entra na live por você.** Ela mostra a lista e abre o chat; o
+  `$jogar` é seu.
+- **Não há troca automática de live.** Se a atual cair, procure outra no painel.
 - **Forja e venda automática são VIP.** Sem VIP, a API recusa e a extensão
   desativa a opção.
-- **Canais exclusivos da Kick são ignorados.** A automação é focada no chat da
-  Twitch.
-- **O canal precisa permitir mensagens.** Slow mode, modo seguidores e sub-only
-  podem bloquear o `$jogar`/`$me`; troque de live no painel.
-- **A live precisa ter o bot do RiftStream.** O ranking online normalmente
-  indica isso, mas confira o chat se o personagem não aparecer.
-- **O navegador precisa ficar aberto.** Fechar o navegador interrompe o farm; o
-  service worker sozinho não mantém o chat.
+- **Canais exclusivos da Kick são ignorados.** O foco é o chat da Twitch.
+- **O navegador precisa ficar aberto.** Fechar o navegador interrompe a
+  manutenção automática.
 - **Mudanças no site podem quebrar a extensão.** A API e os seletores do chat
   foram observados no front-end atual; atualize o projeto se algo mudar.
-- **Não há garantia de detecção perfeita.** O projeto automatiza a interface
-  como um usuário; não injeta código no jogo nem burla verificações da Twitch.
+- **A manutenção mexe no seu inventário.** Ela só equipa o que aumenta a FC, mas
+  vale revisar as opções antes de deixar rodando.
 
 ---
 
@@ -348,16 +340,16 @@ Documentação adicional:
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| “Não há suporte para seu navegador no momento” | Twitch bloqueia o navegador embutido/Electron | Use o Chrome/Edge/Brave normal, com a Twitch logada |
-| “Sem login detectado” | Token ausente ou sessão expirada | Abra `riftstream.com.br/character`, entre de novo e reinicie |
+| “O ranking não retornou nenhuma live online agora” | Nenhuma live com bot no ar no momento | Tente de novo em alguns minutos; se você já está em uma live, ela aparece marcada como **aberta** |
+| “Não consegui consultar o ranking” | API fora do ar, rede ou bloqueio | Verifique a internet, o bloqueador de anúncios e tente **Procurar lives** novamente |
+| A lista está vazia mas eu estou em uma live | A aba não foi reconhecida como canal | Use uma URL `twitch.tv/{canal}` ou o popout de chat; evite páginas como `/directory` |
+| “Sem login detectado” | Token ausente ou sessão expirada | Abra `riftstream.com.br/character`, entre de novo e reative a manutenção |
 | “Não consegui falar com a extensão” | Service worker reiniciou ou a extensão foi recarregada | Feche e abra o painel; se persistir, recarregue a extensão |
-| “A Twitch não aceitou a mensagem” | Slow mode, followers-only, sub-only ou login | Entre na Twitch, teste em outra live ou aguarde o slow mode |
-| “Não achei o campo do chat” | Chat ainda carregando ou live fora do ar | Confirme a live, recarregue a aba e tente de novo |
-| Personagem não aparece | Bot ausente ou `$jogar` ainda processando | Verifique o chat; aguarde um ciclo ou troque de live |
-| Farm não troca de live | Histerese ou escolha manual recente | Ajuste “Trocar se zona +” ou aguarde 30 minutos |
+| Personagem não aparece | Bot ausente ou `$jogar` ainda processando | Confira se você mandou `$jogar` no chat; aguarde ou troque de live |
+| Manutenção não roda | Está desligada ou sem token | Marque **Manutenção automática do inventário** e confirme o site logado |
 | Forja/venda desativada | Conta sem VIP ou API recusou | Reative depois de virar VIP; veja o log |
 | Aba da Twitch descartada | Economia de memória do navegador | Desative a economia para a aba ou mantenha o navegador ativo |
-| Erro 401/403 no log | Token expirado ou permissão insuficiente | Faça login de novo no site e reinicie o AutoFarm |
+| Erro 401/403 no log | Token expirado ou permissão insuficiente | Faça login de novo no site e reative a manutenção |
 
 > [!NOTE]
 > Ao relatar um problema, copie o **log do painel** e informe navegador, versão
@@ -370,10 +362,12 @@ Documentação adicional:
 
 - **Sem telemetria.** O projeto não coleta estatísticas, não usa analytics e não
   envia dados para servidores próprios.
+- **Nenhuma mensagem no chat.** A extensão não lê nem escreve no chat da Twitch;
+  ela apenas abre a aba e foca o campo de digitação.
 - **Token local.** O token do RiftStream é lido do site e guardado em
   `chrome.storage.local`; ele é enviado apenas para a API oficial do RiftStream.
 - **Rede.** As únicas conexões são com `riftstream.com.br`, com a API do site e
-  com `twitch.tv` (chat).
+  com `twitch.tv` (abrir a aba).
 - **Logs.** Ficam no armazenamento da extensão e podem ser limpos no painel.
 - **Remoção.** Desinstalar a extensão apaga token, configurações, timers e log.
 
@@ -411,8 +405,9 @@ RiftStream, pela Twitch ou pela Amazon. “RiftStream” e “Twitch” pertence
 seus respectivos titulares.
 
 O software é distribuído sob a licença MIT, **sem garantia de qualquer tipo**.
-A automação pode violar os Termos de Serviço das plataformas envolvidas e
-resultar em suspensão ou banimento da conta. Você é o único responsável pelo uso.
+A automação do inventário pode violar os Termos de Serviço das plataformas
+envolvidas e resultar em suspensão ou banimento da conta. Você é o único
+responsável pelo uso.
 
 ## Licença
 

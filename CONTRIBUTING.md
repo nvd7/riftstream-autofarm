@@ -44,7 +44,9 @@ Para carregar:
 - Indentação de **2 espaços**, ponto e vírgula e aspas duplas (como no código).
 - Não adicione código remoto, `eval`, telemetria ou analytics.
 - Mantenha as permissões do `manifest.json` no mínimo necessário.
-- Preserve a escolha manual de canal, a histerese e o tratamento de VIP.
+- **A extensão não pode enviar mensagens no chat.** Manter a busca de lives e a
+  abertura de aba manuais; o `$jogar`/`$me` é sempre digitado pelo usuário.
+- Preserve a lista de lives com as abas abertas no topo e o tratamento de VIP.
 - O token nunca deve ir para o popup, para a página ou para logs.
 - Mudanças de comportamento precisam atualizar README, CHANGELOG e, se
   aplicável, `docs/ARQUITETURA.md`.
@@ -73,7 +75,7 @@ Testes manuais que dependem de conta e chat estão em
   - `fix: mantém o canal em erro 503 do ranking`
   - `docs: atualiza o roteiro de validação`
 - Um PR deve explicar o problema, a solução e como validou.
-- Mudanças no chat/ranking devem incluir evidências (log ou print) sem dados
+- Mudanças no ranking/abertura de live devem incluir evidências (log ou print) sem dados
   pessoais.
 - Não inclua arquivos gerados, zips, logs ou capturas locais no commit.
 

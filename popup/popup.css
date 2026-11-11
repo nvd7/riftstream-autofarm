@@ -260,6 +260,49 @@ details.card[open] summary { margin-bottom: 9px; }
 .log .entry.warn { color: var(--gold); }
 .log .entry.error { color: #ff9a9a; }
 
+.hint {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+.hint b { color: #cfd1e0; font-weight: 600; }
+.hint code {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 3px;
+  font-size: 9.5px;
+  color: var(--purple);
+}
+
+.group-label {
+  margin: 2px 0 4px;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #8f92aa;
+}
+
+.toggle.maint {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  width: 100%;
+}
+
+.cand .cname { display: inline-flex; align-items: center; gap: 6px; }
+.cand .cbadge {
+  font-size: 7.5px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(53, 201, 111, .5);
+  color: var(--green);
+  white-space: nowrap;
+}
+
 .muted { color: var(--muted); }
 .small { font-size: 10px; }
 

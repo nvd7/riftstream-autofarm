@@ -4,6 +4,41 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [1.1.0] - 2026-11-11
+
+A extensão deixa de falar no chat e de escolher as lives sozinha. Agora ela
+**procura** as lives quando você pede e abre o chat para **você** mandar o
+comando.
+
+### Alterado
+
+- **“Procurar lives” virou uma ação manual.** A lista de lives só é montada
+  quando você clica no botão. Atualizar o painel não dispara buscas.
+- **A extensão não envia mais mensagens no chat.** Os comandos `$jogar` e `$me`
+  saíram da extensão; quem digita é você.
+- **Fim da troca automática de live.** A extensão não escolhe nem troca de canal
+  por conta própria.
+- **A manutenção do inventário continua automática** e passa a ser ligada por um
+  interruptor próprio, sem depender de uma live selecionada.
+- O status do painel agora distingue `parado`, `ativo`, `aguardando` (sem
+  personagem) e `erro`.
+
+### Adicionado
+
+- **Aba reconhecida:** lives que você já tem abertas na Twitch aparecem na lista
+  marcadas como **aberta**, mesmo se o ranking falhar.
+- **Mensagens de erro do ranking** no painel, explicando quando a API falhou ou
+  quando não há live online.
+- **Foco automático no campo do chat** ao abrir a live, para digitar o comando
+  direto.
+- Botão **Manutenção agora** para rodar equipar/gemas/forja uma vez.
+
+### Removido
+
+- Envio automático de `$jogar` e `$me`, heartbeat, detecção de AFK no chat e o
+  botão **Testar chat**.
+- Opções `heartbeatMin`, `autoSwitch`, `switchHysteresis` e `fallbackClass`.
+
 ## [1.0.0] - 2026-11-11
 
 Primeira versão pública.

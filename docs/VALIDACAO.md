@@ -1,7 +1,7 @@
 # Validação supervisionada
 
 Este roteiro cobre o que o `tools/validate.mjs` **não** consegue testar: login
-real, chat da Twitch e endpoints autenticados do RiftStream. Rode em uma conta
+real, abertura de chat e endpoints autenticados do RiftStream. Rode em uma conta
 alternativa, com o navegador visível e o log do painel aberto.
 
 > [!WARNING]
@@ -14,50 +14,54 @@ alternativa, com o navegador visível e o log do painel aberto.
 - [ ] `node tools/validate.mjs` termina com **“Tudo certo”**.
 - [ ] `chrome://extensions` mostra a extensão sem erros.
 - [ ] O ícone aparece na barra e o painel abre em 400 px.
-- [ ] O painel mostra **PARADO** antes de iniciar.
+- [ ] O painel mostra **PARADO** e “nunca buscou” antes de qualquer ação.
 - [ ] Recarregar a extensão não apaga as configurações salvas.
 
 ## 2. Login e token
 
 - [ ] `riftstream.com.br/character` está logado com a Twitch.
-- [ ] Ao abrir o painel, `hasToken` fica verdadeiro (personagem ou “sem
-  personagem” em vez de “sem login”).
+- [ ] Ao abrir o painel, o personagem aparece (ou “sem personagem carregado”).
+- [ ] `hasToken` fica verdadeiro depois de visitar o site.
 - [ ] Fazer logout no site e reabrir o painel mostra “sem login detectado”.
-- [ ] Fazer login de novo e reiniciar o AutoFarm volta a funcionar.
+- [ ] Fazer login de novo e clicar em **Manutenção agora** volta a funcionar.
 
-## 3. Ranking (não precisa de personagem)
+## 3. Procurar lives (manual)
 
-- [ ] **Atualizar** lista pelo menos uma live online.
+- [ ] Nada acontece sozinho: abrir o painel não dispara busca.
+- [ ] **PROCURAR LIVES** mostra pelo menos uma live online.
 - [ ] Lives offline não aparecem.
 - [ ] Canais só da Kick não aparecem.
-- [ ] Mudar a estratégia reordena a lista de forma coerente.
-- [ ] Clicar em um candidato abre o chat daquele canal e o destaca em verde.
-- [ ] A escolha manual permanece por 30 minutos (a menos que a live caia).
+- [ ] Mudar a ordenação (zona/público/equilibrado) reordena a lista.
+- [ ] Com uma live aberta numa aba, ela aparece no topo marcada como
+      **aberta**.
+- [ ] O texto “busca às HH:MM” aparece depois da busca.
+- [ ] Com o ranking indisponível, o painel mostra o motivo em vez de uma lista
+      vazia silenciosa.
 
-## 4. Chat da Twitch
+## 4. Abrir a live (sem enviar nada)
 
-- [ ] A aba abre em `twitch.tv/popout/{canal}/chat?popout=` no modo econômico.
-- [ ] A aba fica silenciada quando **Silenciar aba** está marcado.
-- [ ] **Testar chat** (em Configurações) envia `$me` e o campo é limpo.
-- [ ] O log registra **“Teste de chat enviado ($me)”**.
-- [ ] Sem login na Twitch, o log explica que é preciso entrar.
-- [ ] Em um canal com slow mode/followers-only, o log mostra o motivo da recusa.
+- [ ] Clicar numa live abre uma aba no chat (modo econômico) ou na live
+      completa.
+- [ ] A aba abre ativa e o campo do chat já está focado.
+- [ ] A aba fica silenciada quando **Silenciar aba da live** está marcado.
+- [ ] **Nenhuma mensagem aparece no chat** depois de abrir a live.
+- [ ] O log mostra “Abrindo chat de … Envie o comando no chat.”
+- [ ] **Abrir live atual** abre a live completa do canal escolhido.
+- [ ] Você consegue digitar `$jogar <classe>` e enviar pelo seu teclado.
 
-## 5. Entrada e heartbeat
+## 5. Personagem
 
-- [ ] **INICIAR AUTOFARM** envia `$jogar <classe atual>`.
-- [ ] O personagem aparece em `currentChannel` com o login do canal.
-- [ ] O log mostra **“Entrou em … com $jogar …”**.
-- [ ] Com `heartbeatMin = 5`, o `$me` é enviado no intervalo (acompanhe o log).
-- [ ] Forçar AFK (ficar sem comandos além do limite) dispara `$me` antes do
-  próximo heartbeat.
-- [ ] Fechar a aba da Twitch faz a extensão recriá-la no ciclo seguinte.
-- [ ] Navegar a aba para outro site faz a extensão voltar ao canal atual.
+- [ ] Depois do `$jogar`, o personagem aparece no painel com nome, classe,
+      nível, FC, ouro e canal.
+- [ ] Ficar muito tempo sem comandos marca **AFK** no cartão do personagem.
+- [ ] Sem personagem, o status mostra **aguardando** (não “erro”).
 
-## 6. Manutenção autenticada
+## 6. Manutenção automática
 
-Execute **Manutenção** uma vez com o personagem carregado.
+Ligue **Manutenção automática do inventário**.
 
+- [ ] O status do painel passa para **ativo** e o badge mostra `ON`.
+- [ ] **Manutenção agora** roda uma vez e informa o que fez no log.
 - [ ] Itens melhores são equipados e o log mostra o ganho de FC.
 - [ ] Itens piores **não** são equipados (compare `power` × `newPower`).
 - [ ] Com 3 gemas iguais, o “combinar todas” executa e o custo aparece no log.
@@ -70,12 +74,13 @@ Execute **Manutenção** uma vez com o personagem carregado.
 
 ## 7. Resiliência
 
-- [ ] Fechar e reabrir o navegador mantém `running = true` e o farm volta.
+- [ ] Desmarcar a manutenção para o ciclo e o badge some.
+- [ ] Fechar e reabrir o navegador mantém `running` e a manutenção volta.
 - [ ] Deixar o service worker dormir (aguardar alguns minutos) não interrompe o
-  ciclo; o alarme acorda o worker.
-- [ ] Simular rede lenta/offline: o log registra o erro e o farm se recupera.
-- [ ] Um `503` isolado no ranking **não** troca de canal.
-- [ ] A live atual cair faz a extensão escolher outra no próximo ciclo.
+      ciclo; o alarme acorda o worker.
+- [ ] Simular rede lenta/offline: o log registra o erro e a extensão se
+      recupera.
+- [ ] Fechar a aba da Twitch não recria a aba sozinho (só limpa o estado).
 - [ ] Token expirado (`401`) limpa a sessão e pede login novamente.
 
 ## 8. Regressão antes de release
@@ -99,9 +104,9 @@ Execute **Manutenção** uma vez com o personagem carregado.
 ## O que não é testável em CI
 
 - Login real na Twitch (CAPTCHA, 2FA e cookies).
-- Envio de mensagens no chat (slow mode, followers-only, sub-only).
+- Ranking público fora do ar ou com resposta inesperada.
 - Endpoints autenticados do RiftStream e regras de VIP.
 - Mudanças de layout/API do site.
 
 Esses itens exigem validação manual e devem ser repetidos a cada release que
-toque em chat, ranking ou manutenção.
+toque em ranking, abertura de aba ou manutenção.
