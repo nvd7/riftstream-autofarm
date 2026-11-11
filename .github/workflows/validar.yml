@@ -32,10 +32,13 @@ jobs:
       - name: Empacotar release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          mkdir -p dist
-          zip -r "dist/riftstream-autofarm-${GITHUB_REF_NAME}.zip" \
-            manifest.json background.js content popup icons \
-            README.md LICENSE CHANGELOG.md PRIVACY.md
+          mkdir -p dist/riftstream-autofarm
+          cp -r manifest.json background.js content popup icons \
+            README.md LICENSE CHANGELOG.md PRIVACY.md \
+            dist/riftstream-autofarm/
+          cd dist
+          zip -r "riftstream-autofarm-${GITHUB_REF_NAME}.zip" riftstream-autofarm
+          unzip -l "riftstream-autofarm-${GITHUB_REF_NAME}.zip"
 
       - name: Publicar artefato
         if: startsWith(github.ref, 'refs/tags/v')
