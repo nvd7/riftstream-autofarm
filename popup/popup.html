@@ -65,22 +65,41 @@
       </label>
     </section>
 
-    <details class="card" id="settingsCard">
-      <summary>Configurações</summary>
+    <details class="card" id="functionsCard" open>
+      <summary>Funções</summary>
 
-      <div class="grid2">
-        <label class="field">
-          <span>Manutenção (min)</span>
-          <input id="maintenanceMin" type="number" min="2" max="60" step="1" />
-        </label>
-        <label class="field">
-          <span>Mín. jogadores na lista</span>
-          <input id="minPlayers" type="number" min="1" max="500" step="1" />
-        </label>
-        <label class="field">
-          <span>Ouro reservado</span>
-          <input id="goldReserve" type="number" min="0" step="1000" />
-        </label>
+      <p class="group-label">Personagem e inventário</p>
+      <div class="toggles">
+        <label class="toggle"><input id="autoStats" type="checkbox" /><span>Gastar ouro em atributos</span></label>
+        <label class="toggle"><input id="autoEquip" type="checkbox" /><span>Equipar os melhores itens</span></label>
+        <label class="toggle"><input id="autoGems" type="checkbox" /><span>Combinar gemas</span></label>
+        <label class="toggle"><input id="autoSocket" type="checkbox" /><span>Engastar gemas nos equipados</span></label>
+        <label class="toggle"><input id="autoOrganize" type="checkbox" /><span>Organizar baús</span></label>
+      </div>
+
+      <p class="group-label">Forja e aprimoramento (destrutivos)</p>
+      <div class="toggles">
+        <label class="toggle"><input id="autoForge" type="checkbox" /><span>Forjar itens (sem VIP)</span></label>
+        <label class="toggle"><input id="autoEnhance" type="checkbox" /><span>Aprimorar itens</span></label>
+      </div>
+      <p class="hint warn-hint">
+        <b>Forjar:</b> junta 3–4 itens iguais (mesmo slot e raridade) e
+        <b>pode falhar</b>, perdendo tudo. <b>Aprimorar:</b> destrói itens do
+        mesmo tipo para subir o nível do alvo. Os dois usam os endpoints normais
+        do jogo — <b>não precisam de VIP</b> — e vêm desligados.
+      </p>
+
+      <p class="group-label">Abrir live</p>
+      <div class="toggles">
+        <label class="toggle"><input id="chatOnly" type="checkbox" /><span>Modo econômico (só chat)</span></label>
+        <label class="toggle"><input id="muteTab" type="checkbox" /><span>Silenciar aba da live</span></label>
+      </div>
+
+      <p class="group-label">Venda automática (VIP)</p>
+      <div class="toggles">
+        <label class="toggle"><input id="autoSell" type="checkbox" /><span>Vender itens sozinho</span></label>
+      </div>
+      <div class="grid2 sellcfg">
         <label class="field">
           <span>Vender até raridade</span>
           <select id="sellRarity">
@@ -97,25 +116,42 @@
         </label>
       </div>
 
-      <p class="group-label">Inventário</p>
-      <div class="toggles">
-        <label class="toggle"><input id="autoEquip" type="checkbox" /><span>Equipar os melhores itens</span></label>
-        <label class="toggle"><input id="autoGems" type="checkbox" /><span>Subir gemas automaticamente</span></label>
-        <label class="toggle"><input id="autoForge" type="checkbox" /><span>Forjar itens (VIP)</span></label>
-        <label class="toggle"><input id="autoSocket" type="checkbox" /><span>Engastar gemas nos equipados</span></label>
-        <label class="toggle"><input id="autoOrganize" type="checkbox" /><span>Organizar baús</span></label>
-        <label class="toggle"><input id="autoSell" type="checkbox" /><span>Venda automática (VIP)</span></label>
-      </div>
-
-      <p class="group-label">Ao abrir uma live</p>
-      <div class="toggles">
-        <label class="toggle"><input id="chatOnly" type="checkbox" /><span>Modo econômico (só chat)</span></label>
-        <label class="toggle"><input id="muteTab" type="checkbox" /><span>Silenciar aba da live</span></label>
-      </div>
-
       <div class="row">
         <span id="saveHint" class="muted small"></span>
       </div>
+    </details>
+
+    <details class="card" id="settingsCard">
+      <summary>Ajustes</summary>
+      <div class="grid2">
+        <label class="field">
+          <span>Manutenção (min)</span>
+          <input id="maintenanceMin" type="number" min="2" max="60" step="1" />
+        </label>
+        <label class="field">
+          <span>Mín. jogadores na lista</span>
+          <input id="minPlayers" type="number" min="1" max="500" step="1" />
+        </label>
+        <label class="field">
+          <span>Ouro reservado</span>
+          <input id="goldReserve" type="number" min="0" step="1000" />
+        </label>
+        <label class="field">
+          <span>Prioridade dos atributos</span>
+          <select id="statPriority">
+            <option value="balanced">Equilibrado (mais barato)</option>
+            <option value="str">Força</option>
+            <option value="vit">Vitalidade</option>
+            <option value="def">Defesa</option>
+            <option value="agi">Agilidade</option>
+            <option value="luk">Sorte</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">
+        O <b>ouro reservado</b> é o mínimo que a extensão nunca gasta: forja,
+        aprimoramento, engaste e venda respeitam esse valor.
+      </p>
     </details>
 
     <section class="card">

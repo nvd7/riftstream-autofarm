@@ -9,8 +9,8 @@ A extensão **não fala no chat**. Ela faz duas coisas, e só isso:
 
 1. **Procura lives** no ranking público quando o usuário pede e abre o chat da
    live escolhida.
-2. **Mantém o inventário** do personagem pela API do site (equipar, gemas,
-   forjar, engastar, organizar, venda automática).
+2. **Mantém o inventário** do personagem pela API do site (atributos, equipar,
+   gemas, forjar, aprimorar, engastar, organizar, venda automática).
 
 Os comandos do jogo (`$jogar`, `$me`) são digitados pelo usuário. Isso elimina
 qualquer risco de a extensão mandar mensagem sem querer e deixa o usuário no
@@ -44,12 +44,12 @@ Todo o estado fica em `chrome.storage.local` na chave `rsaf_state_v1`:
     openedAt: 0
   },
   timers: {
-    lastMaintenance, lastForge, lastGems, lastOrganize,
-    lastEquipSig, autosellCfg
+    lastMaintenance, lastStats, lastForge, lastEnhance, lastGems,
+    lastOrganize, lastEquipSig, autosellCfg
   },
   runtime: {
     status, lastError, lastAction, character, candidates,
-    scanAt, scanError, awaitingCharacter, autosellDisabled
+    scanAt, scanError, awaitingCharacter, lastTransient, autosellDisabled
   },
   log: [ { t, msg, level } ]      // até 80 entradas
 }
@@ -59,7 +59,7 @@ O estado em memória é carregado uma vez por vida do service worker e salvo ap�
 cada ciclo. Se o Chrome encerrar o worker, a próxima chamada relê o storage.
 
 `normalizeState()` descarta campos antigos (por exemplo, `manualUntil`,
-`channelMisses` e os timers de chat da v1.0) e mantém apenas o que a v1.1 usa.
+`channelMisses` e os timers de chat da v1.0) e mantém apenas o que a v1.2 usa.
 
 ## Ciclo da manutenção
 
@@ -73,10 +73,12 @@ tick()
  ├─ lê o personagem (/api/me/character)
  │   └─ 404 ............... status "aguardando"; loga uma vez
  ├─ manutenção a cada N minutos
+ │   ├─ gastar ouro em atributos
  │   ├─ equipar
  │   ├─ gemas
  │   ├─ engastar
- │   ├─ forjar
+ │   ├─ forjar (sem VIP)
+ │   ├─ aprimorar (sem VIP)
  │   ├─ organizar
  │   └─ venda automática
  ├─ mantém a aba aberta (recria/recarega se preciso)
@@ -129,6 +131,10 @@ fora do ar — por isso “eu já estou em uma live” sempre tem uma opção.
 
 ## Manutenção do inventário
 
+- **Gastar ouro:** `POST /api/me/character/stats/{str|vit|def|agi|luk}` com
+  `{ amount: 1 }`, repetindo enquanto o custo couber acima de `goldReserve`.
+  Prioridade `balanced` escolhe sempre o atributo mais barato; `luk` para no cap
+  informado pelo servidor.
 - **Equipar:** agrupa os itens não equipados por slot, ordena por
   `itemLevel + raridade × 8`, testa no máximo 5 por slot e equipa somente quando
   o `compare` confirma ganho de FC. A assinatura do inventário evita repetir a
@@ -136,8 +142,13 @@ fora do ar — por isso “eu já estou em uma live” sempre tem uma opção.
 - **Gemas:** executa a prévia; se `merges === 0`, não faz nada. Se
   `canAfford === false`, registra o custo e espera. Caso contrário, executa o
   `POST`.
-- **Forja:** roda a cada 30 minutos, respeitando `goldReserve`. Erros com “VIP”
-  desativam a opção.
+- **Forja (sem VIP):** agrupa itens elegíveis por slot e raridade (Evento conta
+  como Épico), pega os 3–4 de maior nível e calcula o custo com a mesma fórmula
+  do site. Envia `{ itemIds, scrollItemId: null }` para `/api/me/items/fuse`,
+  respeitando `goldReserve`. A forja pode falhar e perder os itens.
+- **Aprimoramento (sem VIP):** escolhe o item equipado (ou o de maior nível) de
+  cada slot e usa a prévia oficial para saber o custo. Só destrói itens do mesmo
+  slot, mais fracos, sem gemas, não equipados e não favoritos.
 - **Engaste:** escolhe a gema de maior tier disponível, com prioridade por
   classe, e só usa itens equipados com espaço livre e nível ≥ 20.
 - **Organização:** a cada 6 horas, quando ativada.
@@ -151,11 +162,14 @@ Base: `https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com` (`API_BASE` em
 
 | Método | Caminho | Uso |
 |---|---|---|
+| `POST` | `/api/me/character/stats/{atributo}` | Gastar ouro em atributos |
 | `GET` | `/api/me/character` | Personagem, itens, gemas, ouro e canal |
 | `GET` | `/api/me/items/{id}/compare` | `{ power, newPower }` antes de equipar |
 | `POST` | `/api/me/items/{id}/equip` | Equipar item |
 | `POST` | `/api/me/gems/combine-all` | Prévia (`GET`) e execução (`POST`) |
-| `POST` | `/api/me/items/fuse-all` | Fundir tudo (VIP) |
+| `POST` | `/api/me/items/fuse` | Forja normal, sem VIP |
+| `POST` | `/api/me/items/enhance/preview` | Prévia de custo do aprimoramento |
+| `POST` | `/api/me/items/enhance` | Aprimoramento, sem VIP |
 | `POST` | `/api/me/items/{id}/socket` | Engastar gema |
 | `POST` | `/api/me/items/organize` | Organizar baús |
 | `PUT` | `/api/shop/autosell` | Venda automática (VIP) |
@@ -188,7 +202,8 @@ O content script do site ainda envia `RSAF_TOKEN`; o da Twitch envia
 |---|---|
 | Token expirado (`401`) | Token é apagado; o log pede novo login |
 | Personagem inexistente (`404`) | Status “aguardando”; loga uma vez sem repetir |
-| API instável | Erro no log; a lista anterior é mantida |
+| API instável (`503`/rede) | GET repete até 3× com espera crescente e `Retry-After`; status “instável”, sem erro permanente |
+| Escrita com `503` | Não é repetida (evita efeito duplicado); o próximo ciclo tenta de novo |
 | Ranking vazio | `scanError` explica o motivo no painel |
 | Aba fechada | `state.current` é limpo; nada é recriado sozinho |
 | Aba descartada | Recarregada no próximo tick |

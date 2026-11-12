@@ -66,8 +66,12 @@ Ligue **Manutenção automática do inventário**.
 - [ ] Itens piores **não** são equipados (compare `power` × `newPower`).
 - [ ] Com 3 gemas iguais, o “combinar todas” executa e o custo aparece no log.
 - [ ] Sem ouro suficiente, o log informa o custo e não combina.
-- [ ] Com VIP, “fundir tudo” executa e informa `fusions`/`cost`.
-- [ ] Sem VIP, a forja é desativada com aviso claro.
+- [ ] **Gastar ouro em atributos** sobe um nível e respeita o ouro reservado.
+- [ ] **Forjar** (ligado no menu) monta um grupo de 3–4 itens iguais, informa o
+      resultado no log e não usa “fundir tudo”/VIP.
+- [ ] **Aprimorar** (ligado no menu) mostra o custo na prévia e destrói apenas
+      doadores mais fracos do mesmo slot.
+- [ ] Forja e aprimoramento vêm **desligados** por padrão.
 - [ ] Engaste só acontece com gema de tier ≥ 2 e espaço livre no item.
 - [ ] Organizar baús roda no máximo a cada 6 horas.
 - [ ] Venda automática aplica raridade/nível (VIP) e é restaurada ao desligar.
@@ -80,6 +84,9 @@ Ligue **Manutenção automática do inventário**.
       ciclo; o alarme acorda o worker.
 - [ ] Simular rede lenta/offline: o log registra o erro e a extensão se
       recupera.
+- [ ] Em `503 Service Unavailable`, o status fica **instável** (âmbar), a busca
+      manual insiste e o painel não mostra erro fatal.
+- [ ] Escritas (equipar/forjar) não são repetidas em caso de 503.
 - [ ] Fechar a aba da Twitch não recria a aba sozinho (só limpa o estado).
 - [ ] Token expirado (`401`) limpa a sessão e pede login novamente.
 

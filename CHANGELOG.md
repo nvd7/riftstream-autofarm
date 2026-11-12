@@ -4,6 +4,41 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [1.2.0] - 2026-11-12
+
+Cada automação ganha um interruptor no painel, forja e aprimoramento passam a
+usar os endpoints normais (sem VIP) e a extensão fica mais resistente às quedas
+intermitentes do RiftStream.
+
+### Adicionado
+
+- **Menu “Funções”** com um interruptor para cada automação: gastar ouro em
+  atributos, equipar, combinar gemas, engastar, organizar baús, forjar,
+  aprimorar e vender.
+- **Gastar ouro em atributos** (`POST /api/me/character/stats/{atributo}`), com
+  prioridade configurável (equilibrado ou um atributo específico) e respeito ao
+  ouro reservado.
+- **Forja sem VIP** (`POST /api/me/items/fuse`): monta os grupos de 3–4 itens do
+  mesmo slot e raridade, calcula o custo antes e para se o ouro reservado for
+  comprometido.
+- **Aprimoramento sem VIP** (`POST /api/me/items/enhance`): usa a prévia oficial
+  de custo e destrói apenas itens mais fracos do mesmo slot, sem gemas,
+  equipados ou favoritos.
+- **Status “instável”** no painel e no selo da extensão quando o servidor
+  responde 503/erro de rede, sem transformar o soluço em erro permanente.
+
+### Alterado
+
+- **Forja e aprimoramento vêm desligados por padrão**, por serem destrutivos; a
+  forja pode falhar e perder os itens.
+- **Leituras da API (GET) são repetidas** até 3 vezes com espera crescente e
+  respeito ao `Retry-After`. Escritas (POST/PUT) não são repetidas, para não
+  duplicar efeitos.
+- A busca manual de lives insiste uma vez quando o ranking responde 503 e mostra
+  uma mensagem amigável se o serviço continuar indisponível.
+- **“Fundir tudo” (VIP) foi removido** da automação; a forja agora usa o caminho
+  normal do jogo.
+
 ## [1.1.0] - 2026-11-11
 
 A extensão deixa de falar no chat e de escolher as lives sozinha. Agora ela

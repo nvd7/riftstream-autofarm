@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.1.0-f5c451" alt="Versão 1.1.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.2.0-f5c451" alt="Versão 1.2.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -38,8 +38,8 @@
 > **A extensão não envia mensagens no chat.** Ela só busca as lives e abre o
 > chat da Twitch. Os comandos (`$jogar`, `$me`…) são digitados **por você**.
 > O único trabalho automático é a **manutenção do inventário** (equipar itens
-> melhores, combinar gemas, forjar), que usa a API oficial do site e **não passa
-> pelo chat**.
+> melhores, combinar gemas, forjar e aprimorar), que usa a API oficial do site e
+> **não passa pelo chat**. Cada função tem um **interruptor no menu**.
 
 > [!WARNING]
 > **Automatizar o inventário viola os Termos do RiftStream.** A seção 5 proíbe o
@@ -49,10 +49,13 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v1.1.0.** Busca de lives, abertura de chat, equipar, gemas, forja,
-> engaste, organização e venda automática estão implementados. Os endpoints
-> autenticados seguem a API observada no próprio front-end do site; mudanças no
-> RiftStream podem exigir ajustes. O primeiro uso deve ser supervisionado.
+> **Status: v1.2.0.** Busca de lives, abertura de chat, equipar, gemas, forja,
+> aprimoramento, engaste, organização e venda automática estão implementados.
+> **Forja e aprimoramento não precisam de VIP** — usam os mesmos endpoints do
+> site (`/api/me/items/fuse` e `/api/me/items/enhance`); só o “fundir tudo” e a
+> venda automática são exclusivos de VIP. Os endpoints seguem a API observada no
+> front-end atual; mudanças no RiftStream podem exigir ajustes. O primeiro uso
+> deve ser supervisionado.
 
 ---
 
@@ -69,7 +72,8 @@ canal. O **AutoFarm** ajuda nesse ciclo, sem falar por você:
 4. **Você** manda o comando no chat (`$jogar arqueiro`, por exemplo) pelo seu
    próprio teclado.
 5. Se quiser, ative a **manutenção automática do inventário**: a extensão compara
-   os itens com a FC, equipa o que for melhor, combina gemas e forja itens.
+   os itens com a FC, equipa o que for melhor, combina gemas e, se você ligar,
+   forja e aprimora itens sem VIP.
 
 Tudo acontece na sua máquina. O token de login fica no `chrome.storage.local` e
 é usado apenas para chamar a API oficial do RiftStream.
@@ -90,14 +94,23 @@ Tudo acontece na sua máquina. O token de login fica no `chrome.storage.local` e
   followers-only e sub-only deixam de ser problema.
 - **Manutenção por FC:** usa `GET /api/me/items/{id}/compare` e só equipa quando
   `newPower > power`, testando os melhores candidatos de cada slot.
+- **Gastar ouro:** sobe os atributos do personagem (`str`, `vit`, `def`, `agi`,
+  `luk`) com prioridade equilibrada ou um atributo escolhido, sempre respeitando o
+  ouro reservado.
 - **Gemas:** executa o mesmo “combinar todas” do site e respeita o ouro
   disponível.
-- **Forja:** “fundir tudo” automático (recurso VIP), com intervalo e reserva de
-  ouro configuráveis.
+- **Forja sem VIP:** monta grupos de 3–4 itens do mesmo slot e raridade e chama o
+  endpoint normal da forja. As regras são as mesmas do site e a reserva de ouro é
+  respeitada.
+- **Aprimoramento sem VIP:** usa a prévia oficial de custo e destrói apenas itens
+  mais fracos do mesmo slot — nunca equipados, favoritos ou com gemas.
+- **Menu de funções:** cada automação tem seu próprio interruptor; as destrutivas
+  (forja e aprimoramento) vêm desligadas.
 - **Extras opcionais:** engastar gemas nos itens equipados, organizar baús por
   nível e configurar a venda automática (VIP).
-- **Tolerância a falhas:** erros transitórios do ranking não apagam a lista; a
-  sessão expirada é detectada e o token é limpo.
+- **Tolerância a falhas:** leituras (GET) são repetidas em 503/erro de rede; a
+  lista de lives não é apagada por erro transitório e a sessão expirada é
+  detectada.
 - **Painel em PT-BR:** personagem, lives encontradas, configurações e log com
   timestamp. Tudo local, sem telemetria.
 
@@ -161,8 +174,8 @@ As configurações e o token continuam salvos entre atualizações.
 4. Escolha uma live. A extensão abre o **chat** dela na Twitch com o campo
    pronto para digitar.
 5. No chat, mande o comando você mesmo: `$jogar arqueiro` (ou a sua classe).
-6. (Opcional) Marque **Manutenção automática do inventário** para a extensão
-   cuidar de equipar, gemas e forja em segundo plano.
+6. (Opcional) Marque **Manutenção automática do inventário** e escolha em
+   **Funções** o que ela pode fazer (equipar, gemas, atributos, forja…).
 
 O personagem aparece alguns segundos depois do `$jogar`. Se a live não tiver o
 bot do RiftStream, tente outra da lista.
@@ -173,7 +186,8 @@ bot do RiftStream, tente outra da lista.
 |---|---|
 | **Lives** | Lista das lives online (zona/onda/público) e o botão **Procurar lives** |
 | **Personagem** | Nome, classe, nível, FC, ouro e canal atual |
-| **Configurações** | Intervalos, filtros e o que a manutenção pode fazer |
+| **Funções** | Um interruptor para cada automação do inventário |
+| **Ajustes** | Intervalos, filtros, ouro reservado e prioridade dos atributos |
 | **Log** | Últimas ações, avisos e erros com horário |
 
 ### Ordenação
@@ -216,12 +230,15 @@ As opções ficam no painel e são salvas automaticamente em
 | `strategy` | `zone` | Ordem da lista: `zone`, `players` ou `balanced` |
 | `maintenanceMin` | `5` | Intervalo da manutenção automática, em minutos (2–60) |
 | `minPlayers` | `3` | Esconde da lista as lives com menos jogadores que isso |
-| `goldReserve` | `50000` | Não forja nem engasta abaixo desse ouro |
+| `goldReserve` | `50000` | Ouro que nunca é gasto (atributos, forja, aprimoramento, engaste e venda) |
+| `autoStats` | `true` | Gasta ouro subindo atributos |
+| `statPriority` | `balanced` | `balanced` (mais barato), `str`, `vit`, `def`, `agi` ou `luk` |
 | `autoEquip` | `true` | Equipa automaticamente o melhor item por slot |
 | `autoGems` | `true` | Combina gemas de 3 em 3 |
-| `autoForge` | `true` | Funde itens automaticamente (**VIP**) |
+| `autoForge` | `false` | Forja itens pelos endpoints normais, sem VIP (destrutivo) |
+| `autoEnhance` | `false` | Aprimora itens destruindo os mais fracos (destrutivo) |
 | `autoSocket` | `false` | Engasta gemas nos itens equipados |
-| `autoOrganize` | `false` | Organiza os baús por nível |
+| `autoOrganize` | `true` | Organiza os baús por nível |
 | `autoSell` | `false` | Configura a venda automática (**VIP**) |
 | `sellRarity` | `2` | Vende até esta raridade (`-1` desliga, `3` = épico) |
 | `sellLevel` | `40` | Vende itens até este nível |
@@ -242,7 +259,7 @@ ranking público ──► lista de lives ──► você escolhe ──► chat
                                                             │
                                                             └─ você digita $jogar/$me
 
-API do RiftStream ──► personagem ──► manutenção (equipar/gemas/forja)
+API do RiftStream ──► personagem ──► manutenção (atributos/equipar/gemas/forja)
 ```
 
 ### Busca de lives
@@ -272,14 +289,18 @@ API do RiftStream ──► personagem ──► manutenção (equipar/gemas/for
 
 | Ação | Endpoint | Regra |
 |---|---|---|
+| Gastar ouro | `POST /api/me/character/stats/{atributo}` | `{ amount: 1 }`; prioridade e reserva de ouro |
 | Equipar | `POST /api/me/items/{id}/equip` | Só se `newPower > power` no `compare` |
 | Combinar gemas | `POST /api/me/gems/combine-all` | Respeita `merges`, `cost` e `canAfford` |
-| Forjar | `POST /api/me/items/fuse-all` | VIP; respeita a reserva de ouro |
+| Forjar | `POST /api/me/items/fuse` | 3–4 itens do mesmo slot/raridade; sem VIP |
+| Aprimorar | `POST /api/me/items/enhance` | Prévia em `/enhance/preview`; doadores mais fracos |
 | Engastar | `POST /api/me/items/{id}/socket` | Gema de maior tier disponível |
 | Organizar | `POST /api/me/items/organize` | A cada 6 horas, se ativado |
 | Venda automática | `PUT /api/shop/autosell` | VIP; aplica raridade e nível |
 
 Se a API recusar um recurso VIP, a opção é desativada e o motivo aparece no log.
+Forja e aprimoramento **não são VIP**: só o atalho “fundir tudo” e a venda
+automática exigem assinatura.
 
 ### Permissões
 
@@ -324,8 +345,11 @@ Documentação adicional:
 - **A extensão não entra na live por você.** Ela mostra a lista e abre o chat; o
   `$jogar` é seu.
 - **Não há troca automática de live.** Se a atual cair, procure outra no painel.
-- **Forja e venda automática são VIP.** Sem VIP, a API recusa e a extensão
-  desativa a opção.
+- **Forja e aprimoramento são destrutivos.** A forja pode falhar e perder os
+  itens usados; o aprimoramento destrói os doadores. As duas opções vêm
+  desligadas e nunca usam VIP.
+- **A venda automática é VIP.** Sem VIP, a API recusa e a extensão desativa a
+  opção.
 - **Canais exclusivos da Kick são ignorados.** O foco é o chat da Twitch.
 - **O navegador precisa ficar aberto.** Fechar o navegador interrompe a
   manutenção automática.
@@ -347,7 +371,8 @@ Documentação adicional:
 | “Não consegui falar com a extensão” | Service worker reiniciou ou a extensão foi recarregada | Feche e abra o painel; se persistir, recarregue a extensão |
 | Personagem não aparece | Bot ausente ou `$jogar` ainda processando | Confira se você mandou `$jogar` no chat; aguarde ou troque de live |
 | Manutenção não roda | Está desligada ou sem token | Marque **Manutenção automática do inventário** e confirme o site logado |
-| Forja/venda desativada | Conta sem VIP ou API recusou | Reative depois de virar VIP; veja o log |
+| Forja/venda desativada | Conta sem VIP (venda) ou API recusou a forja | Para forjar, confira ouro e itens iguais; para vender, reative depois de virar VIP; veja o log |
+| “RiftStream indisponível agora” | 503 intermitente do servidor | Espere alguns segundos e clique em **Procurar lives** de novo; a extensão já repete leituras |
 | Aba da Twitch descartada | Economia de memória do navegador | Desative a economia para a aba ou mantenha o navegador ativo |
 | Erro 401/403 no log | Token expirado ou permissão insuficiente | Faça login de novo no site e reative a manutenção |
 

@@ -91,6 +91,11 @@ main { padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 9px;
   padding: 8px 10px;
   line-height: 1.35;
 }
+.alert.warn {
+  border-color: rgba(224, 184, 74, .45);
+  background: rgba(224, 184, 74, .1);
+  color: #f0d18a;
+}
 .hidden { display: none !important; }
 
 .bigbtn {
@@ -267,6 +272,8 @@ details.card[open] summary { margin-bottom: 9px; }
   line-height: 1.45;
 }
 .hint b { color: #cfd1e0; font-weight: 600; }
+.hint.warn-hint { color: #b9a06a; }
+.hint.warn-hint b { color: #e6c87a; }
 .hint code {
   background: var(--bg2);
   border: 1px solid var(--line);

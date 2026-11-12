@@ -53,9 +53,12 @@ function render() {
   const err = localError || (state?.runtime?.status === "erro" ? state.runtime?.lastError : "");
   if (err) {
     errorBox.textContent = err;
-    errorBox.classList.remove("hidden");
+    errorBox.className = "alert";
+  } else if (state?.runtime?.status === "instavel") {
+    errorBox.textContent = "O RiftStream está instável agora. Vou tentar de novo automaticamente.";
+    errorBox.className = "alert warn";
   } else {
-    errorBox.classList.add("hidden");
+    errorBox.className = "alert hidden";
   }
 
   if (!state) return;
@@ -68,6 +71,9 @@ function render() {
   } else if (status === "erro") {
     pill.textContent = "erro";
     pill.classList.add("err");
+  } else if (status === "instavel") {
+    pill.textContent = "instável";
+    pill.classList.add("wait");
   } else if (status === "iniciando" || status === "aguardando") {
     pill.textContent = status;
     pill.classList.add("wait");
@@ -212,9 +218,12 @@ function renderSettings() {
   setVal("goldReserve", s.goldReserve);
   setVal("sellRarity", s.sellRarity);
   setVal("sellLevel", s.sellLevel);
+  setVal("statPriority", s.statPriority);
+  setCheck("autoStats", s.autoStats);
   setCheck("autoEquip", s.autoEquip);
   setCheck("autoGems", s.autoGems);
   setCheck("autoForge", s.autoForge);
+  setCheck("autoEnhance", s.autoEnhance);
   setCheck("autoSocket", s.autoSocket);
   setCheck("autoOrganize", s.autoOrganize);
   setCheck("autoSell", s.autoSell);
@@ -266,9 +275,12 @@ function gatherSettings() {
     goldReserve: Number($("goldReserve").value),
     sellRarity: Number($("sellRarity").value),
     sellLevel: Number($("sellLevel").value),
+    statPriority: $("statPriority").value,
+    autoStats: $("autoStats").checked,
     autoEquip: $("autoEquip").checked,
     autoGems: $("autoGems").checked,
     autoForge: $("autoForge").checked,
+    autoEnhance: $("autoEnhance").checked,
     autoSocket: $("autoSocket").checked,
     autoOrganize: $("autoOrganize").checked,
     autoSell: $("autoSell").checked,
@@ -400,8 +412,8 @@ function wire() {
   });
 
   for (const el of document.querySelectorAll(
-    "#strategy, #maintenanceMin, #minPlayers, #goldReserve, #sellRarity, #sellLevel, " +
-    "#autoEquip, #autoGems, #autoForge, #autoSocket, #autoOrganize, #autoSell, #chatOnly, #muteTab"
+    "#strategy, #maintenanceMin, #minPlayers, #goldReserve, #sellRarity, #sellLevel, #statPriority, " +
+    "#autoStats, #autoEquip, #autoGems, #autoForge, #autoEnhance, #autoSocket, #autoOrganize, #autoSell, #chatOnly, #muteTab"
   )) {
     el.addEventListener("change", scheduleSave);
     if (el.tagName === "INPUT" && el.type === "number") {

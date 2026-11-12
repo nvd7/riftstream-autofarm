@@ -18,6 +18,16 @@ const STORAGE_KEY = "rsaf_state_v1";
 const ALARM_NAME = "rsaf_tick";
 const EQUIP_SLOTS = ["weapon", "helmet", "armor", "ring"];
 const GEM_TYPES = ["ruby", "sapphire", "topaz", "emerald", "amethyst"];
+const RARITY = ["Comum", "Incomum", "Raro", "Épico", "Lendário", "Evento", "Imortal", "Arcano"];
+
+/* Regras da forja do próprio site (forjar NÃO é VIP; "fundir tudo" é que é). */
+const FORGE_SLOTS = ["ring", "weapon", "helmet", "armor"];
+const FORGE_COST_FACTOR = [1, 1.35, 1.8, 2.5, 4, 3, 7, 11];
+const ENHANCE_MAX_DONORS = 10;
+
+/* "Gastar ouro": níveis de atributo (POST /api/me/character/stats/{chave}). */
+const STAT_LABELS = { str: "Força", vit: "Vitalidade", def: "Defesa", agi: "Agilidade", luk: "Sorte" };
+const STAT_ORDER = ["luk", "str", "vit", "def", "agi"];
 
 /* Páginas da Twitch que não são canais. */
 const TWITCH_RESERVED = new Set([
@@ -34,11 +44,14 @@ const DEFAULT_SETTINGS = {
   goldReserve: 50000,
   sellRarity: 2,
   sellLevel: 40,
+  autoStats: true,           // gasta ouro subindo atributos
+  statPriority: "balanced",  // balanced | str | vit | def | agi | luk
   autoEquip: true,
   autoGems: true,
-  autoForge: true,
+  autoForge: false,          // destrutivo: desligado por padrão
+  autoEnhance: false,        // destrutivo: desligado por padrão
   autoSocket: false,
-  autoOrganize: false,
+  autoOrganize: true,
   autoSell: false,
   chatOnly: true,            // abrir só o chat (popout) por padrão
   muteTab: true
@@ -46,7 +59,9 @@ const DEFAULT_SETTINGS = {
 
 const DEFAULT_TIMERS = {
   lastMaintenance: 0,
+  lastStats: 0,
   lastForge: 0,
+  lastEnhance: 0,
   lastGems: 0,
   lastOrganize: 0,
   lastOrganizedAt: 0,
@@ -63,6 +78,7 @@ const DEFAULT_RUNTIME = {
   scanAt: 0,
   scanError: null,
   awaitingCharacter: false,
+  lastTransient: 0,
   autosellDisabled: false
 };
 
@@ -100,10 +116,11 @@ function normalizeSettings(raw = {}) {
     goldReserve: clamp(num(r.goldReserve, 50000), 0, 1000000000),
     sellRarity: clamp(num(r.sellRarity, 2), -1, 3),
     sellLevel: clamp(num(r.sellLevel, 40), 0, 9999),
+    statPriority: ["balanced", "str", "vit", "def", "agi", "luk"].includes(r.statPriority) ? r.statPriority : "balanced",
     chatOnly: bool(r.chatOnly, true),
     muteTab: bool(r.muteTab, true)
   };
-  for (const k of ["autoEquip", "autoGems", "autoForge", "autoSocket", "autoOrganize", "autoSell"]) {
+  for (const k of ["autoStats", "autoEquip", "autoGems", "autoForge", "autoEnhance", "autoSocket", "autoOrganize", "autoSell"]) {
     s[k] = bool(r[k], DEFAULT_SETTINGS[k]);
   }
   return s;
@@ -168,27 +185,70 @@ class ApiError extends Error {
   }
 }
 
-async function rawApi(path, { method = "GET", body, token } = {}) {
+/* O RiftStream responde 503 "Service Unavailable" de forma intermitente; na
+ * prática, insistir resolve. As leituras (GET) são repetidas com um pequeno
+ * intervalo. Escritas (POST/PUT) NÃO são repetidas para não duplicar efeitos. */
+const RETRY_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function isTransient(e) {
+  if (e instanceof ApiError) return RETRY_STATUS.has(e.status);
+  return e instanceof TypeError; // falha de rede do fetch
+}
+
+function retryDelay(attempt, retryAfter) {
+  const after = num(retryAfter, 0);
+  if (after > 0) return Math.min(after * 1000, 8000);
+  return Math.min(600 * 2 ** attempt, 4000) + Math.floor(Math.random() * 300);
+}
+
+function errText(e, fallback = "falha na API") {
+  if (isTransient(e)) return "RiftStream indisponível agora";
+  return e?.message || fallback;
+}
+
+async function rawApi(path, { method = "GET", body, token, retries } = {}) {
+  const attempts = Math.max(1, retries === undefined ? (method === "GET" ? 3 : 1) : num(retries, 1));
   const headers = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    cache: "no-store"
-  });
-  if (!res.ok) {
-    let msg = res.statusText;
+
+  let lastErr = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      const j = await res.json();
-      msg = j.message ?? j.title ?? j.error ?? msg;
-    } catch { /* ignore */ }
-    throw new ApiError(res.status, msg || `HTTP ${res.status}`);
+      const res = await fetch(API_BASE + path, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        cache: "no-store"
+      });
+      if (!res.ok) {
+        let msg = res.statusText;
+        try {
+          const j = await res.json();
+          msg = j.message ?? j.title ?? j.error ?? msg;
+        } catch { /* ignore */ }
+        const err = new ApiError(res.status, msg || `HTTP ${res.status}`);
+        if (RETRY_STATUS.has(res.status) && attempt < attempts - 1) {
+          lastErr = err;
+          await delay(retryDelay(attempt, res.headers.get("retry-after")));
+          continue;
+        }
+        throw err;
+      }
+      if (res.status === 204) return null;
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      lastErr = e;
+      if (attempt < attempts - 1) {
+        await delay(retryDelay(attempt));
+        continue;
+      }
+      throw e;
+    }
   }
-  if (res.status === 204) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  throw lastErr || new Error("Falha de rede.");
 }
 
 async function api(state, path, opts = {}) {
@@ -261,6 +321,9 @@ function summarizeCharacter(ch) {
     items: Array.isArray(ch.items) ? ch.items.length : 0,
     gems: Array.isArray(ch.gems) ? ch.gems.reduce((a, g) => a + (g.count || 0), 0) : 0,
     reviveIn: ch.reviveIn ?? 0,
+    statLevels: ch.statLevels || null,
+    statCosts: ch.statCosts || null,
+    lukCap: ch.lukCap ?? 100,
     afk: isAfk(ch),
     afkMinutes: ch.afkMinutes ?? 30,
     lastActiveAt: ch.lastActiveAt || null,
@@ -501,16 +564,84 @@ async function scanChannels(state, { force = false } = {}) {
 
   state.runtime.candidates = finalList.slice(0, 8);
   state.runtime.scanAt = Date.now();
-  state.runtime.scanError = state.runtime.candidates.length
-    ? null
-    : (problems.length
-        ? `Não consegui consultar o ranking: ${problems[0]}`
-        : "O ranking não retornou nenhuma live online agora.");
+  if (state.runtime.candidates.length) {
+    state.runtime.scanError = null;
+  } else if (!problems.length) {
+    state.runtime.scanError = "O ranking não retornou nenhuma live online agora.";
+  } else if (problems.some((p) => /503|502|504|429|Service Unavailable|Failed to fetch|NetworkError|indisponível/i.test(p))) {
+    state.runtime.scanError = "O RiftStream está indisponível agora. Espere alguns segundos e clique em “Procurar lives” de novo.";
+  } else {
+    state.runtime.scanError = `Não consegui consultar o ranking: ${problems[0]}`;
+  }
 
   return state.runtime.candidates;
 }
 
 /* ------------------------------- manutenção ----------------------------- */
+
+/* ---- Gastar ouro (atributos) ------------------------------------------ */
+
+function nextStat(ch, priority) {
+  const levels = ch.statLevels || {};
+  const costs = ch.statCosts || {};
+  const lukCap = num(ch.lukCap, 100);
+
+  let keys = STAT_ORDER.filter((k) => !(k === "luk" && num(levels[k], 0) >= lukCap));
+  keys = keys.filter((k) => num(costs[k], -1) >= 0);
+  if (!keys.length) return null;
+
+  if (priority && priority !== "balanced" && keys.includes(priority)) return priority;
+  // Equilibrado: sempre o atributo mais barato no momento.
+  keys.sort((a, b) => num(costs[a], 0) - num(costs[b], 0));
+  return keys[0];
+}
+
+async function autoStats(state, ch) {
+  const now = Date.now();
+  if (now - num(state.timers.lastStats, 0) < 5 * 60000) return 0;
+  if (!ch.statCosts || !ch.statLevels) return 0;
+  state.timers.lastStats = now;
+
+  const reserve = state.settings.goldReserve;
+  const priority = state.settings.statPriority;
+  let gold = num(ch.gold, 0);
+  let done = 0;
+
+  for (let i = 0; i < 40; i++) {
+    const stat = nextStat(ch, priority);
+    if (!stat) break;
+    const cost = num(ch.statCosts?.[stat], 0);
+    if (!cost || gold - cost < reserve) break;
+
+    try {
+      const res = await api(state, `/api/me/character/stats/${stat}`, {
+        method: "POST",
+        body: { amount: 1 }
+      });
+      const next = res?.character || res;
+      if (next && next.statLevels) {
+        ch = next;
+        state.runtime.character = summarizeCharacter(ch);
+        gold = num(ch.gold, gold - cost);
+      } else {
+        gold -= cost;
+        ch.statLevels[stat] = num(ch.statLevels[stat], 0) + 1;
+        // estima o próximo custo para não repetir um valor velho
+        ch.statCosts[stat] = Math.round(cost * 1.12);
+      }
+      done++;
+    } catch (e) {
+      log(state, `Atributos: ${errText(e)}`, "warn");
+      break;
+    }
+  }
+
+  if (done > 0) {
+    const where = priority === "balanced" ? "equilibrado" : STAT_LABELS[priority];
+    log(state, `Gastou ouro: ${plural(done, "nível de atributo", "níveis de atributo")} (${where}).`, "ok");
+  }
+  return done;
+}
 
 function invSignature(ch) {
   const ids = (ch?.items || []).map((i) => String(i.id || "")).sort();
@@ -626,7 +757,7 @@ async function autoSocket(state, ch) {
         done++;
         log(state, `Engastou ${gem.type} T${gem.tier} em ${item.name || item.id}${res?.cost ? ` (${res.cost}g)` : ""}.`, "ok");
       } catch (e) {
-        log(state, `Engaste falhou em ${item.name || item.id}: ${e.message}`, "warn");
+        log(state, `Engaste falhou em ${item.name || item.id}: ${errText(e)}`, "warn");
         return done;
       }
     }
@@ -634,27 +765,186 @@ async function autoSocket(state, ch) {
   return done;
 }
 
+/* ---- Forja (sem VIP) -------------------------------------------------- */
+
+function rarityTier(it) {
+  const r = num(it?.rarity, 0);
+  return r === 5 ? 3 : r; // Evento conta como Épico, igual ao site
+}
+
+function forgeTier(it) {
+  const s = rarityTier(it);
+  if (s === 4 && FORGE_SLOTS.includes(it.slot)) return 6; // Lendário de equipamento vira Imortal
+  if (s === 6 && FORGE_SLOTS.includes(it.slot)) return 7; // Imortal de equipamento vira Arcano
+  return s + 1;
+}
+
+function forgeNeeded(tier) {
+  return tier >= 3 ? 4 : 3;
+}
+
+function forgeEligible(it) {
+  if (!it || it.equipped || it.favorite) return false;
+  if (it.slot === "cosmetic" || it.slot === "consumable") return false;
+  if ((it.gems?.length ?? 0) > 0) return false;
+  const s = rarityTier(it);
+  return s < 4 || (s === 4 && FORGE_SLOTS.includes(it.slot)) || (s === 6 && FORGE_SLOTS.includes(it.slot));
+}
+
+function forgeCost(items, tier) {
+  const levels = items.map((i) => num(i.itemLevel, 0));
+  const avg = levels.reduce((a, b) => a + b, 0) / Math.max(1, levels.length);
+  const mid = Math.floor((Math.floor(avg * 1.15) + Math.floor(avg * 1.3)) / 2);
+  return Math.round((5 + mid * 2) * (FORGE_COST_FACTOR[tier] ?? 1) * 2);
+}
+
+function forgeGroups(ch) {
+  const byKey = new Map();
+  for (const it of ch.items || []) {
+    if (!forgeEligible(it)) continue;
+    const key = `${it.slot}|${rarityTier(it)}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(it);
+  }
+
+  const groups = [];
+  for (const items of byKey.values()) {
+    const tier = forgeTier(items[0]);
+    const need = forgeNeeded(tier);
+    if (items.length < need) continue;
+    const set = items
+      .slice()
+      .sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0))
+      .slice(0, need);
+    groups.push({
+      ids: set.map((i) => i.id),
+      cost: Math.round(forgeCost(set, tier) * 1.15), // margem de segurança
+      label: `${set[0].name || set[0].id} ×${need}`
+    });
+  }
+  return groups;
+}
+
 async function autoForge(state, ch) {
   const now = Date.now();
   if (now - num(state.timers.lastForge, 0) < 30 * 60000) return 0;
-  if (num(ch.gold, 0) <= state.settings.goldReserve) return 0;
-  state.timers.lastForge = now;
-  try {
-    const res = await api(state, "/api/me/items/fuse-all", { method: "POST" });
-    const fusions = num(res?.fusions, 0);
-    if (fusions > 0) {
-      log(state, `Forja: ${plural(fusions, "fusão", "fusões")} por ${num(res?.cost, 0).toLocaleString("pt-BR")}g.`, "ok");
-    }
-    return fusions;
-  } catch (e) {
-    if (/vip/i.test(e.message || "")) {
-      state.settings.autoForge = false;
-      log(state, "Forja automática é exclusiva VIP; desativei a opção.", "warn");
-    } else {
-      log(state, `Forja falhou: ${e.message}`, "warn");
-    }
+
+  const groups = forgeGroups(ch);
+  if (!groups.length) {
+    state.timers.lastForge = now;
     return 0;
   }
+  state.timers.lastForge = now;
+
+  const reserve = state.settings.goldReserve;
+  let gold = num(ch.gold, 0);
+  let done = 0;
+
+  for (const group of groups.slice(0, 6)) {
+    if (gold - group.cost < reserve) {
+      log(state, `Forja: parada, ouro insuficiente (≈${group.cost.toLocaleString("pt-BR")}g por forja).`, "warn");
+      break;
+    }
+    try {
+      const res = await api(state, "/api/me/items/fuse", {
+        method: "POST",
+        body: { itemIds: group.ids, scrollItemId: null }
+      });
+      if (res?.character) {
+        ch = res.character;
+        state.runtime.character = summarizeCharacter(ch);
+        gold = num(res.character.gold, gold - group.cost);
+      } else {
+        gold -= group.cost;
+      }
+      if (res?.result) {
+        done++;
+        const rn = RARITY[num(res.result.rarity, 0)] || "?";
+        log(state, `Forja: ${group.label} → ${res.result.name || "item"} (${rn}) por ${group.cost.toLocaleString("pt-BR")}g.`, "ok");
+      } else {
+        log(state, `Forja: ${group.label} falhou e os itens foram perdidos.`, "warn");
+      }
+    } catch (e) {
+      log(state, `Forja falhou: ${errText(e)}`, "warn");
+      break;
+    }
+  }
+  return done;
+}
+
+/* ---- Aprimoramento (sem VIP) ------------------------------------------ */
+
+function enhancePlan(ch) {
+  const bySlot = new Map();
+  for (const it of ch.items || []) {
+    if (!it || !EQUIP_SLOTS.includes(it.slot)) continue;
+    if (!bySlot.has(it.slot)) bySlot.set(it.slot, []);
+    bySlot.get(it.slot).push(it);
+  }
+
+  const plan = [];
+  for (const slot of EQUIP_SLOTS) {
+    const list = bySlot.get(slot) || [];
+    if (!list.length) continue;
+    const equipped = list.find((i) => i.equipped);
+    const target = equipped || list.slice().sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0))[0];
+
+    const donors = list
+      .filter((i) => i.id !== target.id && !i.equipped && !i.favorite && (i.gems?.length ?? 0) === 0)
+      // Nunca destrói algo melhor que o alvo.
+      .filter((i) => num(i.itemLevel, 0) < num(target.itemLevel, 0) && num(i.rarity, 0) <= num(target.rarity, 0))
+      .sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0))
+      .slice(0, ENHANCE_MAX_DONORS);
+
+    if (!donors.length) continue;
+    plan.push({
+      targetId: target.id,
+      donorIds: donors.map((i) => i.id),
+      label: target.name || target.id
+    });
+  }
+  return plan;
+}
+
+async function autoEnhance(state, ch) {
+  const now = Date.now();
+  if (now - num(state.timers.lastEnhance, 0) < 30 * 60000) return 0;
+
+  const plan = enhancePlan(ch);
+  state.timers.lastEnhance = now;
+  if (!plan.length) return 0;
+
+  const reserve = state.settings.goldReserve;
+  let gold = num(ch.gold, 0);
+
+  for (const p of plan) {
+    try {
+      const preview = await api(state, "/api/me/items/enhance/preview", {
+        method: "POST",
+        body: { targetId: p.targetId, donorIds: p.donorIds }
+      });
+      const cost = num(preview?.gold, 0);
+      if (cost >= 0 && gold - cost < reserve) continue;
+
+      const res = await api(state, "/api/me/items/enhance", {
+        method: "POST",
+        body: { targetId: p.targetId, donorIds: p.donorIds }
+      });
+      if (res?.character) {
+        ch = res.character;
+        state.runtime.character = summarizeCharacter(ch);
+        gold = num(res.character.gold, gold - cost);
+      } else {
+        gold -= cost;
+      }
+      log(state, `Aprimorado: ${p.label} (+${plural(p.donorIds.length, "item destruído", "itens destruídos")}, ${cost.toLocaleString("pt-BR")}g).`, "ok");
+      return p.donorIds.length;
+    } catch (e) {
+      log(state, `Aprimorar falhou: ${errText(e)}`, "warn");
+      return 0;
+    }
+  }
+  return 0;
 }
 
 async function applyAutosell(state) {
@@ -683,6 +973,10 @@ async function applyAutosell(state) {
     state.timers.autosellCfg = cfg;
     log(state, `Venda automática configurada (raridade ≤ ${s.sellRarity}, nível ≤ ${s.sellLevel}).`, "ok");
   } catch (e) {
+    if (isTransient(e)) {
+      log(state, "Venda automática: servidor indisponível, tento de novo depois.", "warn");
+      return;
+    }
     state.runtime.autosellDisabled = true;
     log(state, `Venda automática indisponível (VIP): ${e.message}`, "warn");
   }
@@ -692,6 +986,18 @@ async function maintain(state, ch) {
   if (!ch || !Array.isArray(ch.items)) return ch;
   const s = state.settings;
 
+  if (s.autoStats) {
+    try {
+      const n = await autoStats(state, ch);
+      if (n > 0) {
+        ch = (await getCharacterSafe(state)) || ch;
+        state.runtime.lastAction = plural(n, "nível de atributo", "níveis de atributo");
+      }
+    } catch (e) {
+      log(state, `Atributos falharam: ${errText(e)}`, "warn");
+    }
+  }
+
   if (s.autoEquip) {
     try {
       const n = await autoEquip(state, ch);
@@ -700,7 +1006,7 @@ async function maintain(state, ch) {
         state.runtime.lastAction = plural(n, "item equipado", "itens equipados");
       }
     } catch (e) {
-      log(state, `Equipar falhou: ${e.message}`, "warn");
+      log(state, `Equipar falhou: ${errText(e)}`, "warn");
     }
   }
 
@@ -712,7 +1018,7 @@ async function maintain(state, ch) {
         state.runtime.lastAction = `Gemas: ${plural(n, "combinação", "combinações")}`;
       }
     } catch (e) {
-      log(state, `Gemas falharam: ${e.message}`, "warn");
+      log(state, `Gemas falharam: ${errText(e)}`, "warn");
     }
   }
 
@@ -724,7 +1030,7 @@ async function maintain(state, ch) {
         state.runtime.lastAction = plural(n, "gema engastada", "gemas engastadas");
       }
     } catch (e) {
-      log(state, `Engaste falhou: ${e.message}`, "warn");
+      log(state, `Engaste falhou: ${errText(e)}`, "warn");
     }
   }
 
@@ -733,10 +1039,22 @@ async function maintain(state, ch) {
       const n = await autoForge(state, ch);
       if (n > 0) {
         ch = (await getCharacterSafe(state)) || ch;
-        state.runtime.lastAction = `Forja: ${plural(n, "fusão", "fusões")}`;
+        state.runtime.lastAction = `Forja: ${plural(n, "forja", "forjas")}`;
       }
     } catch (e) {
-      log(state, `Forja falhou: ${e.message}`, "warn");
+      log(state, `Forja falhou: ${errText(e)}`, "warn");
+    }
+  }
+
+  if (s.autoEnhance) {
+    try {
+      const n = await autoEnhance(state, ch);
+      if (n > 0) {
+        ch = (await getCharacterSafe(state)) || ch;
+        state.runtime.lastAction = `${plural(n, "item aprimorado", "itens aprimorados")}`;
+      }
+    } catch (e) {
+      log(state, `Aprimorar falhou: ${errText(e)}`, "warn");
     }
   }
 
@@ -748,7 +1066,7 @@ async function maintain(state, ch) {
         await api(state, "/api/me/items/organize", { method: "POST", body: { by: "level" } });
         log(state, "Baús organizados por nível.", "ok");
       } catch (e) {
-        log(state, `Organizar falhou: ${e.message}`, "warn");
+        log(state, `Organizar falhou: ${errText(e)}`, "warn");
       }
     }
   }
@@ -786,7 +1104,8 @@ async function tick() {
 
     if (now - num(state.timers.lastMaintenance, 0) >= state.settings.maintenanceMin * 60000) {
       state.timers.lastMaintenance = now;
-      await maintain(state, ch);
+      const after = await maintain(state, ch);
+      if (after) ch = after;
     }
 
     if (state.current?.tabId) {
@@ -803,10 +1122,21 @@ async function tick() {
     state.runtime.character = summarizeCharacter(ch);
   } catch (e) {
     if (state) {
-      state.runtime.status = "erro";
-      state.runtime.lastError = e.message || String(e);
-      log(state, `Erro: ${e.message || e}`, "error");
-      if (/sess[ãa]o|token|login/i.test(e.message || "")) state.token = null;
+      if (isTransient(e)) {
+        // 503/erro de rede: não é erro real, é soluço do servidor.
+        state.runtime.status = "instavel";
+        state.runtime.lastError = null;
+        state.runtime.awaitingCharacter = false;
+        if (Date.now() - num(state.runtime.lastTransient, 0) > 5 * 60000) {
+          state.runtime.lastTransient = Date.now();
+          log(state, `${errText(e)}. Vou tentar de novo no próximo ciclo.`, "warn");
+        }
+      } else {
+        state.runtime.status = "erro";
+        state.runtime.lastError = e.message || String(e);
+        log(state, `Erro: ${e.message || e}`, "error");
+        if (/sess[ãa]o|token|login/i.test(e.message || "")) state.token = null;
+      }
     }
   } finally {
     if (state) {
@@ -819,10 +1149,12 @@ async function tick() {
 
 function updateBadge(state) {
   try {
-    const text = state.running ? (state.runtime.status === "erro" ? "!" : "ON") : "";
+    const status = state.runtime.status;
+    const text = state.running ? (status === "erro" ? "!" : status === "instavel" ? "~" : "ON") : "";
+    const color = status === "erro" ? "#e05252" : status === "instavel" ? "#e0b84a" : "#35c96f";
     chrome.action.setBadgeText({ text });
-    chrome.action.setBadgeBackgroundColor({ color: state.runtime.status === "erro" ? "#e05252" : "#35c96f" });
-    chrome.action.setTitle({ title: `RiftStream AutoFarm — ${state.runtime.status || "parado"}` });
+    chrome.action.setBadgeBackgroundColor({ color });
+    chrome.action.setTitle({ title: `RiftStream AutoFarm — ${status || "parado"}` });
   } catch { /* ignore */ }
 }
 
@@ -877,8 +1209,14 @@ async function handleMessage(msg) {
     }
 
     case "RSAF_SCAN": {
-      const list = await scanChannels(state, { force: true });
+      let list = await scanChannels(state, { force: true });
+      // O site às vezes responde 503 de forma intermitente: insiste mais uma vez.
+      if (!list.length && /indisponível/i.test(state.runtime.scanError || "")) {
+        await delay(1500);
+        list = await scanChannels(state, { force: true });
+      }
       if (list.length) {
+        state.runtime.scanError = null;
         log(state, `Busca de lives: ${plural(list.length, "live encontrada", "lives encontradas")}.`);
       } else {
         log(state, state.runtime.scanError || "Nenhuma live encontrada.", "warn");
