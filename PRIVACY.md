@@ -16,7 +16,7 @@ acessa, onde guarda e para onde envia dados.
 | Dado | Finalidade | Onde fica |
 |---|---|---|
 | Token `og.token` | Autenticar nas APIs do RiftStream | `chrome.storage.local` |
-| Personagem, itens, gemas, ouro, canal | Decidir entrada e manutenção | Memória/estado local |
+| Personagem, itens, gemas, ouro, canal | Decidir a manutenção do inventário | Memória/estado local |
 | Configurações do painel | Controlar o comportamento do farm | `chrome.storage.local` |
 | Log de ações | Diagnóstico e transparência | `chrome.storage.local` |
 | Lives abertas e canal escolhido | Montar a lista e abrir o chat | Memória/estado local |

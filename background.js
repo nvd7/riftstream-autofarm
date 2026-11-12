@@ -86,6 +86,7 @@ const DEFAULT_STATE = {
   running: false,            // manutenção automática do inventário
   token: null,
   settings: { ...DEFAULT_SETTINGS },
+  meta: { settingsVersion: 2 }, // migrações de configuração
   current: null,             // { login, tabId, openedAt }
   timers: { ...DEFAULT_TIMERS },
   runtime: { ...DEFAULT_RUNTIME },
@@ -128,6 +129,15 @@ function normalizeSettings(raw = {}) {
 
 function normalizeState(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
+  const meta = r.meta && typeof r.meta === "object" ? { ...r.meta } : {};
+  const settings = normalizeSettings(r.settings);
+  // v1.1 -> v1.2: as funções destrutivas passam a existir e devem começar
+  // desligadas, mesmo que a configuração antiga tivesse autoForge = true.
+  if (num(meta.settingsVersion, 1) < 2) {
+    settings.autoForge = false;
+    settings.autoEnhance = false;
+    meta.settingsVersion = 2;
+  }
   const current = r.current && typeof r.current === "object"
     ? {
         login: r.current.login || null,
@@ -138,7 +148,8 @@ function normalizeState(raw) {
   return {
     ...DEFAULT_STATE,
     ...r,
-    settings: normalizeSettings(r.settings),
+    meta,
+    settings,
     current,
     timers: { ...DEFAULT_TIMERS, ...(r.timers || {}) },
     runtime: { ...DEFAULT_RUNTIME, ...(r.runtime || {}) },

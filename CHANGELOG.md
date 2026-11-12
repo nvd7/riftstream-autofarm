@@ -30,7 +30,8 @@ intermitentes do RiftStream.
 ### Alterado
 
 - **Forja e aprimoramento vêm desligados por padrão**, por serem destrutivos; a
-  forja pode falhar e perder os itens.
+  forja pode falhar e perder os itens. Na atualização, os dois começam
+  desligados mesmo que a configuração antiga tivesse a forja ligada.
 - **Leituras da API (GET) são repetidas** até 3 vezes com espera crescente e
   respeito ao `Retry-After`. Escritas (POST/PUT) não são repetidas, para não
   duplicar efeitos.
