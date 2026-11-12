@@ -117,6 +117,49 @@
         </label>
       </div>
 
+      <p class="group-label">Venda individual (sem VIP)</p>
+      <div class="toggles">
+        <label class="toggle"><input id="autoSellItem" type="checkbox" /><span>Vender item individual</span></label>
+      </div>
+      <div class="grid2 sellcfg">
+        <label class="field">
+          <span>Vender item até raridade</span>
+          <select id="sellItemRarity">
+            <option value="-1">Desligado</option>
+            <option value="0">Comum</option>
+            <option value="1">Incomum</option>
+            <option value="2">Raro</option>
+            <option value="3">Épico</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Nível do item até</span>
+          <input id="sellItemLevel" type="number" min="0" max="9999" step="5" />
+        </label>
+      </div>
+      <p class="hint">
+        Vende um item por vez usando os endpoints normais do jogo —
+        <b>não precisa de VIP</b>. Nunca vende itens equipados, favoritos
+        ou com gemas.
+      </p>
+
+      <p class="group-label">Filtro de nível da forja</p>
+      <div class="grid2">
+        <label class="field">
+          <span>Nível mínimo para forjar</span>
+          <input id="forgeMinLevel" type="number" min="0" max="9999" step="5" />
+        </label>
+        <label class="field">
+          <span>Nível máximo para forjar</span>
+          <input id="forgeMaxLevel" type="number" min="0" max="9999" step="5" />
+        </label>
+      </div>
+      <p class="hint">
+        Só forja itens dentro desta faixa de nível. Isso evita juntar itens
+        de níveis muito diferentes (ex.: Nv. 80 com Nv. 140), que gerariam um
+        resultado pior.
+      </p>
+
       <div class="row">
         <span id="saveHint" class="muted small"></span>
       </div>
@@ -152,6 +195,41 @@
       <p class="hint">
         O <b>ouro reservado</b> é o mínimo que a extensão nunca gasta: forja,
         aprimoramento, engaste e venda respeitam esse valor.
+      </p>
+
+      <p class="group-label">Focar atributos ao gastar ouro</p>
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" data-stat="str" /><span>Força</span></label>
+        <label class="toggle"><input type="checkbox" data-stat="vit" /><span>Vitalidade</span></label>
+        <label class="toggle"><input type="checkbox" data-stat="def" /><span>Defesa</span></label>
+        <label class="toggle"><input type="checkbox" data-stat="agi" /><span>Agilidade</span></label>
+        <label class="toggle"><input type="checkbox" data-stat="luk" /><span>Sorte</span></label>
+      </div>
+      <p class="hint">
+        Marque um ou mais atributos para focar. Enquanto houver marcação, o
+        ouro em atributos só será gasto neles (a prioridade acima é ignorada).
+        Sem marcação, vale a <b>prioridade dos atributos</b>.
+      </p>
+    </details>
+
+    <details class="card" id="appearanceCard">
+      <summary>Aparência</summary>
+      <div class="grid2">
+        <label class="field">
+          <span>Tema</span>
+          <select id="theme">
+            <option value="dark">Escuro</option>
+            <option value="light">Claro</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Tamanho da fonte (px)</span>
+          <input id="fontSize" type="number" min="10" max="20" step="1" />
+        </label>
+      </div>
+      <p class="hint">
+        Ajuste o <b>tema</b> e o <b>tamanho da fonte</b> da interface. As
+        mudanças são aplicadas na hora e salvas automaticamente.
       </p>
     </details>
 

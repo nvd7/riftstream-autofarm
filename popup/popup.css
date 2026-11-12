@@ -12,6 +12,23 @@
   --red: #e05252;
   --gold: #e0b84a;
   --blue: #4da3ff;
+  --font-size: 12px;
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f5fa;
+  --bg2: #ffffff;
+  --panel: #ffffff;
+  --panel2: #eef0f7;
+  --line: #d9dcea;
+  --text: #1c1f2e;
+  --muted: #6a6f86;
+  --green: #1f9d57;
+  --green-dim: rgba(31, 157, 87, .12);
+  --purple: #7c3aed;
+  --red: #c83c3c;
+  --gold: #a97d18;
+  --blue: #2563eb;
 }
 
 * { box-sizing: border-box; }
@@ -22,7 +39,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 12px;
+  font-size: var(--font-size, 12px);
 }
 
 body {
@@ -324,3 +341,24 @@ details.card[open] summary { margin-bottom: 9px; }
 }
 
 .save-ok { color: var(--green); }
+
+/* --- Tema claro: ajustes nos pontos com cor fixa --- */
+:root[data-theme="light"] .top {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, .96) 100%);
+}
+:root[data-theme="light"] body::-webkit-scrollbar-thumb { background: #c6cade; }
+:root[data-theme="light"] .card-head h2,
+:root[data-theme="light"] details.card summary { color: #4b5068; }
+:root[data-theme="light"] .group-label { color: #6a6f86; }
+:root[data-theme="light"] .toggle { color: #2a2e40; }
+:root[data-theme="light"] .hint b { color: #333850; }
+:root[data-theme="light"] .hint.warn-hint { color: #8a6d1e; }
+:root[data-theme="light"] .hint.warn-hint b { color: #6f5510; }
+:root[data-theme="light"] .log .entry { color: #3a3e52; }
+:root[data-theme="light"] .log .entry .t { color: #8a8fa6; }
+:root[data-theme="light"] .log .entry.ok { color: #1f9d57; }
+:root[data-theme="light"] .log .entry.error { color: #c83c3c; }
+:root[data-theme="light"] .alert { color: #8a2222; }
+:root[data-theme="light"] .alert.warn { color: #7a5a10; }
+:root[data-theme="light"] .warn { color: #8a6d1e; }
+:root[data-theme="light"] .brand-text small { color: var(--muted); }

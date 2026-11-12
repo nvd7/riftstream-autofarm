@@ -4,6 +4,41 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [1.3.0] - 2026-11-12
+
+Melhorias de velocidade, correção da contagem de pessoas, foco de atributos,
+venda individual sem VIP, filtro de nível na forja e uma nova aba de aparência
+(tema e fonte).
+
+### Adicionado
+
+- **Focar atributos ao gastar ouro:** nova opção `statFocus` com caixas para
+  Força, Vitalidade, Defesa, Agilidade e Sorte. Enquanto houver atributos
+  marcados, o ouro em atributos só é gasto neles (a prioridade é ignorada). Sem
+  marcação, vale a prioridade normal.
+- **Venda individual sem VIP:** opção `autoSellItem` que vende um item por vez
+  usando os endpoints normais do jogo (não precisa de VIP), com filtro de
+  raridade (`sellItemRarity`) e de nível (`sellItemLevel`). Nunca vende itens
+  equipados, favoritos ou com gemas.
+- **Filtro de nível da forja:** `forgeMinLevel` e `forgeMaxLevel` limitam quais
+  itens podem ser forjados. Evita juntar itens de níveis muito diferentes (ex.:
+  Nv. 80 com Nv. 140), que gerariam um resultado pior.
+- **Aba de aparência:** novo painel para escolher o **tema** (escuro/claro) e o
+  **tamanho da fonte**. As mudanças são aplicadas na hora e salvas automaticamente.
+- Migração de configurações de v1.2 para v1.3 (`settingsVersion` 3), preenchendo
+  os novos campos com padrões seguros.
+
+### Corrigido
+
+- **Contagem de pessoas por live:** o detalhe do canal limita `playersNow` a 60;
+  o painel usa o maior valor entre o ranking público e o detalhe, então lives
+  cheias não aparecem mais com 60 pessoas.
+
+### Alterado
+
+- **Velocidade:** equipar, forjar e aprimorar rodam em paralelo a cada ~30 s,
+  sem uma etapa esperar a outra (reforço do que veio na 1.2.2).
+
 ## [1.2.2] - 2026-11-12
 
 A manutenção ficou quase instantânea: equipar, forjar e aprimorar rodam em

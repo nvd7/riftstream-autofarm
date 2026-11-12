@@ -84,6 +84,8 @@ function render() {
 
   setCheck("autoMaint", !!state.running);
 
+  applyAppearance(state.settings);
+
   renderScan();
   renderCandidates();
   renderCharacter();
@@ -227,8 +229,33 @@ function renderSettings() {
   setCheck("autoSocket", s.autoSocket);
   setCheck("autoOrganize", s.autoOrganize);
   setCheck("autoSell", s.autoSell);
+  setCheck("autoSellItem", s.autoSellItem);
+  setVal("sellItemRarity", s.sellItemRarity);
+  setVal("sellItemLevel", s.sellItemLevel);
+  setVal("forgeMinLevel", s.forgeMinLevel);
+  setVal("forgeMaxLevel", s.forgeMaxLevel);
+  setVal("theme", s.theme);
+  setVal("fontSize", s.fontSize);
+  renderStatFocus(s.statFocus);
   setCheck("chatOnly", s.chatOnly);
   setCheck("muteTab", s.muteTab);
+}
+
+function applyAppearance(s) {
+  if (!s) return;
+  const root = document.documentElement;
+  const theme = s.theme === "light" ? "light" : "dark";
+  root.dataset.theme = theme;
+  const size = Number(s.fontSize) || 12;
+  root.style.setProperty("--font-size", `${size}px`);
+  root.style.fontSize = `${size}px`;
+}
+
+function renderStatFocus(focus) {
+  const keys = Array.isArray(focus) ? focus : [];
+  for (const el of document.querySelectorAll("input[data-stat]")) {
+    el.checked = keys.includes(el.dataset.stat);
+  }
 }
 
 function renderLog() {
@@ -284,6 +311,14 @@ function gatherSettings() {
     autoSocket: $("autoSocket").checked,
     autoOrganize: $("autoOrganize").checked,
     autoSell: $("autoSell").checked,
+    autoSellItem: $("autoSellItem").checked,
+    sellItemRarity: Number($("sellItemRarity").value),
+    sellItemLevel: Number($("sellItemLevel").value),
+    forgeMinLevel: Number($("forgeMinLevel").value),
+    forgeMaxLevel: Number($("forgeMaxLevel").value),
+    theme: $("theme").value,
+    fontSize: Number($("fontSize").value),
+    statFocus: Array.from(document.querySelectorAll("input[data-stat]:checked")).map((el) => el.dataset.stat),
     chatOnly: $("chatOnly").checked,
     muteTab: $("muteTab").checked
   };
@@ -413,7 +448,9 @@ function wire() {
 
   for (const el of document.querySelectorAll(
     "#strategy, #maintenanceMin, #minPlayers, #goldReserve, #sellRarity, #sellLevel, #statPriority, " +
-    "#autoStats, #autoEquip, #autoGems, #autoForge, #autoEnhance, #autoSocket, #autoOrganize, #autoSell, #chatOnly, #muteTab"
+    "#sellItemRarity, #sellItemLevel, #forgeMinLevel, #forgeMaxLevel, #theme, #fontSize, " +
+    "#autoStats, #autoEquip, #autoGems, #autoForge, #autoEnhance, #autoSocket, #autoOrganize, #autoSell, " +
+    "#autoSellItem, #chatOnly, #muteTab, input[data-stat]"
   )) {
     el.addEventListener("change", scheduleSave);
     if (el.tagName === "INPUT" && el.type === "number") {

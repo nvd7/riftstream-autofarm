@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.2.2-f5c451" alt="Versão 1.2.2"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.3.0-f5c451" alt="Versão 1.3.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -49,15 +49,17 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v1.2.2.** Busca de lives, abertura de chat, equipar, gemas, forja,
+> **Status: v1.3.0.** Busca de lives, abertura de chat, equipar, gemas, forja,
 > aprimoramento, engaste, organização e venda automática estão implementados.
-> A manutenção agora roda em paralelo a cada ~30 s: equipar, forjar e aprimorar
-> não esperam mais uma etapa terminar para a outra começar. **Forja e
-> aprimoramento não precisam de VIP** — usam os mesmos endpoints do site
-> (`/api/me/items/fuse` e `/api/me/items/enhance`); só o “fundir tudo” e a venda
-> automática são exclusivos de VIP. Os endpoints seguem a API observada no
-> front-end atual; mudanças no RiftStream podem exigir ajustes. O primeiro uso
-> deve ser supervisionado.
+> A manutenção roda em paralelo a cada ~30 s: equipar, forjar e aprimorar
+> não esperam mais uma etapa terminar para a outra começar. **Forja,
+> aprimoramento e venda individual não precisam de VIP** — usam os mesmos
+> endpoints do site (`/api/me/items/fuse`, `/api/me/items/enhance` e
+> `/api/me/items/sell`); só o “fundir tudo” e a venda automática em lote são
+> exclusivos de VIP. Você pode escolher quais atributos focar ao gastar ouro,
+> limitar o nível dos itens forjados e ajustar tema e fonte na aba de aparência.
+> Os endpoints seguem a API observada no front-end atual; mudanças no RiftStream
+> podem exigir ajustes. O primeiro uso deve ser supervisionado.
 
 ---
 

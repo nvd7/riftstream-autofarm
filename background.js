@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS = {
   sellLevel: 40,
   autoStats: true,           // gasta ouro subindo atributos
   statPriority: "balanced",  // balanced | str | vit | def | agi | luk
+  statFocus: [],             // atributos para focar (ex.: ["str", "vit"])
   autoEquip: true,
   autoGems: true,
   autoForge: false,          // destrutivo: desligado por padrão
@@ -53,8 +54,15 @@ const DEFAULT_SETTINGS = {
   autoSocket: false,
   autoOrganize: true,
   autoSell: false,
+  autoSellItem: false,       // vender itens sozinho, um por vez (sem VIP)
+  sellItemRarity: 2,         // vender itens de raridade até X
+  sellItemLevel: 40,         // vender itens de nível até X
+  forgeMinLevel: 0,          // não forjar itens abaixo deste nível
+  forgeMaxLevel: 9999,       // não forjar itens acima deste nível
   chatOnly: true,            // abrir só o chat (popout) por padrão
-  muteTab: true
+  muteTab: true,
+  theme: "dark",             // dark | light
+  fontSize: 12               // px
 };
 
 const DEFAULT_TIMERS = {
@@ -120,10 +128,18 @@ function normalizeSettings(raw = {}) {
     sellRarity: clamp(num(r.sellRarity, 2), -1, 3),
     sellLevel: clamp(num(r.sellLevel, 40), 0, 9999),
     statPriority: ["balanced", "str", "vit", "def", "agi", "luk"].includes(r.statPriority) ? r.statPriority : "balanced",
+    statFocus: Array.isArray(r.statFocus) ? r.statFocus.filter((k) => ["str", "vit", "def", "agi", "luk"].includes(k)) : [],
     chatOnly: bool(r.chatOnly, true),
-    muteTab: bool(r.muteTab, true)
+    muteTab: bool(r.muteTab, true),
+    autoSellItem: bool(r.autoSellItem, false),
+    sellItemRarity: clamp(num(r.sellItemRarity, 2), -1, 3),
+    sellItemLevel: clamp(num(r.sellItemLevel, 40), 0, 9999),
+    forgeMinLevel: clamp(num(r.forgeMinLevel, 0), 0, 9999),
+    forgeMaxLevel: clamp(num(r.forgeMaxLevel, 9999), 0, 9999),
+    theme: ["dark", "light"].includes(r.theme) ? r.theme : "dark",
+    fontSize: clamp(num(r.fontSize, 12), 10, 20)
   };
-  for (const k of ["autoStats", "autoEquip", "autoGems", "autoForge", "autoEnhance", "autoSocket", "autoOrganize", "autoSell"]) {
+  for (const k of ["autoStats", "autoEquip", "autoGems", "autoForge", "autoEnhance", "autoSocket", "autoOrganize", "autoSell", "autoSellItem"]) {
     s[k] = bool(r[k], DEFAULT_SETTINGS[k]);
   }
   return s;
@@ -139,6 +155,18 @@ function normalizeState(raw) {
     settings.autoForge = false;
     settings.autoEnhance = false;
     meta.settingsVersion = 2;
+  }
+  // v1.2 -> v1.3: novas configurações (statFocus, autoSellItem, filtro de nível da forja, tema/fonte)
+  if (num(meta.settingsVersion, 2) < 3) {
+    settings.statFocus = settings.statFocus || [];
+    settings.autoSellItem = false;
+    settings.sellItemRarity = 2;
+    settings.sellItemLevel = 40;
+    settings.forgeMinLevel = 0;
+    settings.forgeMaxLevel = 9999;
+    settings.theme = "dark";
+    settings.fontSize = 12;
+    meta.settingsVersion = 3;
   }
   const current = r.current && typeof r.current === "object"
     ? {
@@ -619,6 +647,7 @@ async function autoStats(state, ch) {
 
   const reserve = state.settings.goldReserve;
   const priority = state.settings.statPriority;
+  const focus = state.settings.statFocus || [];
   let gold = num(ch.gold, 0);
   let done = 0;
 
@@ -628,7 +657,12 @@ async function autoStats(state, ch) {
     const levels = ch.statLevels || {};
     let keys = STAT_ORDER.filter((k) => !(k === "luk" && num(levels[k], 0) >= num(ch.lukCap, 100)));
     keys = keys.filter((k) => num(ch.statCosts?.[k], -1) >= 0);
-    if (priority && priority !== "balanced") {
+
+    // Se statFocus estiver preenchido, só considera esses atributos.
+    if (focus.length) {
+      keys = keys.filter((k) => focus.includes(k));
+      if (!keys.length) break;
+    } else if (priority && priority !== "balanced") {
       keys = keys.includes(priority) ? [priority] : [];
     } else {
       keys.sort((a, b) => num(ch.statCosts[a], 0) - num(ch.statCosts[b], 0));
@@ -893,11 +927,18 @@ function forgeGroups(ch) {
   }
 
   const groups = [];
+  const minLv = num(state.settings.forgeMinLevel, 0);
+  const maxLv = num(state.settings.forgeMaxLevel, 9999);
   for (const items of byKey.values()) {
     const tier = forgeTier(items[0]);
     const need = forgeNeeded(tier);
-    if (items.length < need) continue;
-    const set = items
+    // Filtra itens pelo nível configurado (não forja itens muito baixos ou muito altos).
+    const elig = items.filter((it) => {
+      const lv = num(it.itemLevel, 0);
+      return lv >= minLv && lv <= maxLv;
+    });
+    if (elig.length < need) continue;
+    const set = elig
       .slice()
       .sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0))
       .slice(0, need);
@@ -1198,6 +1239,38 @@ async function applyAutosell(state) {
   }
 }
 
+async function autoSellItem(state, ch) {
+  const s = state.settings;
+  if (!s.autoSellItem) return 0;
+
+  const maxRarity = num(s.sellItemRarity, 2);
+  const maxLevel = num(s.sellItemLevel, 40);
+  let sold = 0;
+
+  for (const it of (ch.items || []).slice()) {
+    if (!it || it.equipped || it.favorite) continue;
+    if ((it.gems?.length ?? 0) > 0) continue;
+    const rarity = num(it.rarity, 0);
+    const level = num(it.itemLevel, 0);
+    if (rarity > maxRarity || level > maxLevel) continue;
+
+    try {
+      await api(state, "/api/me/items/sell", {
+        method: "POST",
+        body: { itemId: it.id }
+      });
+      sold++;
+      log(state, `Vendido: ${it.name || it.id} (${RARITY[rarity] ?? "?"}, Nv. ${level}).`, "ok");
+    } catch (e) {
+      if (isTransient(e)) break;
+      log(state, `Venda falhou: ${errText(e)}`, "warn");
+      break;
+    }
+  }
+
+  return sold;
+}
+
 async function maintain(state, ch) {
   if (!ch || !Array.isArray(ch.items)) return ch;
   const s = state.settings;
@@ -1220,6 +1293,16 @@ async function maintain(state, ch) {
     }
   }
   side.push(applyAutosell(state));
+  if (s.autoSellItem) {
+    side.push((async () => {
+      try {
+        const n = await autoSellItem(state, ch);
+        if (n > 0) state.runtime.lastAction = plural(n, "item vendido", "itens vendidos");
+      } catch (e) {
+        log(state, `Venda individual falhou: ${errText(e)}`, "warn");
+      }
+    })());
+  }
 
   if (s.autoStats) {
     try {
