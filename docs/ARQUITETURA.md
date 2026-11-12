@@ -38,6 +38,9 @@ Todo o estado fica em `chrome.storage.local` na chave `rsaf_state_v1`:
   running: false,                 // manutenção automática ligada/desligada
   token: null,                    // JWT do RiftStream
   settings: { ... },              // opções do painel
+  meta: {                         // migrações internas
+    settingsVersion: 2
+  },
   current: {                      // última live aberta pela extensão
     login: "lumen",
     tabId: 123,
@@ -60,6 +63,9 @@ cada ciclo. Se o Chrome encerrar o worker, a próxima chamada relê o storage.
 
 `normalizeState()` descarta campos antigos (por exemplo, `manualUntil`,
 `channelMisses` e os timers de chat da v1.0) e mantém apenas o que a v1.2 usa.
+Na primeira carga da v1.2, `meta.settingsVersion` ausente dispara a migração que
+desliga `autoForge` e `autoEnhance`, mesmo que a configuração anterior tivesse a
+forja ligada.
 
 ## Ciclo da manutenção
 
