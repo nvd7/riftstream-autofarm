@@ -4,6 +4,32 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [1.2.1] - 2026-11-12
+
+A forja deixou de esperar 30 minutos: agora roda a cada ciclo (1 min), processa
+todos os grupos e insiste rápido quando o servidor responde 503.
+
+### Alterado
+
+- **Forja a cada minuto**, processando todos os grupos elegíveis em vez de no
+  máximo 6 a cada 30 minutos.
+- **Aprimoramento a cada minuto**, processando todos os planos de slot em vez de
+  apenas o primeiro.
+- **Retentativas rápidas em 503/rede** para forja e aprimoramento: até 4
+  tentativas com espera curta e confirmação no inventário antes de repetir, para
+  não aplicar duas vezes.
+- **Leituras (GET) repetem até 4×** com espera menor (máximo de 1,2 s).
+- **Ao ligar forja ou aprimoramento** no painel, a extensão executa na hora, sem
+  esperar o próximo ciclo.
+- **A busca manual de lives insiste até 4×** em 503 e o status “instável” volta
+  para “ativo” assim que uma busca funciona.
+- A forja avisa no log quando não há grupos de 3–4 itens iguais disponíveis.
+
+### Corrigido
+
+- O ciclo da manutenção não conseguia atualizar o personagem depois da forja
+  (variável `const` reatribuída).
+
 ## [1.2.0] - 2026-11-12
 
 Cada automação ganha um interruptor no painel, forja e aprimoramento passam a

@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.2.0-f5c451" alt="Versão 1.2.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.2.1-f5c451" alt="Versão 1.2.1"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -49,7 +49,7 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v1.2.0.** Busca de lives, abertura de chat, equipar, gemas, forja,
+> **Status: v1.2.1.** Busca de lives, abertura de chat, equipar, gemas, forja,
 > aprimoramento, engaste, organização e venda automática estão implementados.
 > **Forja e aprimoramento não precisam de VIP** — usam os mesmos endpoints do
 > site (`/api/me/items/fuse` e `/api/me/items/enhance`); só o “fundir tudo” e a
@@ -99,18 +99,21 @@ Tudo acontece na sua máquina. O token de login fica no `chrome.storage.local` e
   ouro reservado.
 - **Gemas:** executa o mesmo “combinar todas” do site e respeita o ouro
   disponível.
-- **Forja sem VIP:** monta grupos de 3–4 itens do mesmo slot e raridade e chama o
-  endpoint normal da forja. As regras são as mesmas do site e a reserva de ouro é
-  respeitada.
-- **Aprimoramento sem VIP:** usa a prévia oficial de custo e destrói apenas itens
-  mais fracos do mesmo slot — nunca equipados, favoritos ou com gemas.
+- **Forja sem VIP:** roda a cada minuto, monta todos os grupos de 3–4 itens do
+  mesmo slot e raridade e chama o endpoint normal da forja. As regras são as
+  mesmas do site e a reserva de ouro é respeitada; em 503 a extensão insiste e
+  confere o inventário antes de repetir.
+- **Aprimoramento sem VIP:** roda a cada minuto, usa a prévia oficial de custo e
+  destrói apenas itens mais fracos do mesmo slot — nunca equipados, favoritos ou
+  com gemas.
 - **Menu de funções:** cada automação tem seu próprio interruptor; as destrutivas
   (forja e aprimoramento) vêm desligadas.
 - **Extras opcionais:** engastar gemas nos itens equipados, organizar baús por
   nível e configurar a venda automática (VIP).
 - **Tolerância a falhas:** leituras (GET) são repetidas em 503/erro de rede; a
   lista de lives não é apagada por erro transitório e a sessão expirada é
-  detectada.
+  detectada. **Forja e aprimoramento rodam a cada minuto** e repetem a escrita
+  em 503 conferindo o inventário, sem aplicar duas vezes.
 - **Painel em PT-BR:** personagem, lives encontradas, configurações e log com
   timestamp. Tudo local, sem telemetria.
 

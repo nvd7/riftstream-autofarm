@@ -79,6 +79,8 @@ const DEFAULT_RUNTIME = {
   scanError: null,
   awaitingCharacter: false,
   lastTransient: 0,
+  forgeNoteAt: 0,
+  enhanceNoteAt: 0,
   autosellDisabled: false
 };
 
@@ -208,8 +210,8 @@ function isTransient(e) {
 
 function retryDelay(attempt, retryAfter) {
   const after = num(retryAfter, 0);
-  if (after > 0) return Math.min(after * 1000, 8000);
-  return Math.min(600 * 2 ** attempt, 4000) + Math.floor(Math.random() * 300);
+  if (after > 0) return Math.min(after * 1000, 3000);
+  return Math.min(200 * 2 ** attempt, 1200) + Math.floor(Math.random() * 120);
 }
 
 function errText(e, fallback = "falha na API") {
@@ -218,7 +220,7 @@ function errText(e, fallback = "falha na API") {
 }
 
 async function rawApi(path, { method = "GET", body, token, retries } = {}) {
-  const attempts = Math.max(1, retries === undefined ? (method === "GET" ? 3 : 1) : num(retries, 1));
+  const attempts = Math.max(1, retries === undefined ? (method === "GET" ? 4 : 1) : num(retries, 1));
   const headers = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -836,13 +838,48 @@ function forgeGroups(ch) {
   return groups;
 }
 
+async function itemsGone(state, ids) {
+  try {
+    const fresh = await getCharacterSafe(state);
+    if (!fresh) return { fresh: null, gone: false };
+    const have = new Set((fresh.items || []).map((i) => String(i.id)));
+    return { fresh, gone: ids.length > 0 && ids.every((id) => !have.has(String(id))) };
+  } catch {
+    return { fresh: null, gone: false };
+  }
+}
+
+async function forgeGroup(state, group) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const res = await api(state, "/api/me/items/fuse", {
+        method: "POST",
+        body: { itemIds: group.ids, scrollItemId: null }
+      });
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (!isTransient(e) || attempt >= 3) throw e;
+      await delay(retryDelay(attempt));
+      // Se a resposta se perdeu mas a forja aconteceu, os itens já sumiram.
+      const check = await itemsGone(state, group.ids);
+      if (check.gone) return { character: check.fresh, result: null, confirmed: true };
+    }
+  }
+  throw lastErr;
+}
+
 async function autoForge(state, ch) {
   const now = Date.now();
-  if (now - num(state.timers.lastForge, 0) < 30 * 60000) return 0;
+  if (now - num(state.timers.lastForge, 0) < 30 * 1000) return 0;
 
   const groups = forgeGroups(ch);
   if (!groups.length) {
-    state.timers.lastForge = now;
+    if (now - num(state.runtime.forgeNoteAt, 0) > 10 * 60000) {
+      state.runtime.forgeNoteAt = now;
+      log(state, "Forja: nenhum grupo de 3–4 itens iguais disponível agora.", "info");
+    }
     return 0;
   }
   state.timers.lastForge = now;
@@ -851,16 +888,16 @@ async function autoForge(state, ch) {
   let gold = num(ch.gold, 0);
   let done = 0;
 
-  for (const group of groups.slice(0, 6)) {
+  for (const group of groups) {
     if (gold - group.cost < reserve) {
-      log(state, `Forja: parada, ouro insuficiente (≈${group.cost.toLocaleString("pt-BR")}g por forja).`, "warn");
+      if (now - num(state.runtime.forgeNoteAt, 0) > 10 * 60000) {
+        state.runtime.forgeNoteAt = now;
+        log(state, `Forja: parada, ouro insuficiente (≈${group.cost.toLocaleString("pt-BR")}g por forja).`, "warn");
+      }
       break;
     }
     try {
-      const res = await api(state, "/api/me/items/fuse", {
-        method: "POST",
-        body: { itemIds: group.ids, scrollItemId: null }
-      });
+      const res = await forgeGroup(state, group);
       if (res?.character) {
         ch = res.character;
         state.runtime.character = summarizeCharacter(ch);
@@ -872,6 +909,9 @@ async function autoForge(state, ch) {
         done++;
         const rn = RARITY[num(res.result.rarity, 0)] || "?";
         log(state, `Forja: ${group.label} → ${res.result.name || "item"} (${rn}) por ${group.cost.toLocaleString("pt-BR")}g.`, "ok");
+      } else if (res?.confirmed) {
+        done++;
+        log(state, `Forja: ${group.label} aplicada (resposta perdida, confirmada no inventário).`, "ok");
       } else {
         log(state, `Forja: ${group.label} falhou e os itens foram perdidos.`, "warn");
       }
@@ -917,45 +957,85 @@ function enhancePlan(ch) {
   return plan;
 }
 
-async function autoEnhance(state, ch) {
-  const now = Date.now();
-  if (now - num(state.timers.lastEnhance, 0) < 30 * 60000) return 0;
+async function enhanceGroup(state, p, gold, reserve) {
+  let lastErr = null;
+  let knownCost = 0;
 
-  const plan = enhancePlan(ch);
-  state.timers.lastEnhance = now;
-  if (!plan.length) return 0;
-
-  const reserve = state.settings.goldReserve;
-  let gold = num(ch.gold, 0);
-
-  for (const p of plan) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const preview = await api(state, "/api/me/items/enhance/preview", {
         method: "POST",
         body: { targetId: p.targetId, donorIds: p.donorIds }
       });
-      const cost = num(preview?.gold, 0);
-      if (cost >= 0 && gold - cost < reserve) continue;
+      knownCost = num(preview?.gold, 0);
+      if (gold - knownCost < reserve) return { skip: true, cost: knownCost };
 
       const res = await api(state, "/api/me/items/enhance", {
         method: "POST",
         body: { targetId: p.targetId, donorIds: p.donorIds }
       });
-      if (res?.character) {
-        ch = res.character;
-        state.runtime.character = summarizeCharacter(ch);
-        gold = num(res.character.gold, gold - cost);
-      } else {
-        gold -= cost;
-      }
-      log(state, `Aprimorado: ${p.label} (+${plural(p.donorIds.length, "item destruído", "itens destruídos")}, ${cost.toLocaleString("pt-BR")}g).`, "ok");
-      return p.donorIds.length;
+      return { res, cost: knownCost };
     } catch (e) {
-      log(state, `Aprimorar falhou: ${errText(e)}`, "warn");
-      return 0;
+      lastErr = e;
+      if (!isTransient(e) || attempt >= 3) throw e;
+      await delay(retryDelay(attempt));
+      // Se a resposta se perdeu mas o aprimoramento aconteceu, os doadores
+      // já sumiram do inventário. Confirmar evita aprimorar duas vezes.
+      const check = await itemsGone(state, p.donorIds);
+      if (check.gone) return { confirmed: true, character: check.fresh, cost: knownCost };
     }
   }
-  return 0;
+  throw lastErr;
+}
+
+async function autoEnhance(state, ch) {
+  const now = Date.now();
+  if (now - num(state.timers.lastEnhance, 0) < 45 * 1000) return 0;
+
+  const plan = enhancePlan(ch);
+  if (!plan.length) {
+    if (now - num(state.runtime.enhanceNoteAt, 0) > 10 * 60000) {
+      state.runtime.enhanceNoteAt = now;
+      log(state, "Aprimoramento: nenhum alvo com doadores mais fracos agora.", "info");
+    }
+    return 0;
+  }
+  state.timers.lastEnhance = now;
+
+  const reserve = state.settings.goldReserve;
+  let gold = num(ch.gold, 0);
+  let done = 0;
+
+  for (const p of plan) {
+    try {
+      const out = await enhanceGroup(state, p, gold, reserve);
+      if (out.skip) {
+        if (now - num(state.runtime.enhanceNoteAt, 0) > 10 * 60000) {
+          state.runtime.enhanceNoteAt = now;
+          log(state, `Aprimoramento: parado, ouro insuficiente (≈${out.cost.toLocaleString("pt-BR")}g).`, "warn");
+        }
+        break;
+      }
+      const next = out.res?.character || (out.res?.items ? out.res : null);
+      if (next) {
+        ch = next;
+        state.runtime.character = summarizeCharacter(ch);
+        gold = num(next.gold, gold - out.cost);
+      } else {
+        gold -= out.cost;
+      }
+      done++;
+      if (out.confirmed) {
+        log(state, `Aprimorado: ${p.label} aplicado (resposta perdida, confirmado no inventário).`, "ok");
+      } else {
+        log(state, `Aprimorado: ${p.label} (+${plural(p.donorIds.length, "item destruído", "itens destruídos")}, ${out.cost.toLocaleString("pt-BR")}g).`, "ok");
+      }
+    } catch (e) {
+      log(state, `Aprimorar falhou: ${errText(e)}`, "warn");
+      break;
+    }
+  }
+  return done;
 }
 
 async function applyAutosell(state) {
@@ -1045,6 +1125,31 @@ async function maintain(state, ch) {
     }
   }
 
+  if (s.autoOrganize) {
+    const now = Date.now();
+    if (now - num(state.timers.lastOrganize, 0) > 6 * 60 * 60000) {
+      state.timers.lastOrganize = now;
+      try {
+        await api(state, "/api/me/items/organize", { method: "POST", body: { by: "level" } });
+        log(state, "Baús organizados por nível.", "ok");
+      } catch (e) {
+        log(state, `Organizar falhou: ${errText(e)}`, "warn");
+      }
+    }
+  }
+
+  await applyAutosell(state);
+  if (ch) state.runtime.character = summarizeCharacter(ch);
+  return ch;
+}
+
+/* Forja e aprimoramento rodam em todo ciclo (1 min), não só na manutenção
+ * periódica: são as ações que o usuário quer ver acontecendo rápido. */
+async function maintainFast(state, ch) {
+  if (!ch || !Array.isArray(ch.items)) return ch;
+  const s = state.settings;
+  if (!s.autoForge && !s.autoEnhance) return ch;
+
   if (s.autoForge) {
     try {
       const n = await autoForge(state, ch);
@@ -1069,20 +1174,6 @@ async function maintain(state, ch) {
     }
   }
 
-  if (s.autoOrganize) {
-    const now = Date.now();
-    if (now - num(state.timers.lastOrganize, 0) > 6 * 60 * 60000) {
-      state.timers.lastOrganize = now;
-      try {
-        await api(state, "/api/me/items/organize", { method: "POST", body: { by: "level" } });
-        log(state, "Baús organizados por nível.", "ok");
-      } catch (e) {
-        log(state, `Organizar falhou: ${errText(e)}`, "warn");
-      }
-    }
-  }
-
-  await applyAutosell(state);
   if (ch) state.runtime.character = summarizeCharacter(ch);
   return ch;
 }
@@ -1099,7 +1190,7 @@ async function tick() {
 
     await ensureToken(state);
 
-    const ch = await getCharacterSafe(state);
+    let ch = await getCharacterSafe(state);
     const now = Date.now();
 
     if (!ch) {
@@ -1112,6 +1203,10 @@ async function tick() {
       return;
     }
     state.runtime.awaitingCharacter = false;
+
+    // Forja/aprimoramento não esperam o intervalo da manutenção.
+    const fast = await maintainFast(state, ch);
+    if (fast) ch = fast;
 
     if (now - num(state.timers.lastMaintenance, 0) >= state.settings.maintenanceMin * 60000) {
       state.timers.lastMaintenance = now;
@@ -1207,12 +1302,18 @@ async function handleMessage(msg) {
     }
 
     case "RSAF_SAVE_SETTINGS": {
+      const prev = state.settings;
       state.settings = normalizeSettings(msg.settings);
+      const turnedOn = (k) => !prev[k] && state.settings[k];
+      // Ao ligar forja/aprimoramento, roda já no próximo tick, sem esperar.
+      if (turnedOn("autoForge")) state.timers.lastForge = 0;
+      if (turnedOn("autoEnhance")) state.timers.lastEnhance = 0;
       state.runtime.autosellDisabled = false;
       log(state, "Configurações salvas.");
       await saveState();
       if (state.running) {
         applyAutosell(state).catch(() => {});
+        if (turnedOn("autoForge") || turnedOn("autoEnhance")) tick();
         saveState().catch(() => {});
       }
       updateBadge(state);
@@ -1220,14 +1321,21 @@ async function handleMessage(msg) {
     }
 
     case "RSAF_SCAN": {
-      let list = await scanChannels(state, { force: true });
-      // O site às vezes responde 503 de forma intermitente: insiste mais uma vez.
-      if (!list.length && /indisponível/i.test(state.runtime.scanError || "")) {
-        await delay(1500);
+      let list = [];
+      // 503 é intermitente: insiste rápido e repetidamente até o ranking voltar.
+      for (let attempt = 0; attempt < 4; attempt++) {
         list = await scanChannels(state, { force: true });
+        if (list.length) break;
+        if (!/indisponível/i.test(state.runtime.scanError || "")) break;
+        if (attempt < 3) await delay(800 + attempt * 400);
       }
       if (list.length) {
         state.runtime.scanError = null;
+        state.runtime.lastTransient = 0;
+        if (state.running) {
+          state.runtime.status = "ativo";
+          state.runtime.lastError = null;
+        }
         log(state, `Busca de lives: ${plural(list.length, "live encontrada", "lives encontradas")}.`);
       } else {
         log(state, state.runtime.scanError || "Nenhuma live encontrada.", "warn");
@@ -1245,11 +1353,13 @@ async function handleMessage(msg) {
 
     case "RSAF_MAINTENANCE": {
       await ensureToken(state);
-      const ch = await getCharacterSafe(state);
+      let ch = await getCharacterSafe(state);
       if (!ch) throw new Error("Personagem não encontrado. Entre em uma live e use $jogar no chat.");
-      await maintain(state, ch);
+      ch = (await maintain(state, ch)) || ch;
+      ch = (await maintainFast(state, ch)) || ch;
       state.runtime.status = "ativo";
       state.runtime.lastError = null;
+      state.runtime.lastTransient = 0;
       await saveState();
       return publicState(state);
     }

@@ -52,7 +52,8 @@ Todo o estado fica em `chrome.storage.local` na chave `rsaf_state_v1`:
   },
   runtime: {
     status, lastError, lastAction, character, candidates,
-    scanAt, scanError, awaitingCharacter, lastTransient, autosellDisabled
+    scanAt, scanError, awaitingCharacter, lastTransient,
+    forgeNoteAt, enhanceNoteAt, autosellDisabled
   },
   log: [ { t, msg, level } ]      // até 80 entradas
 }
@@ -78,13 +79,13 @@ tick()
  ├─ garante o token (lê do site se necessário)
  ├─ lê o personagem (/api/me/character)
  │   └─ 404 ............... status "aguardando"; loga uma vez
+ ├─ forja e aprimoramento (sem VIP) em todo tick
+ │   └─ 503/rede ....... repete rápido e confirma no inventário
  ├─ manutenção a cada N minutos
  │   ├─ gastar ouro em atributos
  │   ├─ equipar
  │   ├─ gemas
  │   ├─ engastar
- │   ├─ forjar (sem VIP)
- │   ├─ aprimorar (sem VIP)
  │   ├─ organizar
  │   └─ venda automática
  ├─ mantém a aba aberta (recria/recarega se preciso)
@@ -148,13 +149,16 @@ fora do ar — por isso “eu já estou em uma live” sempre tem uma opção.
 - **Gemas:** executa a prévia; se `merges === 0`, não faz nada. Se
   `canAfford === false`, registra o custo e espera. Caso contrário, executa o
   `POST`.
-- **Forja (sem VIP):** agrupa itens elegíveis por slot e raridade (Evento conta
-  como Épico), pega os 3–4 de maior nível e calcula o custo com a mesma fórmula
-  do site. Envia `{ itemIds, scrollItemId: null }` para `/api/me/items/fuse`,
-  respeitando `goldReserve`. A forja pode falhar e perder os itens.
-- **Aprimoramento (sem VIP):** escolhe o item equipado (ou o de maior nível) de
-  cada slot e usa a prévia oficial para saber o custo. Só destrói itens do mesmo
-  slot, mais fracos, sem gemas, não equipados e não favoritos.
+- **Forja (sem VIP):** roda a cada tick (1 min), agrupa itens elegíveis por slot
+  e raridade (Evento conta como Épico), pega os 3–4 de maior nível e calcula o
+  custo com a mesma fórmula do site. Envia `{ itemIds, scrollItemId: null }` para
+  `/api/me/items/fuse`, processa todos os grupos e respeita `goldReserve`. Em
+  503/rede, repete até 4× com espera curta e confere o inventário para não forjar
+  duas vezes. A forja pode falhar e perder os itens.
+- **Aprimoramento (sem VIP):** roda a cada tick (1 min), escolhe o item equipado
+  (ou o de maior nível) de cada slot e usa a prévia oficial para saber o custo.
+  Só destrói itens do mesmo slot, mais fracos, sem gemas, não equipados e não
+  favoritos. Também repete em 503/rede e confirma pelos doadores que sumiram.
 - **Engaste:** escolhe a gema de maior tier disponível, com prioridade por
   classe, e só usa itens equipados com espaço livre e nível ≥ 20.
 - **Organização:** a cada 6 horas, quando ativada.
@@ -209,7 +213,7 @@ O content script do site ainda envia `RSAF_TOKEN`; o da Twitch envia
 | Token expirado (`401`) | Token é apagado; o log pede novo login |
 | Personagem inexistente (`404`) | Status “aguardando”; loga uma vez sem repetir |
 | API instável (`503`/rede) | GET repete até 3× com espera crescente e `Retry-After`; status “instável”, sem erro permanente |
-| Escrita com `503` | Não é repetida (evita efeito duplicado); o próximo ciclo tenta de novo |
+| Escrita com `503` | Não é repetida por padrão; forja e aprimoramento repetem até 4× e confirmam no inventário antes de repetir |
 | Ranking vazio | `scanError` explica o motivo no painel |
 | Aba fechada | `state.current` é limpo; nada é recriado sozinho |
 | Aba descartada | Recarregada no próximo tick |

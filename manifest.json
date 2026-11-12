@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "RiftStream AutoFarm",
   "short_name": "RiftStream Farm",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Procure lives, abra o chat da Twitch e cuide do inventário do RiftStream: equipar, gemas, forja e aprimoramento, sem VIP.",
   "homepage_url": "https://github.com/nvd7/riftstream-autofarm",
   "permissions": [
