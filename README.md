@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.2.1-f5c451" alt="Versão 1.2.1"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-1.2.2-f5c451" alt="Versão 1.2.2"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -49,11 +49,13 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v1.2.1.** Busca de lives, abertura de chat, equipar, gemas, forja,
+> **Status: v1.2.2.** Busca de lives, abertura de chat, equipar, gemas, forja,
 > aprimoramento, engaste, organização e venda automática estão implementados.
-> **Forja e aprimoramento não precisam de VIP** — usam os mesmos endpoints do
-> site (`/api/me/items/fuse` e `/api/me/items/enhance`); só o “fundir tudo” e a
-> venda automática são exclusivos de VIP. Os endpoints seguem a API observada no
+> A manutenção agora roda em paralelo a cada ~30 s: equipar, forjar e aprimorar
+> não esperam mais uma etapa terminar para a outra começar. **Forja e
+> aprimoramento não precisam de VIP** — usam os mesmos endpoints do site
+> (`/api/me/items/fuse` e `/api/me/items/enhance`); só o “fundir tudo” e a venda
+> automática são exclusivos de VIP. Os endpoints seguem a API observada no
 > front-end atual; mudanças no RiftStream podem exigir ajustes. O primeiro uso
 > deve ser supervisionado.
 
@@ -93,27 +95,34 @@ Tudo acontece na sua máquina. O token de login fica no `chrome.storage.local` e
 - **Nenhuma mensagem automática:** a extensão nunca digita no chat. Slow mode,
   followers-only e sub-only deixam de ser problema.
 - **Manutenção por FC:** usa `GET /api/me/items/{id}/compare` e só equipa quando
-  `newPower > power`, testando os melhores candidatos de cada slot.
+  `newPower > power`. Compara os melhores candidatos de todos os slots de uma vez
+  e equipa os vencedores em paralelo.
 - **Gastar ouro:** sobe os atributos do personagem (`str`, `vit`, `def`, `agi`,
   `luk`) com prioridade equilibrada ou um atributo escolhido, sempre respeitando o
-  ouro reservado.
+  ouro reservado. Compra até 40 níveis por chamada, em rodadas de até 5.
 - **Gemas:** executa o mesmo “combinar todas” do site e respeita o ouro
   disponível.
-- **Forja sem VIP:** roda a cada minuto, monta todos os grupos de 3–4 itens do
-  mesmo slot e raridade e chama o endpoint normal da forja. As regras são as
-  mesmas do site e a reserva de ouro é respeitada; em 503 a extensão insiste e
-  confere o inventário antes de repetir.
-- **Aprimoramento sem VIP:** roda a cada minuto, usa a prévia oficial de custo e
-  destrói apenas itens mais fracos do mesmo slot — nunca equipados, favoritos ou
-  com gemas.
+- **Forja sem VIP:** roda a cada ~30 s, monta todos os grupos de 3–4 itens do
+  mesmo slot e raridade e reserva o orçamento antes de disparar lotes de até 3
+  grupos em paralelo. As regras são as mesmas do site e a reserva de ouro é
+  respeitada; em 503 a extensão insiste e confere o inventário antes de repetir.
+- **Aprimoramento sem VIP:** roda a cada ~30 s, pede todas as prévias de custo em
+  paralelo e aplica em lotes de 2. Destrói apenas itens mais fracos do mesmo slot
+  — nunca equipados, favoritos ou com gemas.
+- **Tudo junto:** organizar baús e configurar a venda automática rodam em segundo
+  plano, sem atrasar equipar, forjar ou aprimorar. Equipar vem primeiro para a
+  forja não destruir um item que seria equipado.
 - **Menu de funções:** cada automação tem seu próprio interruptor; as destrutivas
   (forja e aprimoramento) vêm desligadas.
 - **Extras opcionais:** engastar gemas nos itens equipados, organizar baús por
   nível e configurar a venda automática (VIP).
 - **Tolerância a falhas:** leituras (GET) são repetidas em 503/erro de rede; a
   lista de lives não é apagada por erro transitório e a sessão expirada é
-  detectada. **Forja e aprimoramento rodam a cada minuto** e repetem a escrita
-  em 503 conferindo o inventário, sem aplicar duas vezes.
+  detectada. **Forja e aprimoramento rodam a cada ~30 s** e repetem a escrita em
+  503 conferindo o inventário, sem aplicar duas vezes.
+- **Público fiel:** o detalhe do canal limita o público a 60; o painel usa o
+  número do ranking público quando ele é maior, então uma live com 200 pessoas
+  não aparece mais como 60.
 - **Painel em PT-BR:** personagem, lives encontradas, configurações e log com
   timestamp. Tudo local, sem telemetria.
 
@@ -270,7 +279,9 @@ API do RiftStream ──► personagem ──► manutenção (atributos/equipar
 1. `GET /api/ranking/runs?online=true` e `GET /api/ranking/crowds?online=true`
    listam as lives em destaque.
 2. Para cada candidato, `GET /api/ranking/channel/{login}` confirma `live`,
-   `online`, `zone`, `wave`, `playersNow` e o `twitchLogin`.
+   `online`, `zone`, `wave`, `playersNow` e o `twitchLogin`. Como o detalhe do
+   canal limita o público a 60, o painel usa o maior valor entre o ranking e o
+   detalhe.
 3. Canais que só existem na Kick são descartados.
 4. As lives que você já tem abertas na Twitch entram na lista, marcadas como
    **aberta**, mesmo que o ranking falhe.
@@ -305,12 +316,17 @@ Se a API recusar um recurso VIP, a opção é desativada e o motivo aparece no l
 Forja e aprimoramento **não são VIP**: só o atalho “fundir tudo” e a venda
 automática exigem assinatura.
 
+Equipar, forjar e aprimorar rodam em **todo ciclo (~30 s)** e em paralelo:
+equipar primeiro (protege os itens bons), depois forja e aprimoramento. O
+orçamento é reservado antes de disparar os lotes e o personagem é relido uma
+única vez no fim.
+
 ### Permissões
 
 | Permissão | Por quê |
 |---|---|
 | `storage` | Salvar token, configurações, timers e log localmente |
-| `alarms` | Executar a manutenção a cada minuto mesmo com o service worker dormindo |
+| `alarms` | Executar a manutenção a cada ~30 s mesmo com o service worker dormindo |
 | `tabs` | Abrir, reutilizar, silenciar e impedir o descarte da aba da Twitch |
 | `scripting` | Ler o token do site caso o content script ainda não tenha carregado |
 | `riftstream.com.br` | Ler `localStorage["og.token"]` e chamar a API oficial |

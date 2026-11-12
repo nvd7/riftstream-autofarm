@@ -4,6 +4,34 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [1.2.2] - 2026-11-12
+
+A manutenção ficou quase instantânea: equipar, forjar e aprimorar rodam em
+paralelo a cada ~30 s, sem uma etapa esperar a outra.
+
+### Alterado
+
+- **Ciclo de ~30 s:** o alarme `rsaf_tick` passou de 1 min para 0,5 min (o
+  Chrome arredonda para o mínimo suportado) e o estado é salvo logo depois da
+  fase rápida, então o painel mostra o resultado em até 2 s.
+- **Equipar em todo ciclo, antes da forja:** compara todos os candidatos de
+  todos os slots de uma vez (até 6 em paralelo) e equipa os vencedores em
+  paralelo. Só marca o inventário como pronto se não houve falha transitória.
+- **Atributos em rodadas paralelas:** compra até 40 níveis por chamada, em
+  rodadas de até 5 requisições. No modo de prioridade única, compra até 5 níveis
+  do mesmo atributo por rodada.
+- **Forja em lotes paralelos:** reserva o orçamento acima de `goldReserve` antes
+  de disparar e processa até 3 grupos ao mesmo tempo, em vez de um por vez.
+- **Aprimoramento em paralelo:** pede todas as prévias juntas (até 5), reserva o
+  orçamento e aplica em lotes de 2. O intervalo caiu para 30 s.
+- **Organizar baús e venda automática em segundo plano:** não bloqueiam mais
+  equipar, forjar ou aprimorar.
+- **Uma leitura por lote:** forja e aprimoramento releem o personagem uma única
+  vez ao terminar o lote, em vez de uma vez por ação.
+- **Público real na lista de lives:** o detalhe do canal limita `playersNow` a
+  60; o painel agora usa o maior valor entre o ranking público e o detalhe, então
+  lives com 200+ pessoas não aparecem mais como 60.
+
 ## [1.2.1] - 2026-11-12
 
 A forja deixou de esperar 30 minutos: agora roda a cada ciclo (1 min), processa

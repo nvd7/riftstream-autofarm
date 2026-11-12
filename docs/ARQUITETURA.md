@@ -70,7 +70,8 @@ forja ligada.
 
 ## Ciclo da manutenção
 
-O alarme `rsaf_tick` roda a cada minuto, mas **só faz trabalho se
+O alarme `rsaf_tick` roda a cada 30 s (o Chrome arredonda para o mínimo
+suportado; em versões antigas, 1 min), mas **só faz trabalho se
 `running === true`**. Cada execução é serializada por `tickBusy`.
 
 ```text
@@ -79,15 +80,16 @@ tick()
  ├─ garante o token (lê do site se necessário)
  ├─ lê o personagem (/api/me/character)
  │   └─ 404 ............... status "aguardando"; loga uma vez
- ├─ forja e aprimoramento (sem VIP) em todo tick
+ ├─ equipar (só se o inventário mudou; compara tudo em paralelo)
+ ├─ salva o estado (o painel mostra a forja em até 2 s)
+ ├─ forja e aprimoramento (sem VIP) em todo tick, em lotes paralelos
+ │   ├─ orçamento reservado antes de disparar o lote
  │   └─ 503/rede ....... repete rápido e confirma no inventário
  ├─ manutenção a cada N minutos
- │   ├─ gastar ouro em atributos
- │   ├─ equipar
+ │   ├─ gastar ouro em atributos (rodadas de até 5 em paralelo)
  │   ├─ gemas
  │   ├─ engastar
- │   ├─ organizar
- │   └─ venda automática
+ │   └─ organizar + venda automática em segundo plano
  ├─ mantém a aba aberta (recria/recarega se preciso)
  └─ salva o estado e atualiza o badge
 ```
@@ -106,7 +108,7 @@ scanChannels()
  ├─ filtra por x.online e minPlayers (com fallback se ninguém atingir)
  ├─ confirma cada candidato em /api/ranking/channel/{login}
  │   ├─ descarta canais só da Kick
- │   └─ guarda zone, wave, playersNow, live, online
+ │   └─ guarda zone, wave, playersNow (maior entre ranking e detalhe), live, online
  ├─ adiciona as lives já abertas na Twitch (marcadas como "aberta")
  ├─ ordena pela estratégia e coloca as abertas no topo
  └─ grava candidates, scanAt e scanError
@@ -139,31 +141,40 @@ fora do ar — por isso “eu já estou em uma live” sempre tem uma opção.
 ## Manutenção do inventário
 
 - **Gastar ouro:** `POST /api/me/character/stats/{str|vit|def|agi|luk}` com
-  `{ amount: 1 }`, repetindo enquanto o custo couber acima de `goldReserve`.
-  Prioridade `balanced` escolhe sempre o atributo mais barato; `luk` para no cap
-  informado pelo servidor.
-- **Equipar:** agrupa os itens não equipados por slot, ordena por
-  `itemLevel + raridade × 8`, testa no máximo 5 por slot e equipa somente quando
-  o `compare` confirma ganho de FC. A assinatura do inventário evita repetir a
-  varredura quando nada mudou.
-- **Gemas:** executa a prévia; se `merges === 0`, não faz nada. Se
-  `canAfford === false`, registra o custo e espera. Caso contrário, executa o
-  `POST`.
-- **Forja (sem VIP):** roda a cada tick (1 min), agrupa itens elegíveis por slot
-  e raridade (Evento conta como Épico), pega os 3–4 de maior nível e calcula o
-  custo com a mesma fórmula do site. Envia `{ itemIds, scrollItemId: null }` para
-  `/api/me/items/fuse`, processa todos os grupos e respeita `goldReserve`. Em
-  503/rede, repete até 4× com espera curta e confere o inventário para não forjar
-  duas vezes. A forja pode falhar e perder os itens.
-- **Aprimoramento (sem VIP):** roda a cada tick (1 min), escolhe o item equipado
-  (ou o de maior nível) de cada slot e usa a prévia oficial para saber o custo.
-  Só destrói itens do mesmo slot, mais fracos, sem gemas, não equipados e não
-  favoritos. Também repete em 503/rede e confirma pelos doadores que sumiram.
+  `{ amount: 1 }`. Cada chamada compra até 40 níveis em rodadas de até 5
+  requisições paralelas, lê o personagem uma vez por rodada e para quando o
+  custo passa de `goldReserve`. Prioridade `balanced` escolhe sempre o atributo
+  mais barato; `luk` para no cap informado pelo servidor. Roda no máximo a cada
+  5 minutos.
+- **Equipar:** roda em todo tick. Agrupa os itens não equipados por slot, ordena
+  por `itemLevel + raridade × 8` e compara os até 5 melhores de cada slot **de
+  uma vez** (`mapLimit` 6), equipando os vencedores em paralelo. Só equipa
+  quando o `compare` confirma ganho de FC. A assinatura do inventário evita
+  repetir a varredura quando nada mudou; se houve falha transitória, a próxima
+  execução tenta de novo. Vem antes da forja para não destruir um item que seria
+  equipado.
+- **Forja (sem VIP):** roda a cada ~30 s, agrupa itens elegíveis por slot e
+  raridade (Evento conta como Épico), pega os 3–4 de maior nível e calcula o
+  custo com a mesma fórmula do site. O orçamento acima de `goldReserve` é
+  reservado **antes** de disparar; depois os grupos são enviados em lotes
+  paralelos de até 3. Cada chamada usa `{ itemIds, scrollItemId: null }` em
+  `/api/me/items/fuse`. Em 503/rede, repete até 4× com espera curta e confere o
+  inventário para não forjar duas vezes. A forja pode falhar e perder os itens.
+- **Aprimoramento (sem VIP):** roda a cada ~30 s. Escolhe o item equipado (ou o
+  de maior nível) de cada slot, pede todas as prévias em paralelo (até 5) e só
+  então reserva o orçamento e aplica em lotes de até 2. Só destrói itens do
+  mesmo slot, mais fracos, sem gemas, não equipados e não favoritos. Também
+  repete em 503/rede e confirma pelos doadores que sumiram.
 - **Engaste:** escolhe a gema de maior tier disponível, com prioridade por
   classe, e só usa itens equipados com espaço livre e nível ≥ 20.
-- **Organização:** a cada 6 horas, quando ativada.
-- **Venda automática:** aplica a configuração quando ela muda; ao desligar,
-  restaura `rarity: -1` no servidor para não deixar a venda antiga ativa.
+- **Organização e venda automática:** não bloqueiam o ciclo. Organizar os baús
+  (a cada 6 horas) e aplicar a configuração de venda rodam em segundo plano
+  (`Promise.allSettled`). Ao desligar a venda, a extensão restaura `rarity: -1`
+  no servidor para não deixar a venda antiga ativa.
+- **Uma leitura por lote:** equipar, forja e aprimoramento releem o personagem
+  uma única vez ao terminar o lote, em vez de uma vez por ação. O `tick` salva o
+  estado logo depois da fase rápida, então o painel reflete o resultado em até
+  2 s.
 
 ## API do RiftStream
 
@@ -217,7 +228,7 @@ O content script do site ainda envia `RSAF_TOKEN`; o da Twitch envia
 | Ranking vazio | `scanError` explica o motivo no painel |
 | Aba fechada | `state.current` é limpo; nada é recriado sozinho |
 | Aba descartada | Recarregada no próximo tick |
-| Serviço dormindo | Alarme de 1 min acorda o worker; estado vem do storage |
+| Serviço dormindo | Alarme de ~30 s acorda o worker; estado vem do storage |
 | Popup fechado | O worker continua; o popup relê o estado ao abrir |
 
 ## Segurança e privacidade
@@ -237,7 +248,7 @@ O content script do site ainda envia `RSAF_TOKEN`; o da Twitch envia
 | Fórmula do ranking | `scoreChannel()` em `background.js` |
 | Detecção de canal na URL | `twitchLoginFromUrl()` em `background.js` |
 | Foco do chat | `content/twitch.js` |
-| Nova automação de inventário | `maintain()` + endpoint em `background.js` |
+| Nova automação de inventário | `maintain()`/`maintainFast()` + endpoint em `background.js` |
 | Nova opção | `DEFAULT_SETTINGS`, `normalizeSettings()`, popup e README |
 | Intervalos | `DEFAULT_SETTINGS` (`maintenanceMin`) |
 | Ícones/banner | `icons/`, `docs/banner.png`, `docs/screenshot.png` |
@@ -246,7 +257,7 @@ O content script do site ainda envia `RSAF_TOKEN`; o da Twitch envia
 
 - O service worker MV3 pode dormir a qualquer momento; nada crítico depende de
   memória volátil.
-- O alarme mínimo do Chrome é 1 minuto; a manutenção é controlada por
-  timestamps, não pelo alarme.
+- O Chrome impõe um mínimo para alarmes (30 s nas versões recentes, 1 min nas
+  antigas); a manutenção é controlada por timestamps, não pelo alarme.
 - A extensão não interage com o chat: se o usuário não mandar `$jogar`, o
   personagem simplesmente não entra na live.

@@ -530,7 +530,9 @@ async function scanChannels(state, { force = false } = {}) {
         name: d.displayName || item.name || login,
         zone: num(d.zone, 0),
         wave: num(d.wave, 0),
-        playersNow: num(d.playersNow, 0),
+        // O detalhe do canal limita playersNow a 60; o ranking público traz o
+        // número real (até 250). Fica com o maior para não mostrar 60 em live cheia.
+        playersNow: Math.max(num(item.playersNow, 0), num(d.playersNow, 0)),
         live: !!d.live,
         online: !!d.online,
         open: false,
@@ -620,33 +622,71 @@ async function autoStats(state, ch) {
   let gold = num(ch.gold, 0);
   let done = 0;
 
-  for (let i = 0; i < 40; i++) {
-    const stat = nextStat(ch, priority);
-    if (!stat) break;
-    const cost = num(ch.statCosts?.[stat], 0);
-    if (!cost || gold - cost < reserve) break;
+  // Cada rodada compra 1 nível nos atributos mais baratos ao mesmo tempo.
+  // São até 8 rodadas (40 níveis), mas ~5× menos idas ao servidor.
+  for (let wave = 0; wave < 8; wave++) {
+    const levels = ch.statLevels || {};
+    let keys = STAT_ORDER.filter((k) => !(k === "luk" && num(levels[k], 0) >= num(ch.lukCap, 100)));
+    keys = keys.filter((k) => num(ch.statCosts?.[k], -1) >= 0);
+    if (priority && priority !== "balanced") {
+      keys = keys.includes(priority) ? [priority] : [];
+    } else {
+      keys.sort((a, b) => num(ch.statCosts[a], 0) - num(ch.statCosts[b], 0));
+    }
+    if (!keys.length) break;
 
-    try {
-      const res = await api(state, `/api/me/character/stats/${stat}`, {
-        method: "POST",
-        body: { amount: 1 }
-      });
-      const next = res?.character || res;
-      if (next && next.statLevels) {
-        ch = next;
-        state.runtime.character = summarizeCharacter(ch);
-        gold = num(ch.gold, gold - cost);
-      } else {
-        gold -= cost;
-        ch.statLevels[stat] = num(ch.statLevels[stat], 0) + 1;
-        // estima o próximo custo para não repetir um valor velho
-        ch.statCosts[stat] = Math.round(cost * 1.12);
+    // No modo equilibrado, 1 compra por atributo; na prioridade, até 5 do mesmo
+    // atributo por rodada, com o custo escalando como no jogo.
+    const pool = priority !== "balanced" ? [keys[0], keys[0], keys[0], keys[0], keys[0]] : keys;
+    const picks = [];
+    const seen = {};
+    let budget = gold - reserve;
+    for (const stat of pool) {
+      const n = seen[stat] || 0;
+      const cost = Math.round(num(ch.statCosts?.[stat], 0) * 1.12 ** n);
+      if (!cost || cost > budget) { seen[stat] = n + 1; continue; }
+      picks.push({ stat, cost });
+      budget -= cost;
+      seen[stat] = n + 1;
+      if (picks.length >= 5) break;
+    }
+    if (!picks.length) break;
+
+    const results = await mapLimit(picks, picks.length, async (p) => {
+      try {
+        await api(state, `/api/me/character/stats/${p.stat}`, {
+          method: "POST",
+          body: { amount: 1 }
+        });
+        return { ...p, ok: true };
+      } catch (e) {
+        return { ...p, ok: false, error: e };
       }
-      done++;
-    } catch (e) {
-      log(state, `Atributos: ${errText(e)}`, "warn");
+    });
+
+    const good = results.filter((r) => r.ok);
+    if (!good.length) {
+      log(state, `Atributos: ${errText(results.find((r) => r.error)?.error)}`, "warn");
       break;
     }
+    done += good.length;
+
+    try {
+      const fresh = await getCharacterSafe(state);
+      if (!fresh) throw new Error("sem personagem");
+      ch = fresh;
+      state.runtime.character = summarizeCharacter(ch);
+      gold = num(ch.gold, gold);
+    } catch {
+      // Sem leitura fresca: estima localmente para não estourar a reserva.
+      for (const r of good) {
+        gold -= r.cost;
+        ch.statLevels[r.stat] = num(ch.statLevels[r.stat], 0) + 1;
+        ch.statCosts[r.stat] = Math.round(r.cost * 1.12);
+      }
+    }
+
+    if (good.length < picks.length) break;
   }
 
   if (done > 0) {
@@ -677,9 +717,7 @@ async function autoEquip(state, ch) {
     (bySlot[it.slot] ||= []).push(it);
   }
 
-  let power = num(ch.power, 0);
-  let changed = 0;
-
+  const candidates = [];
   for (const slot of EQUIP_SLOTS) {
     const list = (bySlot[slot] || [])
       .slice()
@@ -688,21 +726,55 @@ async function autoEquip(state, ch) {
         (num(a.itemLevel, 0) + num(a.rarity, 0) * 8)
       )
       .slice(0, 5);
-
-    for (const it of list) {
-      try {
-        const cmp = await api(state, `/api/me/items/${encodeURIComponent(it.id)}/compare`);
-        if (cmp && num(cmp.newPower, 0) > num(cmp.power, power)) {
-          await api(state, `/api/me/items/${encodeURIComponent(it.id)}/equip`, { method: "POST" });
-          power = num(cmp.newPower, power);
-          changed++;
-          log(state, `Equipado: ${it.name || it.id} (+${(num(cmp.newPower, 0) - num(cmp.power, 0)).toLocaleString("pt-BR")} FC).`, "ok");
-        }
-      } catch { /* item não equipável / comparação indisponível */ }
-    }
+    for (const it of list) candidates.push({ slot, it });
+  }
+  if (!candidates.length) {
+    state.timers.lastEquipSig = sig;
+    return 0;
   }
 
-  state.timers.lastEquipSig = sig;
+  // Compara todos os candidatos de uma vez (GETs independentes).
+  let retry = false;
+  const compared = await mapLimit(candidates, 6, async (c) => {
+    try {
+      const cmp = await api(state, `/api/me/items/${encodeURIComponent(c.it.id)}/compare`);
+      return { ...c, cmp };
+    } catch (e) {
+      if (isTransient(e)) retry = true;
+      return { ...c, cmp: null };
+    }
+  });
+
+  const baseline = num(ch.power, 0);
+  const winners = [];
+  for (const slot of EQUIP_SLOTS) {
+    const best = compared
+      .filter((c) => c && c.slot === slot && c.cmp && num(c.cmp.newPower, 0) > num(c.cmp.power, baseline))
+      .sort((a, b) => num(b.cmp.newPower, 0) - num(a.cmp.newPower, 0))[0];
+    if (best) winners.push(best);
+  }
+
+  const equipped = await mapLimit(winners, 4, async (w) => {
+    try {
+      await api(state, `/api/me/items/${encodeURIComponent(w.it.id)}/equip`, { method: "POST" });
+      return w;
+    } catch (e) {
+      if (isTransient(e)) retry = true;
+      return null;
+    }
+  });
+
+  let changed = 0;
+  for (const w of equipped) {
+    if (!w) continue;
+    changed++;
+    const gain = num(w.cmp.newPower, 0) - num(w.cmp.power, 0);
+    log(state, `Equipado: ${w.it.name || w.it.id} (+${gain.toLocaleString("pt-BR")} FC).`, "ok");
+  }
+
+  // Só marca a assinatura quando não houve falha transitória; assim o próximo
+  // ciclo tenta de novo em vez de desistir do inventário.
+  if (!retry) state.timers.lastEquipSig = sig;
   return changed;
 }
 
@@ -884,42 +956,52 @@ async function autoForge(state, ch) {
   }
   state.timers.lastForge = now;
 
+  // Reserva o orçamento antes de disparar: os grupos são independentes e podem
+  // ser forjados em paralelo sem estourar o ouro reservado.
   const reserve = state.settings.goldReserve;
-  let gold = num(ch.gold, 0);
-  let done = 0;
-
+  let budget = num(ch.gold, 0) - reserve;
+  const todo = [];
   for (const group of groups) {
-    if (gold - group.cost < reserve) {
-      if (now - num(state.runtime.forgeNoteAt, 0) > 10 * 60000) {
-        state.runtime.forgeNoteAt = now;
-        log(state, `Forja: parada, ouro insuficiente (≈${group.cost.toLocaleString("pt-BR")}g por forja).`, "warn");
-      }
-      break;
+    if (group.cost > budget) break;
+    budget -= group.cost;
+    todo.push(group);
+  }
+  if (!todo.length) {
+    if (now - num(state.runtime.forgeNoteAt, 0) > 10 * 60000) {
+      state.runtime.forgeNoteAt = now;
+      log(state, `Forja: parada, ouro insuficiente (≈${groups[0].cost.toLocaleString("pt-BR")}g por forja).`, "warn");
     }
+    return 0;
+  }
+
+  const results = await mapLimit(todo, 3, async (group) => {
     try {
-      const res = await forgeGroup(state, group);
-      if (res?.character) {
-        ch = res.character;
-        state.runtime.character = summarizeCharacter(ch);
-        gold = num(res.character.gold, gold - group.cost);
-      } else {
-        gold -= group.cost;
-      }
-      if (res?.result) {
-        done++;
-        const rn = RARITY[num(res.result.rarity, 0)] || "?";
-        log(state, `Forja: ${group.label} → ${res.result.name || "item"} (${rn}) por ${group.cost.toLocaleString("pt-BR")}g.`, "ok");
-      } else if (res?.confirmed) {
-        done++;
-        log(state, `Forja: ${group.label} aplicada (resposta perdida, confirmada no inventário).`, "ok");
-      } else {
-        log(state, `Forja: ${group.label} falhou e os itens foram perdidos.`, "warn");
-      }
+      return { group, res: await forgeGroup(state, group) };
     } catch (e) {
-      log(state, `Forja falhou: ${errText(e)}`, "warn");
-      break;
+      return { group, error: e };
+    }
+  });
+
+  let done = 0;
+  for (const out of results) {
+    if (out.error) {
+      log(state, `Forja falhou: ${errText(out.error)}`, "warn");
+      continue;
+    }
+    const res = out.res;
+    if (res?.result) {
+      done++;
+      const rn = RARITY[num(res.result.rarity, 0)] || "?";
+      log(state, `Forja: ${out.group.label} → ${res.result.name || "item"} (${rn}) por ${out.group.cost.toLocaleString("pt-BR")}g.`, "ok");
+    } else if (res?.confirmed) {
+      done++;
+      log(state, `Forja: ${out.group.label} aplicada (resposta perdida, confirmada no inventário).`, "ok");
+    } else {
+      log(state, `Forja: ${out.group.label} sem detalhes na resposta; confira o inventário.`, "warn");
     }
   }
+
+  // O personagem é relido uma única vez por maintainFast depois do lote.
   return done;
 }
 
@@ -957,24 +1039,33 @@ function enhancePlan(ch) {
   return plan;
 }
 
-async function enhanceGroup(state, p, gold, reserve) {
+async function previewEnhance(state, p) {
   let lastErr = null;
-  let knownCost = 0;
-
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const preview = await api(state, "/api/me/items/enhance/preview", {
         method: "POST",
         body: { targetId: p.targetId, donorIds: p.donorIds }
       });
-      knownCost = num(preview?.gold, 0);
-      if (gold - knownCost < reserve) return { skip: true, cost: knownCost };
+      return num(preview?.gold, 0);
+    } catch (e) {
+      lastErr = e;
+      if (!isTransient(e) || attempt >= 3) throw e;
+      await delay(retryDelay(attempt));
+    }
+  }
+  throw lastErr;
+}
 
+async function applyEnhance(state, p) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
       const res = await api(state, "/api/me/items/enhance", {
         method: "POST",
         body: { targetId: p.targetId, donorIds: p.donorIds }
       });
-      return { res, cost: knownCost };
+      return { res };
     } catch (e) {
       lastErr = e;
       if (!isTransient(e) || attempt >= 3) throw e;
@@ -982,7 +1073,7 @@ async function enhanceGroup(state, p, gold, reserve) {
       // Se a resposta se perdeu mas o aprimoramento aconteceu, os doadores
       // já sumiram do inventário. Confirmar evita aprimorar duas vezes.
       const check = await itemsGone(state, p.donorIds);
-      if (check.gone) return { confirmed: true, character: check.fresh, cost: knownCost };
+      if (check.gone) return { confirmed: true };
     }
   }
   throw lastErr;
@@ -990,7 +1081,7 @@ async function enhanceGroup(state, p, gold, reserve) {
 
 async function autoEnhance(state, ch) {
   const now = Date.now();
-  if (now - num(state.timers.lastEnhance, 0) < 45 * 1000) return 0;
+  if (now - num(state.timers.lastEnhance, 0) < 30 * 1000) return 0;
 
   const plan = enhancePlan(ch);
   if (!plan.length) {
@@ -1002,39 +1093,73 @@ async function autoEnhance(state, ch) {
   }
   state.timers.lastEnhance = now;
 
-  const reserve = state.settings.goldReserve;
-  let gold = num(ch.gold, 0);
-  let done = 0;
-
-  for (const p of plan) {
+  // As prévias são leituras: rodam juntas. Depois, só os planos que cabem no
+  // orçamento são aplicados (também em paralelo).
+  const previews = await mapLimit(plan, 5, async (p) => {
     try {
-      const out = await enhanceGroup(state, p, gold, reserve);
-      if (out.skip) {
-        if (now - num(state.runtime.enhanceNoteAt, 0) > 10 * 60000) {
-          state.runtime.enhanceNoteAt = now;
-          log(state, `Aprimoramento: parado, ouro insuficiente (≈${out.cost.toLocaleString("pt-BR")}g).`, "warn");
-        }
-        break;
-      }
-      const next = out.res?.character || (out.res?.items ? out.res : null);
-      if (next) {
-        ch = next;
-        state.runtime.character = summarizeCharacter(ch);
-        gold = num(next.gold, gold - out.cost);
-      } else {
-        gold -= out.cost;
-      }
-      done++;
-      if (out.confirmed) {
-        log(state, `Aprimorado: ${p.label} aplicado (resposta perdida, confirmado no inventário).`, "ok");
-      } else {
-        log(state, `Aprimorado: ${p.label} (+${plural(p.donorIds.length, "item destruído", "itens destruídos")}, ${out.cost.toLocaleString("pt-BR")}g).`, "ok");
-      }
+      return { p, cost: await previewEnhance(state, p) };
     } catch (e) {
-      log(state, `Aprimorar falhou: ${errText(e)}`, "warn");
-      break;
+      return { p, error: e };
+    }
+  });
+
+  const reserve = num(state.settings.goldReserve, 0);
+  let budget = num(ch.gold, 0) - reserve;
+  const todo = [];
+  let blocked = null;
+  let previewError = null;
+  for (const row of previews) {
+    if (!row) continue;
+    if (row.error) {
+      previewError = previewError || row.error;
+      continue;
+    }
+    if (row.cost > budget) {
+      blocked = blocked === null ? row.cost : Math.min(blocked, row.cost);
+      continue;
+    }
+    budget -= row.cost;
+    todo.push(row);
+  }
+
+  const note = (msg) => {
+    if (now - num(state.runtime.enhanceNoteAt, 0) > 5 * 60000) {
+      state.runtime.enhanceNoteAt = now;
+      log(state, msg, "warn");
+    }
+  };
+
+  if (!todo.length) {
+    if (previewError) note(`Aprimorar falhou: ${errText(previewError)}`);
+    else if (blocked !== null) note(`Aprimoramento: parado, ouro insuficiente (≈${blocked.toLocaleString("pt-BR")}g).`);
+    return 0;
+  }
+
+  const results = await mapLimit(todo, 2, async (row) => {
+    try {
+      return { row, out: await applyEnhance(state, row.p) };
+    } catch (e) {
+      return { row, error: e };
+    }
+  });
+
+  let done = 0;
+  for (const r of results) {
+    if (!r) continue;
+    if (r.error) {
+      log(state, `Aprimorar falhou: ${errText(r.error)}`, "warn");
+      continue;
+    }
+    done++;
+    const p = r.row.p;
+    if (r.out.confirmed) {
+      log(state, `Aprimorado: ${p.label} aplicado (resposta perdida, confirmado no inventário).`, "ok");
+    } else {
+      log(state, `Aprimorado: ${p.label} (+${plural(p.donorIds.length, "item destruído", "itens destruídos")}, ${r.row.cost.toLocaleString("pt-BR")}g).`, "ok");
     }
   }
+
+  // O personagem é relido uma única vez por maintainFast depois do lote.
   return done;
 }
 
@@ -1076,6 +1201,25 @@ async function applyAutosell(state) {
 async function maintain(state, ch) {
   if (!ch || !Array.isArray(ch.items)) return ch;
   const s = state.settings;
+
+  // Organizar baús e configurar a venda não dependem do resto: rodam juntos,
+  // em segundo plano, sem segurar a manutenção.
+  const side = [];
+  if (s.autoOrganize) {
+    const now = Date.now();
+    if (now - num(state.timers.lastOrganize, 0) > 6 * 60 * 60000) {
+      state.timers.lastOrganize = now;
+      side.push((async () => {
+        try {
+          await api(state, "/api/me/items/organize", { method: "POST", body: { by: "level" } });
+          log(state, "Baús organizados por nível.", "ok");
+        } catch (e) {
+          log(state, `Organizar falhou: ${errText(e)}`, "warn");
+        }
+      })());
+    }
+  }
+  side.push(applyAutosell(state));
 
   if (s.autoStats) {
     try {
@@ -1125,30 +1269,30 @@ async function maintain(state, ch) {
     }
   }
 
-  if (s.autoOrganize) {
-    const now = Date.now();
-    if (now - num(state.timers.lastOrganize, 0) > 6 * 60 * 60000) {
-      state.timers.lastOrganize = now;
-      try {
-        await api(state, "/api/me/items/organize", { method: "POST", body: { by: "level" } });
-        log(state, "Baús organizados por nível.", "ok");
-      } catch (e) {
-        log(state, `Organizar falhou: ${errText(e)}`, "warn");
-      }
-    }
-  }
-
-  await applyAutosell(state);
+  await Promise.allSettled(side);
   if (ch) state.runtime.character = summarizeCharacter(ch);
   return ch;
 }
 
-/* Forja e aprimoramento rodam em todo ciclo (1 min), não só na manutenção
- * periódica: são as ações que o usuário quer ver acontecendo rápido. */
+/* Equipar, forjar e aprimorar rodam em todo ciclo (1 min), não só na
+ * manutenção periódica: são as ações que o usuário quer ver acontecendo rápido.
+ * Equipar vem primeiro para a forja nunca destruir um item que seria equipado. */
 async function maintainFast(state, ch) {
   if (!ch || !Array.isArray(ch.items)) return ch;
   const s = state.settings;
-  if (!s.autoForge && !s.autoEnhance) return ch;
+  if (!s.autoEquip && !s.autoForge && !s.autoEnhance) return ch;
+
+  if (s.autoEquip) {
+    try {
+      const n = await autoEquip(state, ch);
+      if (n > 0) {
+        ch = (await getCharacterSafe(state)) || ch;
+        state.runtime.lastAction = plural(n, "item equipado", "itens equipados");
+      }
+    } catch (e) {
+      log(state, `Equipar falhou: ${errText(e)}`, "warn");
+    }
+  }
 
   if (s.autoForge) {
     try {
@@ -1180,6 +1324,11 @@ async function maintainFast(state, ch) {
 
 /* --------------------------------- tick --------------------------------- */
 
+function startAlarm() {
+  // O Chrome moderno aceita 30 s (e arredonda para o mínimo suportado).
+  try { chrome.alarms.create(ALARM_NAME, { periodInMinutes: 0.5 }); } catch { /* ignore */ }
+}
+
 async function tick() {
   if (tickBusy) return;
   tickBusy = true;
@@ -1204,9 +1353,11 @@ async function tick() {
     }
     state.runtime.awaitingCharacter = false;
 
-    // Forja/aprimoramento não esperam o intervalo da manutenção.
+    // Equipar, forjar e aprimorar não esperam o intervalo da manutenção.
     const fast = await maintainFast(state, ch);
     if (fast) ch = fast;
+    // Salva já: o painel mostra o resultado da forja em até 2 s.
+    await saveState();
 
     if (now - num(state.timers.lastMaintenance, 0) >= state.settings.maintenanceMin * 60000) {
       state.timers.lastMaintenance = now;
@@ -1286,7 +1437,7 @@ async function handleMessage(msg) {
       state.runtime.awaitingCharacter = false;
       log(state, "Manutenção automática ligada.");
       await saveState();
-      try { chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 }); } catch { /* ignore */ }
+      startAlarm();
       tick();
       return publicState(state);
     }
@@ -1437,7 +1588,7 @@ async function boot() {
   const state = await loadState();
   updateBadge(state);
   if (state.running) {
-    try { chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 }); } catch { /* ignore */ }
+    startAlarm();
     tick();
   }
 }

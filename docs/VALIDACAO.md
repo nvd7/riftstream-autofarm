@@ -66,14 +66,21 @@ Ligue **Manutenção automática do inventário**.
 - [ ] Itens piores **não** são equipados (compare `power` × `newPower`).
 - [ ] Com 3 gemas iguais, o “combinar todas” executa e o custo aparece no log.
 - [ ] Sem ouro suficiente, o log informa o custo e não combina.
-- [ ] **Gastar ouro em atributos** sobe um nível e respeita o ouro reservado.
-- [ ] **Forjar** (ligado no menu) roda em todo ciclo de 1 min, monta grupos de
-      3–4 itens iguais, informa o resultado no log e não usa “fundir tudo”/VIP.
+- [ ] **Gastar ouro em atributos** sobe vários níveis rapidamente (rodadas de até
+      5) e respeita o ouro reservado.
+- [ ] **Forjar** (ligado no menu) roda em todo ciclo de ~30 s, monta grupos de
+      3–4 itens iguais, processa até 3 grupos em paralelo, informa o resultado no
+      log e não usa “fundir tudo”/VIP.
 - [ ] **Aprimorar** (ligado no menu) mostra o custo na prévia e destrói apenas
-      doadores mais fracos do mesmo slot, também a cada ciclo.
+      doadores mais fracos do mesmo slot, também a cada ~30 s, com prévias em
+      paralelo.
+- [ ] Equipar, forjar e aprimorar começam juntos e o log mostra as ações sem uma
+      etapa esperar a outra terminar.
 - [ ] Forja e aprimoramento vêm **desligados** por padrão.
 - [ ] Ligar forja/aprimoramento dispara uma execução imediata, sem esperar a
       manutenção periódica.
+- [ ] O público das lives usa o ranking quando ele é maior que 60 (ex.: uma live
+      com 200+ pessoas não aparece como 60).
 - [ ] Engaste só acontece com gema de tier ≥ 2 e espaço livre no item.
 - [ ] Organizar baús roda no máximo a cada 6 horas.
 - [ ] Venda automática aplica raridade/nível (VIP) e é restaurada ao desligar.
