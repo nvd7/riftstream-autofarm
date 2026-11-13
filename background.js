@@ -108,7 +108,7 @@ async function gameTabs() {
   }
 }
 
-async function acordarAbas() {
+async function acordarAbas(force = false) {
   const tabs = await gameTabs();
   let enviados = 0;
   for (const tab of tabs) {
@@ -119,7 +119,7 @@ async function acordarAbas() {
       continue;
     }
     try {
-      await chrome.tabs.sendMessage(tab.id, { rodada: true });
+      await chrome.tabs.sendMessage(tab.id, { rodada: true, forcar: force });
       enviados++;
     } catch { /* content script ainda carregando */ }
   }
@@ -410,7 +410,7 @@ async function handleMessage(msg, sender) {
       return publicState();
 
     case "RSAF_MAINTENANCE": {
-      const r = await acordarAbas();
+      const r = await acordarAbas(true);
       await addLog(r.enviados
         ? "Rodada enviada para a aba do jogo."
         : "Abra riftstream.com.br numa aba para a rodada acontecer.", r.enviados ? "ok" : "warn");

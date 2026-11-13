@@ -4,6 +4,54 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.0.0] - 2026-11-13
+
+A maior atualização do projeto: o AutoFarm foi fundido com a engine do
+“Rift Auto”. A automação saiu do service worker e passou a rodar **dentro da
+página do jogo**, com painel flutuante, API descoberta na própria página e uma
+única aba trabalhando por vez.
+
+### Adicionado
+
+- **Painel flutuante ◆ no jogo**, em Shadow DOM, com seis abas (Início, Forja,
+  Atributos, Gemas, Venda e Ajustes), arrastar, minimizar, fechar e reabrir pela
+  bolinha.
+- **Tema claro/escuro** e **tamanho da fonte** aplicados na hora, no painel e no
+  popup.
+- **Roleta rápida (2×/4×/8×):** acelera somente a animação da roleta; o
+  resultado continua vindo do servidor.
+- **Engine na página:** token lido de `localStorage["og.token"]`, endereço da
+  API descoberto no código do jogo, nova descoberta automática em falha/401.
+- **Uma aba por vez** com `navigator.locks`, evitando ações duplicadas.
+- **Forja protegida por `compare`:** antes de forjar, cada candidato é comparado
+  com o item equipado; o que é melhor fica de fora.
+- **Venda individual sem VIP** com filtros de raridade e nível (já existia na
+  1.3.0 e agora vive na engine da página).
+- **Status ao vivo por módulo** e contadores de forjados, perdidos, equipados,
+  vendidos, aprimorados e gemas.
+- **Popup redesenhado:** liga/desliga, personagem, busca de lives, status dos
+  módulos, preferências rápidas e log.
+
+### Alterado
+
+- **Arquitetura:** `background.js` virou coordenador (acorda abas, busca lives,
+  abre o chat e mantém o badge). Toda a automação está em `content/engine.js`.
+- **Configuração única** em `chrome.storage.local` (`rsaf`), compartilhada entre
+  painel e popup.
+- **Atributos com dois modos:** dividir ouro igualmente ou upar até metas por
+  atributo, com foco e reserva de ouro.
+- **Forja em lotes** com estimativa de custo antes de disparar.
+- **Venda individual limitada por rodada** para não inundar a API.
+- Manifest cobre `www.riftstream.com.br` e declara `minimum_chrome_version`.
+
+### Corrigido
+
+- **Contagem de pessoas por live:** usa o maior valor entre o ranking público e
+  o detalhe do canal.
+- **Comparações de equipamento obsoletas** são descartadas quando o equipamento
+  muda.
+- **Rodadas concorrentes** em várias abas do jogo.
+
 ## [1.3.0] - 2026-11-12
 
 Melhorias de velocidade, correção da contagem de pessoas, foco de atributos,

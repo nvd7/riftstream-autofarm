@@ -226,6 +226,7 @@
   const comparacoes = new Map();
   const ganhos = new Map();
   let ultimosEquipados = "";
+  let vendasNaRodada = 0;
 
   function bloquear(chave, texto, espera, campo) {
     pausados.set(chave, Date.now() + espera);
@@ -667,12 +668,14 @@
   async function venderItens(ch) {
     const c = s().sell;
     if (!c.ligado) return false;
+    if (vendasNaRodada >= MAX_VENDAS) return false;
     const maxR = num(c.rarity, 2);
     const maxLv = num(c.level, 40);
+    const restantes = MAX_VENDAS - vendasNaRodada;
     const alvos = (ch.items || []).filter((it) =>
       it && !it.equipped && !it.favorite && !(it.gems?.length) &&
       num(it.rarity) <= maxR && num(it.itemLevel) <= maxLv
-    ).slice(0, MAX_VENDAS);
+    ).slice(0, restantes);
 
     if (!alvos.length) {
       setStatus("sell", "Nenhum item para vender");
@@ -694,6 +697,7 @@
       }
     }
     if (vendidos > 0) {
+      vendasNaRodada += vendidos;
       salvarStats({ vendidos: num(stats.vendidos) + vendidos });
       setStatus("sell", `${plural(vendidos, "item vendido", "itens vendidos")} (sem VIP)`);
       status.lastAction = `${plural(vendidos, "item vendido", "itens vendidos")}`;
@@ -749,11 +753,14 @@
 
   async function rodada() {
     let fezAlgo = false;
+    vendasNaRodada = 0;
     await configurarVendaLote();
     for (let i = 0; i < MAX_ACOES; i += 1) {
       const ch = await api("/api/me/character");
       const resumo = resumoPersonagem(ch);
-      if (JSON.stringify(resumo) !== JSON.stringify(status.character)) {
+      const comparavel = { ...resumo, at: 0 };
+      const anterior = status.character ? { ...status.character, at: 0 } : null;
+      if (JSON.stringify(comparavel) !== JSON.stringify(anterior)) {
         status.character = resumo;
         agendarStatus();
       }
@@ -792,8 +799,13 @@
       const texto = e.codigo === 401 || e.message === "sem sessão"
         ? "Entre na sua conta do jogo"
         : "Sem resposta do jogo, tentando de novo...";
-      for (const campo of ["forja", "up", "gem", "equip", "sell", "enhance", "socket"]) {
-        if (s()[campo]?.ligado || campo === "equip") setStatus(campo, texto);
+      const mapa = {
+        equip: s().equip, forja: s().forge.ligado, up: s().stats.ligado,
+        gem: s().gems.ligado, sell: s().sell.ligado,
+        enhance: s().enhance.ligado, socket: s().socket.ligado
+      };
+      for (const [campo, ligado] of Object.entries(mapa)) {
+        if (ligado) setStatus(campo, texto);
       }
     } finally {
       ocupado = false;
@@ -849,7 +861,10 @@
     });
 
     chrome.runtime.onMessage.addListener((msg) => {
-      if (msg?.rodada) ciclo();
+      if (!msg?.rodada) return;
+      // "Rodar agora" no popup força uma rodada mesmo com o farm desligado.
+      if (msg.forcar) rodada().catch((e) => console.warn("[Rift Auto] rodada manual", e));
+      else ciclo();
     });
   }
 

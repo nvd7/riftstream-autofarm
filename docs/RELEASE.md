@@ -23,9 +23,10 @@ node tools/validate.mjs
 - [ ] O validador terminou com **“Tudo certo”**.
 - [ ] O workflow **validar** passou no commit.
 - [ ] A extensão carrega em `chrome://extensions` sem erros.
-- [ ] O painel abre e mostra o estado correto.
-- [ ] **Testar chat** envia `$me` em uma live de teste.
-- [ ] Um ciclo completo de farm foi observado (entrada + heartbeat).
+- [ ] O popup abre e o painel ◆ aparece na página do jogo.
+- [ ] **Rodar agora** executa uma rodada e atualiza o status no popup.
+- [ ] Um ciclo completo de farm foi observado (equipar + um módulo ligado).
+- [ ] Tema claro/escuro e tamanho da fonte são aplicados e persistem.
 - [ ] Se a mudança tocar em inventário, siga a seção 6 de
   [VALIDACAO.md](VALIDACAO.md).
 - [ ] Testou em Chrome e, se possível, Edge.
@@ -73,7 +74,7 @@ repositório, não na instalação.
 
 - [ ] Baixe o zip da release e carregue em uma pasta limpa.
 - [ ] Confirme que a versão aparece em `chrome://extensions`.
-- [ ] Rode um ciclo curto de farm e um **Testar chat**.
+- [ ] Rode um ciclo curto de farm e abra o painel ◆ na página do jogo.
 - [ ] Confira o README e o CHANGELOG renderizados no GitHub.
 - [ ] Verifique se banner, screenshot e links abrem.
 - [ ] Abra issues para limitações conhecidas que ficaram fora da versão.
