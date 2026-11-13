@@ -52,7 +52,8 @@
       raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false },
       tipos: { arma: true, elmo: true, armadura: true, anel: true },
       minLevel: 0,
-      maxLevel: 9999
+      maxLevel: 9999,
+      useScroll: false
     },
     stats: {
       ligado: true,
@@ -459,6 +460,19 @@
     return gruposForja(ch).length;
   }
 
+  // Procura um pergaminho de forja no inventário (item consumível com nome relacionado).
+  function encontrarPergaminho(ch) {
+    for (const i of ch.items || []) {
+      if (!i || i.equipped || i.favorite) continue;
+      if (i.slot !== "consumable") continue;
+      const nome = (i.name || "").toLowerCase();
+      if (nome.includes("pergaminho") || nome.includes("scroll") || nome.includes("forge scroll")) {
+        return i;
+      }
+    }
+    return null;
+  }
+
   // Até 3 grupos por rodada: a forja não fica esperando o próximo ciclo para
   // cada item, mas também não dispara o inventário inteiro de uma vez.
   const MAX_FORJAS = 3;
@@ -502,13 +516,20 @@
         break;
       }
       setStatus("forja", `Forjando ${rotulo}...`);
+      // Pergaminho aumenta a chance de sucesso na forja.
+      let scrollId = null;
+      if (s().forge.useScroll) {
+        const scroll = encontrarPergaminho(ch);
+        if (scroll) scrollId = scroll.id;
+        else setStatus("forja", `Sem pergaminho no inventário — forjando sem ${rotulo}...`);
+      }
       if (SIMULAR) {
-        window.__plano?.push(`forja ${rotulo}`);
+        window.__plano?.push(`forja ${rotulo}${scrollId ? " + pergaminho" : ""}`);
         pausados.set(g.chave, Infinity);
         return true;
       }
       try {
-        const res = await api("/api/me/items/fuse", { itemIds: liberados.map((i) => i.id), scrollItemId: null });
+        const res = await api("/api/me/items/fuse", { itemIds: liberados.map((i) => i.id), scrollItemId: scrollId });
         if (res.success === false) {
           salvarStats({ forjaPerdidos: num(stats.forjaPerdidos) + 1 });
           setStatus("forja", `Roleta falhou: ${rotulo}`);

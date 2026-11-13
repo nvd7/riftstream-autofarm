@@ -392,6 +392,10 @@
                 <span class="grow">Forjar sozinho<small>Até 3 grupos por rodada, 3–4 itens iguais</small></span>
                 <button class="sw" id="swForge"></button>
               </div>
+              <div class="row">
+                <span class="grow">Usar pergaminho<small>Aumenta a chance de sucesso da forja</small></span>
+                <button class="sw" id="swForgeScroll"></button>
+              </div>
               <h3>Forjar para</h3>
               <div class="chips" id="chipsRarity"></div>
               <h3>Tipos de item</h3>
@@ -660,6 +664,10 @@
   q("swForge").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.forge.ligado = !cfg.settings.forge.ligado;
   }));
+  q("swForgeScroll").addEventListener("click", () => {
+    cfg.settings.forge.useScroll = !cfg.settings.forge.useScroll;
+    salvarCfg();
+  });
   q("swEquip").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.equip = !cfg.settings.equip;
   }));
@@ -961,6 +969,7 @@
     q("swEnhance").classList.toggle("on", !!st.enhance.ligado);
     q("enhanceRisk").hidden = !st.enhance.ligado;
     q("swForge").classList.toggle("on", !!st.forge.ligado);
+    q("swForgeScroll").classList.toggle("on", !!st.forge.useScroll);
     chipsRarity.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.raridades[id]));
     chipsType.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.tipos[id]));
     q("forgeRisk").hidden = !["epico", "lendario"].some((id) => st.forge.raridades[id]);

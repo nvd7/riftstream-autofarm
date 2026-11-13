@@ -4,6 +4,14 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.1.2] - 2026-11-13
+
+### Adicionado
+
+- **Usar pergaminho na forja:** nova opção na aba Forja. Quando ligada, a extensão
+  gasta um Pergaminho de Sorte do inventário a cada forja, aumentando a chance de
+  sucesso. Se não houver pergaminho, forja sem ele e avisa no status.
+
 ## [2.1.1] - 2026-11-13
 
 ### Corrigido
