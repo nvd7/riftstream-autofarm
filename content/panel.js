@@ -332,6 +332,10 @@
 
         <section class="panel" data-panel="forja">
           <div class="row">
+            <span class="grow">Equipar o mais forte<small>Troca quando a Força de Combate aumenta</small></span>
+            <button class="sw" id="swEquip"></button>
+          </div>
+          <div class="row">
             <span class="grow">Forjar sozinho<small>Junta 3–4 itens iguais (slot + raridade)</small></span>
             <button class="sw" id="swForge"></button>
           </div>
@@ -349,6 +353,13 @@
             Nv. 140 e gerar um resultado pior.
           </p>
           <p class="risk" id="forgeRisk" hidden>⚠ Forja com roleta: pode perder os itens e o ouro.</p>
+
+          <div class="row" style="margin-top:12px">
+            <span class="grow">Aprimorar itens<small>Usa os itens mais fracos como doadores</small></span>
+            <button class="sw" id="swEnhance"></button>
+          </div>
+          <p class="risk" id="enhanceRisk" hidden>⚠ O aprimoramento destrói os itens doadores.</p>
+
           <div class="statusbox"><span id="stForja">Desligada</span><small id="ctForja"></small></div>
         </section>
 
@@ -574,6 +585,13 @@
   });
   q("swForge").addEventListener("click", () => {
     cfg.settings.forge.ligado = !cfg.settings.forge.ligado;
+    salvarCfg();
+  });  q("swEquip").addEventListener("click", () => {
+    cfg.settings.equip = !cfg.settings.equip;
+    salvarCfg();
+  });
+  q("swEnhance").addEventListener("click", () => {
+    cfg.settings.enhance.ligado = !cfg.settings.enhance.ligado;
     salvarCfg();
   });
   q("swUp").addEventListener("click", () => {
@@ -836,6 +854,9 @@
     }
 
     // Forja
+    q("swEquip").classList.toggle("on", !!st.equip);
+    q("swEnhance").classList.toggle("on", !!st.enhance.ligado);
+    q("enhanceRisk").hidden = !st.enhance.ligado;
     q("swForge").classList.toggle("on", !!st.forge.ligado);
     chipsRarity.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.raridades[id]));
     chipsType.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.tipos[id]));

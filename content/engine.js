@@ -227,9 +227,18 @@
   const ganhos = new Map();
   let ultimosEquipados = "";
   let vendasNaRodada = 0;
+  let niveisSalvos = "";
+  let avisoForja = "";
+  let avisoForjaAte = 0;
 
   function bloquear(chave, texto, espera, campo) {
     pausados.set(chave, Date.now() + espera);
+    if (campo === "forja") {
+      // O aviso da forja precisa sobreviver até o fim da rodada; sem isso ele
+      // seria sobrescrito por "Aguardando itens suficientes".
+      avisoForja = texto;
+      avisoForjaAte = Date.now() + espera;
+    }
     if (texto) setStatus(campo || chave, texto);
   }
 
@@ -381,7 +390,9 @@
         bloquear(g.chave, `Não forjou ${rotulo} (sem ouro ou recusado pelo jogo)`, ESPERA_FALHA, "forja");
       }
     }
-    setStatus("forja", "Aguardando itens suficientes");
+    setStatus("forja", Date.now() < avisoForjaAte
+      ? avisoForja
+      : "Aguardando itens suficientes");
     return false;
   }
 
@@ -393,6 +404,17 @@
       nivel: ch.statLevels?.[stat],
       custo: ch.statCosts?.[stat]
     })).filter((a) => Number.isFinite(num(a.nivel, NaN)) && Number.isFinite(num(a.custo, NaN)));
+  }
+
+  // Mantém os níveis reais no storage para o painel mostrar "nv X" mesmo antes
+  // de qualquer compra (e corrige o valor otimista depois de upar).
+  function salvarNiveis(ch) {
+    const niveis = {};
+    for (const a of atributosDe(ch)) niveis[a.id] = a.nivel;
+    const texto = JSON.stringify(niveis);
+    if (texto === niveisSalvos) return;
+    niveisSalvos = texto;
+    salvarStats({ upNiveis: niveis });
   }
 
   async function comprar(a, quantidade) {
@@ -757,6 +779,7 @@
     await configurarVendaLote();
     for (let i = 0; i < MAX_ACOES; i += 1) {
       const ch = await api("/api/me/character");
+      salvarNiveis(ch);
       const resumo = resumoPersonagem(ch);
       const comparavel = { ...resumo, at: 0 };
       const anterior = status.character ? { ...status.character, at: 0 } : null;

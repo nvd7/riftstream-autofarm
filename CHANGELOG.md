@@ -4,6 +4,17 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.0.1] - 2026-11-13
+
+### Corrigido
+
+- **Painel:** botões para ligar **Equipar o mais forte** e **Aprimorar itens**
+  (os módulos existiam na engine, mas não tinham controle na interface).
+- **Níveis dos atributos:** o painel agora mostra o nível real de cada atributo
+  desde a primeira rodada, e não só depois de uma compra.
+- **Aviso da forja:** “Itens melhores que o equipado protegidos” deixa de ser
+  sobrescrito por “Aguardando itens suficientes” na mesma rodada.
+
 ## [2.0.0] - 2026-11-13
 
 A maior atualização do projeto: o AutoFarm foi fundido com a engine do

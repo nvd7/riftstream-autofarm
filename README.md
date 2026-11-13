@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.0.0-f5c451" alt="Versão 2.0.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.0.1-f5c451" alt="Versão 2.0.1"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -48,7 +48,7 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v2.0.0.** Esta versão funde o AutoFarm com a engine do
+> **Status: v2.0.1.** Esta versão funde o AutoFarm com a engine do
 > “Rift Auto”: a automação roda **dentro da página do jogo**, descobre sozinha o
 > endereço da API, usa o token da própria sessão e garante que **só uma aba**
 > trabalhe por vez. O painel ◆ tem seis abas, tema claro/escuro, tamanho de
@@ -202,7 +202,7 @@ popup.
 | Aba | O que controla |
 |---|---|
 | **Início** | Personagem, status ao vivo dos módulos e contadores |
-| **Forja** | Ligar a forja, raridades, tipos, faixa de nível e status |
+| **Forja** | Equipar o mais forte, ligar a forja, raridades, tipos, faixa de nível e aprimoramento |
 | **Atributos** | Dividir ouro ou metas por nível, foco de atributos e reserva |
 | **Gemas** | Combinar 3 em 3, Suprema e engaste nos equipados |
 | **Venda** | Venda individual sem VIP, lote VIP e organizar baús |
