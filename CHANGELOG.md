@@ -4,6 +4,14 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.1.1] - 2026-11-13
+
+### Corrigido
+
+- **Diagnóstico honesto da venda:** agora diz exatamente quantos itens estão
+  **protegidos pela forja** (e por isso não são vendidos), em vez de mostrar um
+  número de "vendáveis" que incluía itens que a forja está juntando.
+
 ## [2.1.0] - 2026-11-13
 
 ### Corrigido

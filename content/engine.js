@@ -868,10 +868,16 @@
       .slice(0, restantes);
 
     if (!alvos.length) {
-      const total = (ch.items || []).filter((it) => elegivelVenda(it)).length;
-      setStatus("sell", total
-        ? `${plural(total, "item elegível", "itens elegíveis")} — a forja vai usar`
-        : "Nenhum item para vender");
+      const protegidos = idsDaForja(ch);
+      const totalElegiveis = (ch.items || []).filter((it) => elegivelVenda(it)).length;
+      const realmenteVendaveis = totalElegiveis - protegidos.size;
+      if (protegidos.size > 0) {
+        setStatus("sell", `${plural(realmenteVendaveis, "item vendável", "itens vendáveis")} · ${plural(protegidos.size, "item", "itens")} protegido(s) pela forja`);
+      } else if (totalElegiveis > 0) {
+        setStatus("sell", `${plural(totalElegiveis, "item elegível", "itens elegíveis")} — a forja vai usar`);
+      } else {
+        setStatus("sell", "Nenhum item para vender");
+      }
       return false;
     }
     let vendidos = 0;
