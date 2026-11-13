@@ -42,7 +42,8 @@
           raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false },
           tipos: { arma: true, elmo: true, armadura: true, anel: true },
           minLevel: 0,
-          maxLevel: 9999
+          maxLevel: 9999,
+          useScroll: false
         },
         stats: {
           ligado: true, modo: "igual",

@@ -485,6 +485,12 @@
       return false;
     }
 
+    // Pergaminho de forja: é gasto na tentativa (dando certo ou não), então o
+    // estoque é controlado dentro da própria rodada para não usar um que já acabou.
+    const pergaminho = s().forge.useScroll ? encontrarPergaminho(ch) : null;
+    let pergaminhos = pergaminho ? Math.max(1, num(pergaminho.count ?? pergaminho.quantity ?? pergaminho.amount, 1)) : 0;
+    let avisouSemPergaminho = false;
+
     let forjou = 0;
     let livre = num(ch.gold) - s().goldReserve;
     for (const g of grupos) {
@@ -519,9 +525,14 @@
       // Pergaminho aumenta a chance de sucesso na forja.
       let scrollId = null;
       if (s().forge.useScroll) {
-        const scroll = encontrarPergaminho(ch);
-        if (scroll) scrollId = scroll.id;
-        else setStatus("forja", `Sem pergaminho no inventário — forjando sem ${rotulo}...`);
+        if (pergaminho && pergaminhos > 0) {
+          scrollId = pergaminho.id;
+        } else if (!avisouSemPergaminho) {
+          avisouSemPergaminho = true;
+          setStatus("forja", pergaminho
+            ? "Pergaminhos esgotados — forjando sem eles"
+            : "Sem pergaminho no inventário — forjando sem ele");
+        }
       }
       if (SIMULAR) {
         window.__plano?.push(`forja ${rotulo}${scrollId ? " + pergaminho" : ""}`);
@@ -530,6 +541,8 @@
       }
       try {
         const res = await api("/api/me/items/fuse", { itemIds: liberados.map((i) => i.id), scrollItemId: scrollId });
+        // O pergaminho é consumido na tentativa, mesmo se a roleta falhar.
+        if (scrollId) pergaminhos = Math.max(0, pergaminhos - 1);
         if (res.success === false) {
           salvarStats({ forjaPerdidos: num(stats.forjaPerdidos) + 1 });
           setStatus("forja", `Roleta falhou: ${rotulo}`);

@@ -4,6 +4,15 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.1.3] - 2026-11-13
+
+### Corrigido
+
+- **Pergaminho na forja:** o estoque é controlado dentro da rodada. Como o
+  pergaminho é gasto na tentativa (dando certo ou não) e a forja faz até 3
+  grupos por rodada, a extensão deixava de usá-lo quando acabava, em vez de
+  tentar usar um pergaminho que já não existia.
+
 ## [2.1.2] - 2026-11-13
 
 ### Adicionado

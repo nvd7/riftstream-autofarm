@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.1.2-f5c451" alt="Versão 2.1.2"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.1.3-f5c451" alt="Versão 2.1.3"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -119,6 +119,8 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   ficam de fora.
 - **Filtro de nível da forja (importante):** mínimo e máximo por item. Evita
   juntar um Nv. 80 com um Nv. 140 e gerar um resultado pior.
+- **Pergaminho na forja (opcional):** gasta um Pergaminho de Sorte por tentativa
+  para aumentar a chance de sucesso. Se o estoque acabar, a forja segue sem ele.
 - **Atributos do jeito que você quiser:**
   - **Dividir ouro:** o mesmo tanto para cada atributo marcado;
   - **Até o nível:** metas por atributo;
@@ -255,6 +257,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Forja | `forge.tipos` | Todos | Arma, elmo, armadura e anel |
 | Forja | `forge.minLevel` | `0` | Nível mínimo dos itens forjados |
 | Forja | `forge.maxLevel` | `9999` | Nível máximo dos itens forjados |
+| Forja | `forge.useScroll` | `false` | Usa Pergaminho de Sorte em cada forja |
 | Atributos | `stats.ligado` | `true` | Gasta ouro em atributos |
 | Atributos | `stats.modo` | `igual` | `igual` (dividir) ou `nivel` (metas) |
 | Atributos | `stats.sel` | Todos | Atributos marcados (foco) |
