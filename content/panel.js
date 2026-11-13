@@ -3,11 +3,11 @@
 /*
  * RiftStream AutoFarm — painel flutuante (dentro do site do jogo)
  * =========================================================================
- * É a UI principal da extensão. Vive num Shadow DOM para não brigar com o
- * CSS do RiftStream. Fala com a engine apenas por chrome.storage.local.
+ * UI em Shadow DOM para não brigar com o CSS do RiftStream. Fala com a
+ * engine apenas por chrome.storage.local.
  *
- * Abas: Início · Forja · Atributos · Gemas · Venda · Ajustes
- * Recursos: arrastar, minimizar, tema claro/escuro, tamanho da fonte.
+ * Layout: dock vertical — trilho de módulos à esquerda, conteúdo à direita,
+ * ticker de rodada no rodapé. Paleta menta/ciano, números em fonte mono.
  * ========================================================================= */
 
 (() => {
@@ -18,13 +18,13 @@
   const STATUS_KEY = "rsafStatus";
   const UI_KEY = "rsafPanel";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.1.0";
   const RARIDADES = [
-    ["comum", "Comum", "#5fd08c"],
-    ["incomum", "Incomum", "#6aa8ff"],
-    ["raro", "Raro", "#c684f5"],
-    ["epico", "Épico ⚠", "#ffa94d"],
-    ["lendario", "Lendário ⚠", "#ff6b6b"]
+    ["comum", "Comum", "#4de3b0"],
+    ["incomum", "Incomum", "#5cc8ff"],
+    ["raro", "Raro", "#9d8bff"],
+    ["epico", "Épico ⚠", "#ffb454"],
+    ["lendario", "Lendário ⚠", "#ff7a7a"]
   ];
   const TIPOS = [["arma", "Arma"], ["elmo", "Elmo"], ["armadura", "Armadura"], ["anel", "Anel"]];
   const ATRIBUTOS = [
@@ -52,7 +52,7 @@
         gems: { ligado: true, juntar: true, suprema: false },
         socket: { ligado: false },
         enhance: { ligado: false },
-        sell: { ligado: false, rarity: 2, level: 40 },
+        sell: { ligado: false, rarity: 2, level: 9999 },
         lote: { ligado: false, rarity: 2, level: 40 },
         organize: true,
         roleta: { ligada: false, vel: 4 },
@@ -78,7 +78,10 @@
   const store = chrome.storage.local;
   let cfg = defaults();
   let stats = { forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0, gemTotais: {}, upNiveis: {}, upGasto: {} };
-  let status = { forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", character: null, lastAction: "" };
+  let status = {
+    forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", socket: "", organize: "",
+    character: null, lastAction: "", updatedAt: 0, counts: { forja: 0, venda: 0 }, roundAt: 0
+  };
   let ui = { aberto: true, aba: "inicio", x: null, y: null, minimizado: false };
 
   const host = document.createElement("div");
@@ -91,189 +94,230 @@
     :host, * { box-sizing: border-box; }
     .app{
       --fs:12px;
-      --bg:#0b0916; --bg2:#120f22; --panel:#171331; --panel2:#1e1940;
-      --line:#2e2755; --line2:#3d3470; --text:#efeaff; --muted:#a49cc9;
-      --gold:#ffcf4a; --gold-dim:#ffcf4a22; --green:#46d483; --red:#ff6b6b;
-      --blue:#6aa8ff; --purple:#b98cff; --shadow:0 18px 48px #000000b0;
-      font: var(--fs)/1.4 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
-      color: var(--text);
+      --bg:#07110e; --bg2:#0a1a15; --surface:#0f2620; --surface2:#143029;
+      --line:#1d443a; --line2:#2a5c4d; --text:#e4fff6; --muted:#7fa89c;
+      --mint:#4de3b0; --mint-dim:#4de3b01c; --cyan:#5cc8ff; --red:#ff7a7a;
+      --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+      --shadow:0 24px 64px #000000c9, 0 0 0 1px #0a1a1555;
+      font:var(--fs)/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+      color:var(--text);
     }
     .app[data-theme="light"]{
-      --bg:#f6f4fc; --bg2:#fff; --panel:#ffffff; --panel2:#f0edfa;
-      --line:#ddd6f0; --line2:#c9bfe6; --text:#211d35; --muted:#6f6890;
-      --gold:#a67800; --gold-dim:#a6780018; --green:#1f9d57; --red:#d64545;
-      --blue:#2563eb; --purple:#7c3aed; --shadow:0 18px 44px #2b205040;
+      --bg:#edfaf4; --bg2:#f7fffb; --surface:#ffffff; --surface2:#e6f5ee;
+      --line:#c6e6d9; --line2:#a7d5c5; --text:#0b2b22; --muted:#4f776b;
+      --mint:#0a9d74; --mint-dim:#0a9d7414; --cyan:#0b78a8; --red:#c93a3a;
+      --shadow:0 22px 55px #12352a2e, 0 0 0 1px #c6e6d9;
     }
     .bubble{
-      display:none; width:46px; height:46px; border-radius:50%; border:1px solid var(--line2);
-      background:linear-gradient(160deg,#2a2350,#171331); color:var(--gold); font-size:20px;
-      cursor:pointer; box-shadow:var(--shadow); align-items:center; justify-content:center;
+      display:none; width:48px; height:48px; border-radius:13px; border:1px solid var(--line2);
+      background:linear-gradient(145deg,var(--surface2),var(--bg2)); color:var(--mint);
+      font-size:20px; cursor:pointer; box-shadow:var(--shadow);
+      align-items:center; justify-content:center;
     }
-    .app[data-theme="light"] .bubble{ background:linear-gradient(160deg,#fff,#eee9ff); }
     .bubble:hover{ transform:translateY(-2px); }
+
     .shell{
-      display:none; width:318px; max-height:calc(100vh - 32px); overflow:hidden;
-      border-radius:16px; border:1px solid var(--line2);
-      background:linear-gradient(180deg,var(--panel),var(--bg2));
-      box-shadow:var(--shadow), inset 0 1px 0 #ffffff12;
-      display:none; flex-direction:column;
+      display:none; width:430px; max-width:calc(100vw - 20px);
+      max-height:min(660px,calc(100vh - 24px)); overflow:hidden;
+      border-radius:14px; border:1px solid var(--line2);
+      background:var(--bg); box-shadow:var(--shadow);
+      flex-direction:column;
     }
+
     .head{
-      display:flex; align-items:center; gap:10px; padding:10px 10px 10px 13px; cursor:grab;
-      background:linear-gradient(180deg,#ffffff0d,transparent); border-bottom:1px solid var(--line);
-      user-select:none; flex:none;
+      display:flex; align-items:center; gap:10px; padding:9px 10px 9px 12px; cursor:grab;
+      background:linear-gradient(90deg,var(--surface),var(--bg2));
+      border-bottom:1px solid var(--line); user-select:none; flex:none;
     }
     .head:active{ cursor:grabbing; }
-    .brand{ display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
+    .brand{ display:flex; align-items:center; gap:9px; flex:1; min-width:0; }
     .logo{
-      width:26px; height:26px; border-radius:8px; display:grid; place-items:center;
-      background:linear-gradient(160deg,#ffcf4a,#d99a12); color:#241a02;
-      font-size:14px; font-weight:800; box-shadow:0 4px 12px #ffcf4a33;
+      width:28px; height:28px; border-radius:7px; display:grid; place-items:center;
+      background:linear-gradient(150deg,var(--mint),#18a982); color:#04231b;
+      font:800 15px/1 var(--mono); box-shadow:0 0 18px #4de3b045;
     }
-    .brand b{ display:block; font-size:11px; letter-spacing:1.4px; }
-    .brand small{ display:block; font-size:9px; letter-spacing:2.4px; color:var(--gold); }
-    .head-actions{ display:flex; align-items:center; gap:6px; }
+    .brand b{ display:block; font:700 11.5px/1.15 var(--mono); letter-spacing:1.6px; }
+    .brand small{ display:block; font:600 8.5px/1.2 var(--mono); letter-spacing:1.8px; color:var(--muted); margin-top:2px; }
+    .head-actions{ display:flex; align-items:center; gap:5px; }
     .icon{
-      width:24px; height:24px; border-radius:7px; border:1px solid var(--line2);
-      background:var(--panel2); color:var(--muted); cursor:pointer; font-size:12px; line-height:1;
+      width:24px; height:24px; border-radius:6px; border:1px solid var(--line);
+      background:var(--surface); color:var(--muted); cursor:pointer; font-size:12px; line-height:1;
       display:grid; place-items:center; transition:.15s;
     }
-    .icon:hover{ color:var(--text); border-color:var(--gold); }
-    .dot{ width:8px; height:8px; border-radius:50%; background:#51496f; flex:none; }
-    .dot.on{ background:var(--green); box-shadow:0 0 8px var(--green); }
-    .dot.work{ background:var(--gold); box-shadow:0 0 8px var(--gold); animation:pulse 1.1s infinite; }
-    @keyframes pulse{ 50%{ opacity:.35 } }
+    .icon:hover{ color:var(--mint); border-color:var(--mint); }
+    .dot{ width:7px; height:7px; border-radius:50%; background:#3d5a51; flex:none; }
+    .dot.on{ background:var(--mint); box-shadow:0 0 9px var(--mint); }
+    .dot.work{ background:var(--cyan); box-shadow:0 0 9px var(--cyan); animation:pulse 1.1s infinite; }
+    @keyframes pulse{ 50%{ opacity:.3 } }
 
-    .master{
-      display:flex; align-items:center; gap:10px; padding:11px 13px;
-      background:linear-gradient(90deg,var(--gold-dim),transparent); border-bottom:1px solid var(--line);
-      flex:none;
+    .work{ display:grid; grid-template-columns:64px minmax(0,1fr); min-height:0; flex:1; }
+
+    .rail{
+      display:flex; flex-direction:column; gap:3px; padding:8px 6px;
+      background:var(--bg2); border-right:1px solid var(--line); flex:none;
     }
-    .master-txt{ flex:1; min-width:0; }
-    .master-txt b{ font-size:12.5px; display:block; }
-    .master-txt small{ color:var(--muted); font-size:10.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-    .tabs{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; padding:9px 11px 0; flex:none; }
     .tab{
-      position:relative; padding:6px 4px; border:1px solid var(--line); border-radius:9px;
-      background:transparent; color:var(--muted); font:600 10.5px inherit; font-family:inherit;
-      cursor:pointer; transition:.15s;
+      position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
+      padding:8px 2px 7px; border:1px solid transparent; border-left:2px solid transparent;
+      border-radius:7px; background:transparent; color:var(--muted);
+      font:600 8.5px/1.1 var(--mono); letter-spacing:.5px; text-transform:uppercase;
+      cursor:pointer; transition:.14s;
     }
-    .tab:hover{ color:var(--text); border-color:var(--line2); }
-    .tab.on{ background:var(--gold); border-color:var(--gold); color:#241a02; }
-    .tab i{ position:absolute; top:4px; right:5px; width:6px; height:6px; border-radius:50%; background:#51496f; }
-    .tab i.vivo{ background:var(--green); box-shadow:0 0 6px var(--green); }
+    .tab .ico{ font-size:14px; line-height:1; }
+    .tab:hover{ color:var(--text); background:var(--surface); }
+    .tab.on{
+      color:var(--text); background:var(--surface2);
+      border-left-color:var(--mint); box-shadow:inset 0 0 0 1px var(--line);
+    }
+    .tab.on .ico{ color:var(--mint); }
+    .tab i{ position:absolute; top:7px; right:9px; width:5px; height:5px; border-radius:50%; background:#3d5a51; }
+    .tab i.vivo{ background:var(--mint); box-shadow:0 0 6px var(--mint); }
+    .rail .spacer{ flex:1; }
+    .rail .ver{ font:600 8px/1 var(--mono); color:#4e6c63; text-align:center; padding-bottom:2px; }
 
-    .body{ padding:11px 13px 13px; overflow-y:auto; min-height:0; }
+    .main{ display:flex; flex-direction:column; min-width:0; min-height:0; }
+
+    .power{
+      display:flex; align-items:center; gap:10px; padding:9px 11px; flex:none;
+      background:linear-gradient(90deg,var(--mint-dim),transparent);
+      border-bottom:1px solid var(--line);
+    }
+    .power-txt{ flex:1; min-width:0; }
+    .power-txt b{ display:block; font:700 10px/1.2 var(--mono); letter-spacing:1.2px; text-transform:uppercase; }
+    .power-txt small{ display:block; font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+
+    .body{ padding:11px; overflow-y:auto; min-height:0; flex:1; }
     .body::-webkit-scrollbar{ width:7px; }
-    .body::-webkit-scrollbar-thumb{ background:var(--line2); border-radius:8px; }
+    .body::-webkit-scrollbar-thumb{ background:var(--line2); border-radius:6px; }
     .panel{ display:none; animation:in .16s ease-out; }
     .panel.on{ display:block; }
     @keyframes in{ from{ opacity:0; transform:translateY(4px) } }
 
-    h3{ margin:13px 0 6px; font-size:10px; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); }
-    h3:first-child{ margin-top:0; }
-    .row{
-      display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px;
-      background:var(--panel2); border:1px solid var(--line); font-weight:600; font-size:11.5px;
+    h3{
+      margin:14px 0 6px; font:700 9px/1.2 var(--mono); letter-spacing:1.3px;
+      text-transform:uppercase; color:var(--muted);
     }
-    .row + .row{ margin-top:6px; }
+    h3:first-child{ margin-top:0; }
+
+    .row{
+      display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:7px;
+      background:var(--surface2); border:1px solid var(--line);
+      border-left:2px solid transparent; font-weight:600; font-size:11.5px;
+    }
+    .row + .row{ margin-top:5px; }
     .row .grow{ flex:1; min-width:0; }
     .row small{ display:block; color:var(--muted); font-weight:500; font-size:10px; }
-    .chip-note{ font-style:normal; color:var(--muted); font-weight:500; font-size:10px; }
 
     .sw{
-      position:relative; width:38px; height:21px; flex:none; border:0; border-radius:12px;
-      background:#4a4368; cursor:pointer; transition:background .18s;
+      position:relative; width:38px; height:20px; flex:none; border:1px solid var(--line2);
+      border-radius:5px; background:var(--bg); cursor:pointer; transition:.16s;
     }
     .sw::after{
-      content:""; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%;
-      background:#fff; transition:left .18s; box-shadow:0 1px 3px #0006;
+      content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:3px;
+      background:var(--muted); transition:left .16s, background .16s;
     }
-    .sw.on{ background:var(--green); }
-    .sw.on::after{ left:19px; }
+    .sw.on{ background:var(--mint-dim); border-color:var(--mint); }
+    .sw.on::after{ left:20px; background:var(--mint); box-shadow:0 0 8px var(--mint); }
 
     .chips{ display:flex; flex-wrap:wrap; gap:5px; }
     .chip{
-      padding:5px 9px; border:1px solid var(--line2); border-radius:20px; background:transparent;
-      color:var(--muted); font:600 10.5px inherit; font-family:inherit; cursor:pointer; transition:.15s;
+      padding:5px 9px; border:1px solid var(--line2); border-radius:5px; background:transparent;
+      color:var(--muted); font:600 10px/1 var(--mono); cursor:pointer; transition:.14s;
     }
-    .chip:hover{ color:var(--text); }
-    .chip.on{ background:#ffffff14; color:var(--c,#fff); border-color:var(--c,var(--text)); }
-    .app[data-theme="light"] .chip.on{ background:#00000008; }
+    .chip:hover{ color:var(--text); border-color:var(--mint); }
+    .chip.on{ background:var(--mint-dim); color:var(--c,var(--mint)); border-color:var(--c,var(--mint)); }
 
-    .seg{ display:grid; grid-template-columns:1fr 1fr; margin:8px 0; border:1px solid var(--line2); border-radius:9px; overflow:hidden; }
-    .seg button{ padding:7px 4px; border:0; background:transparent; color:var(--muted); font:600 10.5px inherit; font-family:inherit; cursor:pointer; }
-    .seg button.on{ background:var(--line2); color:var(--text); }
+    .seg{ display:grid; grid-template-columns:1fr 1fr; margin:7px 0; border:1px solid var(--line2); border-radius:6px; overflow:hidden; }
+    .seg button{ padding:7px 4px; border:0; background:transparent; color:var(--muted); font:600 10px/1 var(--mono); cursor:pointer; }
+    .seg button.on{ background:var(--mint-dim); color:var(--mint); }
 
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; }
-    .field{ display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:10px; }
+    .field{ display:flex; flex-direction:column; gap:4px; color:var(--muted); font:600 9px/1.2 var(--mono); letter-spacing:.4px; text-transform:uppercase; }
     .field input, .field select{
-      width:100%; padding:6px 8px; border:1px solid var(--line2); border-radius:8px;
-      background:var(--bg); color:var(--text); font:11.5px inherit; font-family:inherit;
+      width:100%; padding:6px 8px; border:1px solid var(--line2); border-radius:6px;
+      background:var(--bg); color:var(--text); font:11.5px/1.2 var(--mono);
+      text-transform:none; letter-spacing:0;
     }
-    .field input:focus, .field select:focus{ outline:0; border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-dim); }
+    .field input:focus, .field select:focus{ outline:0; border-color:var(--mint); box-shadow:0 0 0 2px var(--mint-dim); }
     .field input:disabled{ opacity:.45; }
-    input[type=range]{ accent-color:var(--gold); width:100%; }
+    input[type=range]{ accent-color:var(--mint); width:100%; }
 
-    .meta{ display:grid; grid-template-columns:1fr 52px 72px; align-items:center; gap:7px; padding:3px 0; font-size:11px; }
+    .meta{ display:grid; grid-template-columns:1fr 54px 72px; align-items:center; gap:7px; padding:3px 0; font-size:11px; }
     .meta span{ color:var(--muted); }
-    .meta .nv{ text-align:right; color:var(--muted); font-size:10px; }
+    .meta .nv{ text-align:right; color:var(--muted); font:10px var(--mono); }
     .meta input{
-      width:100%; padding:4px 6px; border:1px solid var(--line2); border-radius:6px;
-      background:var(--bg); color:var(--text); font:11px inherit; font-family:inherit; text-align:right;
+      width:100%; padding:4px 6px; border:1px solid var(--line2); border-radius:5px;
+      background:var(--bg); color:var(--text); font:11px var(--mono); text-align:right;
     }
-    .meta input:focus{ outline:0; border-color:var(--gold); }
+    .meta input:focus{ outline:0; border-color:var(--mint); }
 
     .statusbox{
-      margin-top:11px; padding:9px 10px; border-radius:10px; border:1px solid var(--line);
-      background:#ffffff06; font-size:11px; color:var(--text); word-break:break-word;
+      margin-top:11px; padding:9px 10px; border-radius:7px; border:1px solid var(--line);
+      background:var(--surface2); border-left:2px solid var(--mint);
+      font-size:11px; color:var(--text); word-break:break-word;
     }
-    .app[data-theme="light"] .statusbox{ background:#00000004; }
-    .statusbox small{ display:block; margin-top:3px; color:var(--muted); font-size:10px; }
+    .statusbox small{ display:block; margin-top:3px; color:var(--muted); font:9.5px var(--mono); }
 
-    .risk{ margin:8px 0 0; padding:6px 8px; border-radius:8px; background:#ff6b6b1f; color:#ff9d94; font-size:10.5px; }
+    .risk{ margin:8px 0 0; padding:6px 8px; border-radius:5px; background:#ff7a7a1c; color:#ff9d94; font-size:10.5px; }
     .app[data-theme="light"] .risk{ color:#a12a2a; }
     .hint{ margin:6px 0 0; color:var(--muted); font-size:10.5px; line-height:1.45; }
 
     .hero{
-      padding:11px; border-radius:12px; border:1px solid var(--line2);
-      background:linear-gradient(140deg,#ffffff10,transparent);
+      padding:11px; border-radius:8px; border:1px solid var(--line2);
+      background:linear-gradient(135deg,var(--surface2),var(--surface));
+      position:relative; overflow:hidden;
     }
-    .hero-top{ display:flex; align-items:baseline; gap:7px; }
+    .hero::after{
+      content:""; position:absolute; inset:auto -30px -46px auto; width:120px; height:120px;
+      border:1px solid var(--line2); border-radius:50%; opacity:.5;
+    }
+    .hero-top{ display:flex; align-items:baseline; gap:7px; position:relative; z-index:1; }
     .hero-top b{ font-size:13px; }
-    .hero-top span{ color:var(--gold); font-size:10px; text-transform:capitalize; }
-    .hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:9px; }
-    .hero-grid div{ background:#00000026; border-radius:8px; padding:6px 8px; }
-    .app[data-theme="light"] .hero-grid div{ background:#00000008; }
-    .hero-grid span{ display:block; color:var(--muted); font-size:9px; letter-spacing:.4px; text-transform:uppercase; }
-    .hero-grid b{ display:block; font-size:12.5px; margin-top:1px; }
+    .hero-top span{ color:var(--mint); font:600 9px var(--mono); text-transform:uppercase; letter-spacing:1px; }
+    .hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:9px; position:relative; z-index:1; }
+    .hero-grid div{ background:#0000001f; border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
+    .app[data-theme="light"] .hero-grid div{ background:#0a9d7408; }
+    .hero-grid span{ display:block; color:var(--muted); font:600 8.5px var(--mono); letter-spacing:.8px; text-transform:uppercase; }
+    .hero-grid b{ display:block; font:700 13px var(--mono); margin-top:2px; }
 
-    .list{ display:flex; flex-direction:column; gap:5px; margin-top:10px; }
+    .diag{
+      display:flex; gap:6px; margin-top:9px;
+    }
+    .diag div{ flex:1; padding:7px 8px; border-radius:6px; border:1px dashed var(--line2); background:transparent; }
+    .diag b{ display:block; font:700 14px var(--mono); color:var(--mint); }
+    .diag span{ display:block; font:600 8.5px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
+
+    .list{ display:flex; flex-direction:column; gap:4px; margin-top:10px; }
     .item{
-      display:flex; align-items:center; gap:8px; padding:6px 9px; border-radius:8px;
-      background:var(--panel2); font-size:10.5px;
+      display:flex; align-items:center; gap:8px; padding:6px 9px; border-radius:6px;
+      background:var(--surface); border:1px solid var(--line); font-size:10.5px;
     }
     .item .t{ flex:1; min-width:0; }
     .item .t small{ display:block; color:var(--muted); font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .item .s{ width:7px; height:7px; border-radius:50%; background:#51496f; flex:none; }
-    .item .s.on{ background:var(--green); }
+    .item .s{ width:6px; height:6px; border-radius:50%; background:#3d5a51; flex:none; }
+    .item .s.on{ background:var(--mint); box-shadow:0 0 6px var(--mint); }
 
     .counters{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin-top:10px; }
-    .counters div{ padding:7px; border-radius:8px; background:var(--panel2); text-align:center; }
-    .counters b{ display:block; font-size:13px; color:var(--gold); }
-    .counters span{ display:block; color:var(--muted); font-size:9px; }
+    .counters div{ padding:7px; border-radius:6px; background:var(--surface); border:1px solid var(--line); text-align:center; }
+    .counters b{ display:block; font:700 13px var(--mono); color:var(--mint); }
+    .counters span{ display:block; color:var(--muted); font:600 8px var(--mono); text-transform:uppercase; letter-spacing:.4px; }
 
-    .warn{ margin:11px 0 0; color:var(--muted); font-size:9.5px; line-height:1.4; border-left:2px solid var(--gold); padding-left:8px; }
+    .warn{ margin:11px 0 0; color:var(--muted); font-size:9.5px; line-height:1.4; border-left:2px solid var(--mint); padding-left:8px; }
 
-    .foot{
-      display:flex; align-items:center; gap:8px; padding:7px 12px; border-top:1px solid var(--line);
-      color:var(--muted); font-size:9.5px; background:#0000001a; flex:none;
+    .ticker{
+      display:flex; align-items:center; gap:8px; padding:7px 11px; border-top:1px solid var(--line);
+      color:var(--muted); font:9.5px var(--mono); background:var(--bg2); flex:none;
     }
-    .foot .txt{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .foot .v{ color:var(--line2); }
+    .ticker .txt{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ticker b{ color:var(--mint); font-weight:600; flex:none; }
+    .ticker .run{
+      border:1px solid var(--line2); background:var(--surface); color:var(--mint); cursor:pointer;
+      font:600 9px var(--mono); padding:4px 6px; border-radius:4px; flex:none;
+    }
+    .ticker .run:hover{ border-color:var(--mint); }
 
-    .app[data-min="1"] .tabs, .app[data-min="1"] .body, .app[data-min="1"] .foot{ display:none; }
+    .app[data-min="1"] .rail, .app[data-min="1"] .body,
+    .app[data-min="1"] .ticker, .app[data-min="1"] .work{ display:none; }
     .app[data-aberto="0"] .shell{ display:none; }
     .app[data-aberto="0"] .bubble{ display:flex; }
     .app[data-aberto="1"] .shell{ display:flex; }
@@ -285,204 +329,218 @@
     <div class="shell">
       <header class="head" id="head">
         <div class="brand">
-          <span class="logo">◆</span>
-          <div><b>RIFT AUTO</b><small>AUTOFARM</small></div>
+          <span class="logo">F</span>
+          <div><b>FARMLINE</b><small>RIFTSTREAM ENGINE</small></div>
         </div>
         <div class="head-actions">
           <span class="dot" id="dot"></span>
+          <button class="icon" id="themeQuick" title="Alternar tema">◐</button>
           <button class="icon" id="min" title="Minimizar">–</button>
           <button class="icon" id="close" title="Fechar">✕</button>
         </div>
       </header>
 
-      <div class="master">
-        <div class="master-txt">
-          <b>Farm automático</b>
-          <small id="masterHint">Desligado — nada é enviado ao jogo</small>
-        </div>
-        <button class="sw" id="swFarm" title="Ligar/desligar tudo"></button>
-      </div>
+      <div class="work">
+        <nav class="rail" id="tabs">
+          <button class="tab" data-tab="inicio"><span class="ico">◈</span><span>Base</span><i id="vivoInicio"></i></button>
+          <button class="tab" data-tab="forja"><span class="ico">⚒</span><span>Forja</span><i id="vivoForja"></i></button>
+          <button class="tab" data-tab="atributos"><span class="ico">↗</span><span>Upar</span><i id="vivoAtributos"></i></button>
+          <button class="tab" data-tab="gemas"><span class="ico">◉</span><span>Gemas</span><i id="vivoGemas"></i></button>
+          <button class="tab" data-tab="venda"><span class="ico">⌫</span><span>Venda</span><i id="vivoVenda"></i></button>
+          <button class="tab" data-tab="ajustes"><span class="ico">⚙</span><span>Ajustes</span><i id="vivoAjustes"></i></button>
+          <span class="spacer"></span>
+          <span class="ver">v${VERSION}</span>
+        </nav>
 
-      <nav class="tabs" id="tabs">
-        <button class="tab" data-tab="inicio">Início<i id="vivoInicio"></i></button>
-        <button class="tab" data-tab="forja">Forja<i id="vivoForja"></i></button>
-        <button class="tab" data-tab="atributos">Atributos<i id="vivoAtributos"></i></button>
-        <button class="tab" data-tab="gemas">Gemas<i id="vivoGemas"></i></button>
-        <button class="tab" data-tab="venda">Venda<i id="vivoVenda"></i></button>
-        <button class="tab" data-tab="ajustes">Ajustes<i id="vivoAjustes"></i></button>
-      </nav>
-
-      <div class="body">
-        <section class="panel" data-panel="inicio">
-          <div class="hero">
-            <div class="hero-top"><b id="charName">Sem personagem</b><span id="charCls"></span></div>
-            <div class="hero-grid">
-              <div><span>Nível</span><b id="charLevel">—</b></div>
-              <div><span>Ouro</span><b id="charGold">—</b></div>
-              <div><span>Combate</span><b id="charPower">—</b></div>
+        <div class="main">
+          <div class="power">
+            <div class="power-txt">
+              <b>Motor</b>
+              <small id="masterHint">Desligado — nada é enviado ao jogo</small>
             </div>
-          </div>
-          <div class="list" id="statusList"></div>
-          <div class="counters" id="counters"></div>
-          <p class="warn">
-            Esta extensão não envia mensagens no chat. Automatizar o inventário
-            viola os Termos do RiftStream — use por sua conta e risco.
-          </p>
-        </section>
-
-        <section class="panel" data-panel="forja">
-          <div class="row">
-            <span class="grow">Equipar o mais forte<small>Troca quando a Força de Combate aumenta</small></span>
-            <button class="sw" id="swEquip"></button>
-          </div>
-          <div class="row">
-            <span class="grow">Forjar sozinho<small>Junta 3–4 itens iguais (slot + raridade)</small></span>
-            <button class="sw" id="swForge"></button>
-          </div>
-          <h3>Forjar para</h3>
-          <div class="chips" id="chipsRarity"></div>
-          <h3>Tipos de item</h3>
-          <div class="chips" id="chipsType"></div>
-          <h3>Faixa de nível (importante)</h3>
-          <div class="grid2">
-            <label class="field">Nível mínimo<input id="forgeMin" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
-            <label class="field">Nível máximo<input id="forgeMax" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
-          </div>
-          <p class="hint">
-            Só forja itens dentro desta faixa. Evita juntar um Nv. 80 com um
-            Nv. 140 e gerar um resultado pior.
-          </p>
-          <p class="risk" id="forgeRisk" hidden>⚠ Forja com roleta: pode perder os itens e o ouro.</p>
-
-          <div class="row" style="margin-top:12px">
-            <span class="grow">Aprimorar itens<small>Usa os itens mais fracos como doadores</small></span>
-            <button class="sw" id="swEnhance"></button>
-          </div>
-          <p class="risk" id="enhanceRisk" hidden>⚠ O aprimoramento destrói os itens doadores.</p>
-
-          <div class="statusbox"><span id="stForja">Desligada</span><small id="ctForja"></small></div>
-        </section>
-
-        <section class="panel" data-panel="atributos">
-          <div class="row">
-            <span class="grow">Upar sozinho<small>Gasta o ouro acima da reserva</small></span>
-            <button class="sw" id="swUp"></button>
-          </div>
-          <div class="seg" id="segModo">
-            <button data-modo="igual">Dividir ouro</button>
-            <button data-modo="nivel">Até o nível</button>
-          </div>
-          <div id="boxIgual">
-            <h3>Atributos para focar</h3>
-            <div class="chips" id="chipsAttr"></div>
-            <p class="hint">O mesmo tanto de ouro em cada atributo marcado.</p>
-          </div>
-          <div id="boxNivel" hidden>
-            <h3>Metas por atributo</h3>
-            <div id="metas"></div>
-            <p class="hint">Deixe vazio o que não quer upar.</p>
-          </div>
-          <h3>Reserva de ouro</h3>
-          <label class="field">Nunca gastar abaixo de (g)<input id="reserve" type="number" min="0" step="1000" inputmode="numeric" /></label>
-          <p class="hint">Forja, aprimoramento, engaste e atributos respeitam esse valor.</p>
-          <div class="statusbox"><span id="stUp">Desligado</span><small id="ctUp"></small></div>
-        </section>
-
-        <section class="panel" data-panel="gemas">
-          <div class="row">
-            <span class="grow">Gemas sozinho<small>Combina 3 em 3 automaticamente</small></span>
-            <button class="sw" id="swGems"></button>
-          </div>
-          <h3>O que fazer</h3>
-          <div class="chips" id="chipsGem"></div>
-          <p class="hint">Juntar 3 em 3 é o mesmo que “Upar todas as gemas” do jogo e sempre dá certo.</p>
-          <p class="risk" id="gemRisk" hidden>⚠ Suprema: junta 4 Perfeitas numa roleta. Se falhar, perde as 4 e o ouro.</p>
-          <div class="row" style="margin-top:10px">
-            <span class="grow">Engastar nos equipados<small>Usa as gemas melhores do inventário</small></span>
-            <button class="sw" id="swSocket"></button>
-          </div>
-          <div class="statusbox"><span id="stGem">Desligado</span><small id="ctGem"></small></div>
-        </section>
-
-        <section class="panel" data-panel="venda">
-          <div class="row">
-            <span class="grow">Vender itens sozinho<small>Um por vez — não precisa de VIP</small></span>
-            <button class="sw" id="swSell"></button>
-          </div>
-          <div class="grid2">
-            <label class="field">Até a raridade
-              <select id="sellRarity">
-                <option value="-1">Desligado</option>
-                <option value="0">Comum</option>
-                <option value="1">Incomum</option>
-                <option value="2">Raro</option>
-                <option value="3">Épico</option>
-              </select>
-            </label>
-            <label class="field">Nível até<input id="sellLevel" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
-          </div>
-          <p class="hint">Nunca vende itens equipados, favoritos ou com gemas.</p>
-
-          <div class="row" style="margin-top:12px">
-            <span class="grow">Venda automática do site<small>Recurso exclusivo de VIP</small></span>
-            <button class="sw" id="swLote"></button>
-          </div>
-          <div class="grid2">
-            <label class="field">Até a raridade
-              <select id="loteRarity">
-                <option value="-1">Desligado</option>
-                <option value="0">Comum</option>
-                <option value="1">Incomum</option>
-                <option value="2">Raro</option>
-                <option value="3">Épico</option>
-              </select>
-            </label>
-            <label class="field">Nível até<input id="loteLevel" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
+            <button class="sw" id="swFarm" title="Ligar/desligar tudo"></button>
           </div>
 
-          <div class="row" style="margin-top:12px">
-            <span class="grow">Organizar baús<small>A cada 6 horas, por nível</small></span>
-            <button class="sw" id="swOrganize"></button>
-          </div>
-          <div class="statusbox"><span id="stSell">Desligada</span><small id="ctSell"></small></div>
-        </section>
+          <div class="body">
+            <section class="panel" data-panel="inicio">
+              <div class="hero">
+                <div class="hero-top"><b id="charName">Sem personagem</b><span id="charCls"></span></div>
+                <div class="hero-grid">
+                  <div><span>Nível</span><b id="charLevel">—</b></div>
+                  <div><span>Ouro</span><b id="charGold">—</b></div>
+                  <div><span>Combate</span><b id="charPower">—</b></div>
+                </div>
+              </div>
+              <div class="diag">
+                <div><b id="diagForja">0</b><span>grupos prontos</span></div>
+                <div><b id="diagVenda">0</b><span>vendáveis</span></div>
+              </div>
+              <div class="list" id="statusList"></div>
+              <div class="counters" id="counters"></div>
+              <p class="warn">
+                Esta extensão não envia mensagens no chat. Automatizar o inventário
+                viola os Termos do RiftStream — use por sua conta e risco.
+              </p>
+            </section>
 
-        <section class="panel" data-panel="ajustes">
-          <h3>Tema</h3>
-          <div class="seg" id="segTema">
-            <button data-tema="dark">Escuro</button>
-            <button data-tema="light">Claro</button>
+            <section class="panel" data-panel="forja">
+              <div class="row">
+                <span class="grow">Equipar o mais forte<small>Troca quando a Força de Combate aumenta</small></span>
+                <button class="sw" id="swEquip"></button>
+              </div>
+              <div class="row">
+                <span class="grow">Forjar sozinho<small>Até 3 grupos por rodada, 3–4 itens iguais</small></span>
+                <button class="sw" id="swForge"></button>
+              </div>
+              <h3>Forjar para</h3>
+              <div class="chips" id="chipsRarity"></div>
+              <h3>Tipos de item</h3>
+              <div class="chips" id="chipsType"></div>
+              <h3>Faixa de nível (importante)</h3>
+              <div class="grid2">
+                <label class="field">Nível mínimo<input id="forgeMin" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
+                <label class="field">Nível máximo<input id="forgeMax" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
+              </div>
+              <p class="hint">
+                Só forja itens dentro desta faixa. Evita juntar um Nv. 80 com um
+                Nv. 140 e gerar um resultado pior.
+              </p>
+              <p class="risk" id="forgeRisk" hidden>⚠ Forja com roleta: pode perder os itens e o ouro.</p>
+
+              <div class="row" style="margin-top:12px">
+                <span class="grow">Aprimorar itens<small>Usa os itens mais fracos como doadores</small></span>
+                <button class="sw" id="swEnhance"></button>
+              </div>
+              <p class="risk" id="enhanceRisk" hidden>⚠ O aprimoramento destrói os itens doadores.</p>
+
+              <div class="statusbox"><span id="stForja">Desligada</span><small id="ctForja"></small></div>
+            </section>
+
+            <section class="panel" data-panel="atributos">
+              <div class="row">
+                <span class="grow">Upar sozinho<small>Gasta o ouro acima da reserva</small></span>
+                <button class="sw" id="swUp"></button>
+              </div>
+              <div class="seg" id="segModo">
+                <button data-modo="igual">Dividir ouro</button>
+                <button data-modo="nivel">Até o nível</button>
+              </div>
+              <div id="boxIgual">
+                <h3>Atributos para focar</h3>
+                <div class="chips" id="chipsAttr"></div>
+                <p class="hint">O mesmo tanto de ouro em cada atributo marcado.</p>
+              </div>
+              <div id="boxNivel" hidden>
+                <h3>Metas por atributo</h3>
+                <div id="metas"></div>
+                <p class="hint">Deixe vazio o que não quer upar.</p>
+              </div>
+              <h3>Reserva de ouro</h3>
+              <label class="field">Nunca gastar abaixo de (g)<input id="reserve" type="number" min="0" step="1000" inputmode="numeric" /></label>
+              <p class="hint">Forja, aprimoramento, engaste e atributos respeitam esse valor.</p>
+              <div class="statusbox"><span id="stUp">Desligado</span><small id="ctUp"></small></div>
+            </section>
+
+            <section class="panel" data-panel="gemas">
+              <div class="row">
+                <span class="grow">Gemas sozinho<small>Combina 3 em 3 automaticamente</small></span>
+                <button class="sw" id="swGems"></button>
+              </div>
+              <h3>O que fazer</h3>
+              <div class="chips" id="chipsGem"></div>
+              <p class="hint">Juntar 3 em 3 é o mesmo que “Upar todas as gemas” do jogo e sempre dá certo.</p>
+              <p class="risk" id="gemRisk" hidden>⚠ Suprema: junta 4 Perfeitas numa roleta. Se falhar, perde as 4 e o ouro.</p>
+              <div class="row" style="margin-top:10px">
+                <span class="grow">Engastar nos equipados<small>Usa as gemas melhores do inventário</small></span>
+                <button class="sw" id="swSocket"></button>
+              </div>
+              <div class="statusbox"><span id="stGem">Desligado</span><small id="ctGem"></small></div>
+            </section>
+
+            <section class="panel" data-panel="venda">
+              <div class="row">
+                <span class="grow">Vender itens sozinho<small>Um por vez — não precisa de VIP</small></span>
+                <button class="sw" id="swSell"></button>
+              </div>
+              <div class="grid2">
+                <label class="field">Até a raridade
+                  <select id="sellRarity">
+                    <option value="0">Comum</option>
+                    <option value="1">Incomum</option>
+                    <option value="2">Raro</option>
+                    <option value="3">Épico</option>
+                  </select>
+                </label>
+                <label class="field">Nível até<input id="sellLevel" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
+              </div>
+              <p class="hint">
+                Nunca vende equipados, favoritos, itens com gemas nem o que a
+                forja está juntando. Nível 9999 = sem limite.
+              </p>
+
+              <div class="row" style="margin-top:12px">
+                <span class="grow">Venda automática do site<small>Recurso exclusivo de VIP</small></span>
+                <button class="sw" id="swLote"></button>
+              </div>
+              <div class="grid2">
+                <label class="field">Até a raridade
+                  <select id="loteRarity">
+                    <option value="-1">Desligado</option>
+                    <option value="0">Comum</option>
+                    <option value="1">Incomum</option>
+                    <option value="2">Raro</option>
+                    <option value="3">Épico</option>
+                  </select>
+                </label>
+                <label class="field">Nível até<input id="loteLevel" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
+              </div>
+
+              <div class="row" style="margin-top:12px">
+                <span class="grow">Organizar baús<small>A cada 6 horas, por nível</small></span>
+                <button class="sw" id="swOrganize"></button>
+              </div>
+              <div class="statusbox"><span id="stSell">Desligada</span><small id="ctSell"></small></div>
+            </section>
+
+            <section class="panel" data-panel="ajustes">
+              <h3>Tema</h3>
+              <div class="seg" id="segTema">
+                <button data-tema="dark">Escuro</button>
+                <button data-tema="light">Claro</button>
+              </div>
+              <h3>Tamanho da fonte</h3>
+              <div class="row">
+                <input id="fontRange" type="range" min="10" max="18" step="1" />
+                <b id="fontVal" style="width:34px;text-align:right;font-family:var(--mono)">12px</b>
+              </div>
+              <h3>Roleta rápida</h3>
+              <div class="row">
+                <span class="grow">Acelerar animação<small>Só a animação — a chance não muda</small></span>
+                <button class="sw" id="swRoleta"></button>
+              </div>
+              <div class="chips" id="chipsVel" style="margin-top:6px"></div>
+              <h3>Painel</h3>
+              <div class="row">
+                <span class="grow">Posição<small>Arraste pelo cabeçalho para mover</small></span>
+                <button class="icon" id="resetPos" title="Redefinir posição">⟲</button>
+              </div>
+              <p class="hint">
+                Preferências ficam salvas no navegador e valem também para o popup
+                da extensão.
+              </p>
+              <div class="statusbox" style="margin-top:12px">
+                <span>FARMLINE · RiftStream AutoFarm</span><small>Versão ${VERSION} · engine na própria página</small>
+              </div>
+            </section>
           </div>
-          <h3>Tamanho da fonte</h3>
-          <div class="row">
-            <input id="fontRange" type="range" min="10" max="18" step="1" />
-            <b id="fontVal" style="width:34px;text-align:right">12px</b>
-          </div>
-          <h3>Roleta rápida</h3>
-          <div class="row">
-            <span class="grow">Acelerar animação<small>Só a animação — a chance não muda</small></span>
-            <button class="sw" id="swRoleta"></button>
-          </div>
-          <div class="chips" id="chipsVel" style="margin-top:6px"></div>
-          <h3>Painel</h3>
-          <div class="row">
-            <span class="grow">Posição<small>Arraste pelo cabeçalho para mover</small></span>
-            <button class="icon" id="resetPos" title="Redefinir posição">⟲</button>
-          </div>
-          <p class="hint">
-            Preferências ficam salvas no navegador e valem também para o popup
-            da extensão.
-          </p>
-          <div class="statusbox" style="margin-top:12px">
-            <span>RiftStream AutoFarm</span><small>Versão ${VERSION} · engine na própria página</small>
-          </div>
-        </section>
+
+          <footer class="ticker">
+            <span class="txt" id="footStatus">Pronto.</span>
+            <b id="roundAge">—</b>
+            <button class="run" id="runNow" title="Enviar uma rodada agora">rodar</button>
+          </footer>
+        </div>
       </div>
-
-      <footer class="foot">
-        <span class="txt" id="footStatus">Pronto.</span>
-        <span class="v">v${VERSION}</span>
-      </footer>
     </div>
   </div>`;
 
@@ -531,8 +589,8 @@
   });
 
   const chipsGem = [
-    ["juntar", "Juntar 3 em 3", "#46d483"],
-    ["suprema", "Suprema ⚠", "#ff6b6b"]
+    ["juntar", "Juntar 3 em 3", "#4de3b0"],
+    ["suprema", "Suprema ⚠", "#ff7a7a"]
   ].map(([id, nome, cor]) => {
     const b = document.createElement("button");
     b.className = "chip";
@@ -550,7 +608,7 @@
     const b = document.createElement("button");
     b.className = "chip";
     b.textContent = `${v}x`;
-    b.style.setProperty("--c", "#ffcf4a");
+    b.style.setProperty("--c", "#4de3b0");
     b.addEventListener("click", () => {
       cfg.settings.roleta.vel = v;
       salvarCfg();
@@ -579,47 +637,60 @@
 
   const ativo = (el) => raiz.activeElement === el;
 
+  const algumModulo = (st, soLigados) => {
+    const s = st || cfg.settings;
+    const x = !!(s.equip || s.forge.ligado || s.stats.ligado || s.gems.ligado ||
+      s.socket.ligado || s.enhance.ligado || s.sell.ligado || s.lote.ligado || s.organize);
+    return soLigados ? x : x;
+  };
+
+  // Liga o motor junto ao ligar um módulo: evita o "não funciona" de deixar
+  // tudo marcado e o master desligado.
+  function mexerModulo(fn) {
+    const antes = algumModulo();
+    fn();
+    if (!antes && algumModulo() && !cfg.running) cfg.running = true;
+    salvarCfg();
+  }
+
   q("swFarm").addEventListener("click", () => {
     cfg.running = !cfg.running;
     salvarCfg();
   });
-  q("swForge").addEventListener("click", () => {
+  q("swForge").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.forge.ligado = !cfg.settings.forge.ligado;
-    salvarCfg();
-  });  q("swEquip").addEventListener("click", () => {
+  }));
+  q("swEquip").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.equip = !cfg.settings.equip;
-    salvarCfg();
-  });
-  q("swEnhance").addEventListener("click", () => {
+  }));
+  q("swEnhance").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.enhance.ligado = !cfg.settings.enhance.ligado;
-    salvarCfg();
-  });
-  q("swUp").addEventListener("click", () => {
+  }));
+  q("swUp").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.stats.ligado = !cfg.settings.stats.ligado;
-    salvarCfg();
-  });
-  q("swGems").addEventListener("click", () => {
+  }));
+  q("swGems").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.gems.ligado = !cfg.settings.gems.ligado;
-    salvarCfg();
-  });
-  q("swSocket").addEventListener("click", () => {
+  }));
+  q("swSocket").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.socket.ligado = !cfg.settings.socket.ligado;
-    salvarCfg();
-  });
-  q("swSell").addEventListener("click", () => {
+  }));
+  q("swSell").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.sell.ligado = !cfg.settings.sell.ligado;
-    salvarCfg();
-  });
-  q("swLote").addEventListener("click", () => {
+  }));
+  q("swLote").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.lote.ligado = !cfg.settings.lote.ligado;
-    salvarCfg();
-  });
-  q("swOrganize").addEventListener("click", () => {
+  }));
+  q("swOrganize").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.organize = !cfg.settings.organize;
-    salvarCfg();
-  });
+  }));
   q("swRoleta").addEventListener("click", () => {
     cfg.settings.roleta.ligada = !cfg.settings.roleta.ligada;
+    salvarCfg();
+  });
+
+  q("themeQuick").addEventListener("click", () => {
+    cfg.settings.theme = cfg.settings.theme === "light" ? "dark" : "light";
     salvarCfg();
   });
 
@@ -649,7 +720,7 @@
   });
   q("sellLevel").addEventListener("input", (e) => {
     const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
-    cfg.settings.sell.level = Number.isNaN(v) ? 0 : v;
+    cfg.settings.sell.level = Number.isNaN(v) ? 9999 : v;
     salvarCfg();
   });
   q("sellRarity").addEventListener("change", (e) => {
@@ -676,6 +747,29 @@
     ui.aba = b.dataset.tab;
     salvarUI();
     desenhar();
+  });
+
+  q("runNow").addEventListener("click", async () => {
+    if (!cfg.running) {
+      cfg.running = true;
+      salvarCfg();
+    }
+    q("runNow").disabled = true;
+    q("footStatus").textContent = "Enviando rodada...";
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "RSAF_MAINTENANCE" });
+      q("footStatus").textContent = res?.dispatched
+        ? "Rodada enviada para o jogo"
+        : "Abra riftstream.com.br em outra aba";
+    } catch {
+      // Sem background (harness): chama a rodada local se existir.
+      q("footStatus").textContent = window.__forjaTeste?.rodar
+        ? "Rodando na própria página..."
+        : "Não consegui falar com a extensão";
+      window.__forjaTeste?.rodar?.();
+    } finally {
+      setTimeout(() => { q("runNow").disabled = false; }, 1800);
+    }
   });
 
   q("min").addEventListener("click", () => {
@@ -785,6 +879,14 @@
     }
   }
 
+  function idadeRodada() {
+    if (!status.roundAt) return "—";
+    const s = Math.max(0, Math.round((Date.now() - status.roundAt) / 1000));
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    return m < 60 ? `${m}min` : `${Math.floor(m / 60)}h`;
+  }
+
   function desenhar() {
     const st = cfg.settings;
 
@@ -796,27 +898,28 @@
     raiz.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === ui.aba));
     raiz.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.dataset.panel === ui.aba));
 
-    const algumModulo = st.equip || st.forge.ligado || st.stats.ligado || st.gems.ligado ||
-      st.socket.ligado || st.enhance.ligado || st.sell.ligado || st.lote.ligado;
+    const algum = algumModulo(st);
     const dot = q("dot");
     dot.className = "dot";
-    if (cfg.running && algumModulo) dot.classList.add("on");
-    if (cfg.running && algumModulo && !/Desligad|Nenhum|Aguardando|Juntando|Metas concluídas/i.test(textoModulo(ui.aba === "atributos" ? "up" : ui.aba))) {
+    if (cfg.running && algum) dot.classList.add("on");
+    if (cfg.running && algum && !/Desligad|Nenhum|Aguardando|Juntando|Metas concluídas/i.test(textoModulo(ui.aba === "atributos" ? "up" : ui.aba))) {
       dot.classList.add("work");
     }
 
     q("swFarm").classList.toggle("on", !!cfg.running);
     q("masterHint").textContent = cfg.running
-      ? (algumModulo ? "Ligado — manutenção a cada ~30 s" : "Ligado, mas nenhum módulo marcado")
+      ? (algum ? "Ligado — manutenção a cada ~30 s" : "Ligado, mas nenhum módulo marcado")
       : "Desligado — nada é enviado ao jogo";
 
-    // Início
+    // Base
     const ch = status.character;
     q("charName").textContent = ch?.name || "Sem personagem";
     q("charCls").textContent = ch?.cls || "";
     q("charLevel").textContent = ch?.level ? fmt(ch.level) : "—";
     q("charGold").textContent = ch ? fmt(ch.gold) : "—";
     q("charPower").textContent = ch ? fmt(ch.power) : "—";
+    q("diagForja").textContent = st.forge.ligado ? fmt(status.counts?.forja ?? 0) : "off";
+    q("diagVenda").textContent = st.sell.ligado ? fmt(status.counts?.venda ?? 0) : "off";
 
     const lista = q("statusList");
     lista.textContent = "";
@@ -864,7 +967,8 @@
     if (!ativo(q("forgeMin"))) q("forgeMin").value = st.forge.minLevel ?? 0;
     if (!ativo(q("forgeMax"))) q("forgeMax").value = st.forge.maxLevel ?? 9999;
     q("stForja").textContent = st.forge.ligado ? (status.forja || "Procurando itens...") : "Desligada";
-    q("ctForja").textContent = `Forjados: ${fmt(stats.forjaTotal)} · Perdidos: ${fmt(stats.forjaPerdidos)}`;
+    q("ctForja").textContent = `${fmt(status.counts?.forja ?? 0)} grupo(s) pronto(s) · ` +
+      `Forjados: ${fmt(stats.forjaTotal)} · Perdidos: ${fmt(stats.forjaPerdidos)}`;
 
     // Atributos
     q("swUp").classList.toggle("on", !!st.stats.ligado);
@@ -893,12 +997,13 @@
     q("swSell").classList.toggle("on", !!st.sell.ligado);
     q("swLote").classList.toggle("on", !!st.lote.ligado);
     q("swOrganize").classList.toggle("on", !!st.organize);
-    q("sellRarity").value = String(st.sell.rarity ?? 2);
+    q("sellRarity").value = String(Math.max(0, Number(st.sell.rarity ?? 2)));
     q("loteRarity").value = String(st.lote.rarity ?? 2);
-    if (!ativo(q("sellLevel"))) q("sellLevel").value = st.sell.level ?? 40;
+    if (!ativo(q("sellLevel"))) q("sellLevel").value = st.sell.level ?? 9999;
     if (!ativo(q("loteLevel"))) q("loteLevel").value = st.lote.level ?? 40;
     q("stSell").textContent = st.sell.ligado ? (status.sell || "Procurando itens...") : "Desligada";
-    q("ctSell").textContent = `Vendidos: ${fmt(stats.vendidos)} · Venda do site: ${st.lote.ligado ? "ligada" : "desligada"}`;
+    q("ctSell").textContent = `${fmt(status.counts?.venda ?? 0)} vendável(is) agora · ` +
+      `Vendidos: ${fmt(stats.vendidos)} · Sem VIP`;
 
     // Ajustes
     raiz.querySelectorAll("#segTema button").forEach((b) => b.classList.toggle("on", b.dataset.tema === (st.theme === "light" ? "light" : "dark")));
@@ -907,8 +1012,8 @@
     q("swRoleta").classList.toggle("on", !!st.roleta.ligada);
     chipsVel.forEach(([v, b]) => b.classList.toggle("on", Number(st.roleta.vel) === v));
 
-    // Indicadores das abas
-    q("vivoInicio").classList.toggle("vivo", !!cfg.running && algumModulo);
+    // Indicadores do trilho
+    q("vivoInicio").classList.toggle("vivo", !!cfg.running && algum);
     q("vivoForja").classList.toggle("vivo", !!st.forge.ligado);
     q("vivoAtributos").classList.toggle("vivo", !!st.stats.ligado);
     q("vivoGemas").classList.toggle("vivo", !!st.gems.ligado || !!st.socket.ligado);
@@ -917,7 +1022,8 @@
 
     q("footStatus").textContent = status.lastAction
       ? status.lastAction
-      : (cfg.running ? (algumModulo ? "Trabalhando..." : "Nenhum módulo ligado") : "Farm desligado");
+      : (cfg.running ? (algum ? "Trabalhando..." : "Nenhum módulo ligado") : "Farm desligado");
+    q("roundAge").textContent = status.roundAt ? `rodada há ${idadeRodada()}` : "aguardando";
 
     posicionar();
   }
@@ -984,4 +1090,7 @@
     const r = await store.get(STATUS_KEY);
     if (r[STATUS_KEY]) { status = { ...status, ...r[STATUS_KEY] }; desenhar(); }
   }, 2500);
+  setInterval(() => {
+    q("roundAge").textContent = status.roundAt ? `rodada há ${idadeRodada()}` : "aguardando";
+  }, 1000);
 })();

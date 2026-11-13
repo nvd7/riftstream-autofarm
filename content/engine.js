@@ -29,7 +29,6 @@
   const INTERVALO = 3000;
   const ESPERA_FALHA = 60000;
   const ESPERA_PROTEGIDO = 30000;
-  const MAX_ACOES = 12;      // por rodada
   const MAX_VENDAS = 10;     // por rodada
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
 
@@ -64,7 +63,7 @@
     gems: { ligado: true, juntar: true, suprema: false },
     socket: { ligado: false },
     enhance: { ligado: false },
-    sell: { ligado: false, rarity: 2, level: 40 },
+    sell: { ligado: false, rarity: 2, level: 9999 },
     lote: { ligado: false, rarity: 2, level: 40 },
     organize: true,
     roleta: { ligada: false, vel: 4 },
@@ -81,7 +80,8 @@
   };
   let status = {
     forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", organize: "",
-    character: null, lastAction: "", updatedAt: 0
+    character: null, lastAction: "", updatedAt: 0,
+    counts: { forja: 0, venda: 0 }, roundAt: 0
   };
 
   /* ------------------------------ utilidades ------------------------------ */
@@ -110,6 +110,10 @@
     out.forge.maxLevel = Math.max(out.forge.minLevel, Number(out.forge.maxLevel) || 9999);
     out.theme = out.theme === "light" ? "light" : "dark";
     out.font = Math.min(20, Math.max(10, Number(out.font) || 12));
+    out.sell.rarity = Math.max(-1, Math.min(3, Math.round(num(out.sell.rarity, 2))));
+    out.sell.level = Math.max(0, Math.min(9999, Math.round(num(out.sell.level, 9999))));
+    out.lote.rarity = Math.max(-1, Math.min(3, Math.round(num(out.lote.rarity, 2))));
+    out.lote.level = Math.max(0, Math.min(9999, Math.round(num(out.lote.level, 40))));
     return out;
   }
 
@@ -410,8 +414,14 @@
   async function ehMelhor(item, cls) {
     if (item.classReq && item.classReq !== cls) return false;
     if (!comparacoes.has(item.id)) {
-      const c = await api(`/api/me/items/${item.id}/compare?simGems=true`);
-      comparacoes.set(item.id, num(c.newPower) > num(c.power));
+      try {
+        const c = await api(`/api/me/items/${item.id}/compare?simGems=true`);
+        comparacoes.set(item.id, num(c.newPower) > num(c.power));
+      } catch (e) {
+        // Item que o servidor não reconhece mais não pode ser forjado.
+        if (e.codigo >= 400 && e.codigo < 500) comparacoes.set(item.id, false);
+        else throw e;
+      }
     }
     return comparacoes.get(item.id);
   }
@@ -423,28 +433,50 @@
     return Math.round((5 + meio * 2) * (FORGE_COST_FACTOR[destino] ?? 1) * 2 * 1.15);
   }
 
-  async function forjarUm(ch) {
-    verEquipados(ch);
+  // Agrupa o que pode ser forjado, já respeitando raridade, tipo e faixa de nível.
+  function gruposForja(ch) {
     const f = s().forge;
     const minLv = num(f.minLevel, 0);
     const maxLv = num(f.maxLevel, 9999);
-
     const grupos = new Map();
-    (ch.items || []).filter(podeForjar).forEach((i) => {
+    for (const i of ch.items || []) {
+      if (!podeForjar(i)) continue;
       const lv = num(i.itemLevel, 0);
-      if (lv < minLv || lv > maxLv) return;
+      if (lv < minLv || lv > maxLv) continue;
       const r = nivelRaridade(i);
+      if (!f.raridades[RARIDADES[r]] || !f.tipos[TIPOS[i.slot]]) continue;
       const chave = `${r}|${i.slot}`;
-      if (!f.raridades[RARIDADES[r]] || !f.tipos[TIPOS[i.slot]] || pausado(chave)) return;
       if (!grupos.has(chave)) grupos.set(chave, { chave, r, slot: i.slot, itens: [] });
       grupos.get(chave).itens.push(i);
-    });
+    }
+    return [...grupos.values()]
+      .filter((g) => g.itens.length >= precisaDe(destinoDe(g.r)))
+      .sort((a, b) => a.r - b.r);
+  }
 
-    const ordem = [...grupos.values()].sort((a, b) => a.r - b.r);
-    for (const g of ordem) {
+  function contarGruposForja(ch) {
+    if (!s().forge.ligado) return 0;
+    return gruposForja(ch).length;
+  }
+
+  // Até 3 grupos por rodada: a forja não fica esperando o próximo ciclo para
+  // cada item, mas também não dispara o inventário inteiro de uma vez.
+  const MAX_FORJAS = 3;
+
+  async function forjarUm(ch) {
+    verEquipados(ch);
+    const grupos = gruposForja(ch).filter((g) => !pausado(g.chave));
+    if (!grupos.length) {
+      setStatus("forja", Date.now() < avisoForjaAte ? avisoForja : "Aguardando itens suficientes");
+      return false;
+    }
+
+    let forjou = 0;
+    let livre = num(ch.gold) - s().goldReserve;
+    for (const g of grupos) {
+      if (forjou >= MAX_FORJAS) break;
       const destino = destinoDe(g.r);
       const precisa = precisaDe(destino);
-      if (g.itens.length < precisa) continue;
 
       let liberados = [];
       try {
@@ -464,12 +496,11 @@
       // Forja os mais fracos primeiro: se sobrar um item melhor, ele fica.
       liberados = liberados.sort((a, b) => num(a.itemLevel) - num(b.itemLevel)).slice(0, precisa);
       const custo = estimarCusto(liberados, destino);
-      const livre = num(ch.gold) - s().goldReserve;
+      const rotulo = `${RARIDADES[g.r]} ${TIPOS[g.slot]} nv ${liberados.map((i) => i.itemLevel).join("/")}`;
       if (custo > livre) {
-        setStatus("forja", `Juntando ouro para forjar (${custo.toLocaleString("pt-BR")}g)`);
-        continue;
+        setStatus("forja", `Forja pausada: ~${custo.toLocaleString("pt-BR")}g por forja, ${Math.max(0, livre).toLocaleString("pt-BR")}g livre`);
+        break;
       }
-      const rotulo = `${RARIDADES[g.r]} (${TIPOS[g.slot]}, nv ${liberados.map((i) => i.itemLevel).join("/")})`;
       setStatus("forja", `Forjando ${rotulo}...`);
       if (SIMULAR) {
         window.__plano?.push(`forja ${rotulo}`);
@@ -486,15 +517,18 @@
           setStatus("forja", `Forjado: ${res.result?.name || rotulo}`);
           status.lastAction = `Forjou ${res.result?.name || rotulo}`;
         }
-        return true;
+        livre -= custo;
+        forjou += 1;
       } catch (e) {
         console.warn("[Forja]", e);
         bloquear(g.chave, `Não forjou ${rotulo} (sem ouro ou recusado pelo jogo)`, ESPERA_FALHA, "forja");
+        // Sem ouro ou pedido inválido: não adianta tentar os outros agora.
+        if (e.codigo === 400 || e.codigo === 402 || e.codigo === 403) break;
       }
     }
-    setStatus("forja", Date.now() < avisoForjaAte
-      ? avisoForja
-      : "Aguardando itens suficientes");
+
+    if (forjou > 0) return true;
+    if (!(Date.now() < avisoForjaAte)) setStatus("forja", "Aguardando itens suficientes");
     return false;
   }
 
@@ -789,20 +823,55 @@
 
   /* --------------------------------- venda -------------------------------- */
 
+  // Itens que a venda individual (sem VIP) pode pegar. A raridade -1 desliga a
+  // venda de propósito; nível 9999 significa "sem limite de nível".
+  function elegivelVenda(it) {
+    const c = s().sell;
+    if (!it || it.equipped || it.favorite) return false;
+    if (it.slot === "cosmetic" || it.slot === "consumable") return false;
+    if (it.gems?.length) return false;
+    const maxR = num(c.rarity, 2);
+    if (maxR < 0) return false;
+    if (num(it.rarity, 0) > maxR) return false;
+    if (num(it.itemLevel, 0) > num(c.level, 9999)) return false;
+    return true;
+  }
+
+  // Não vende o que a forja está juntando: seria trocar ouro por item de graça.
+  function idsDaForja(ch) {
+    if (!s().forge.ligado) return new Set();
+    const ids = new Set();
+    for (const g of gruposForja(ch)) {
+      for (const i of g.itens) ids.add(i.id);
+    }
+    return ids;
+  }
+
+  function contarVendaveis(ch) {
+    if (!s().sell.ligado) return 0;
+    const protegidos = idsDaForja(ch);
+    return (ch.items || []).filter((it) => elegivelVenda(it) && !protegidos.has(it.id)).length;
+  }
+
   async function venderItens(ch) {
     const c = s().sell;
     if (!c.ligado) return false;
+    if (num(c.rarity, 2) < 0) {
+      setStatus("sell", "Escolha a raridade máxima para vender");
+      return false;
+    }
     if (vendasNaRodada >= MAX_VENDAS) return false;
-    const maxR = num(c.rarity, 2);
-    const maxLv = num(c.level, 40);
+    const protegidos = idsDaForja(ch);
     const restantes = MAX_VENDAS - vendasNaRodada;
-    const alvos = (ch.items || []).filter((it) =>
-      it && !it.equipped && !it.favorite && !(it.gems?.length) &&
-      num(it.rarity) <= maxR && num(it.itemLevel) <= maxLv
-    ).slice(0, restantes);
+    const alvos = (ch.items || [])
+      .filter((it) => elegivelVenda(it) && !protegidos.has(it.id))
+      .slice(0, restantes);
 
     if (!alvos.length) {
-      setStatus("sell", "Nenhum item para vender");
+      const total = (ch.items || []).filter((it) => elegivelVenda(it)).length;
+      setStatus("sell", total
+        ? `${plural(total, "item elegível", "itens elegíveis")} — a forja vai usar`
+        : "Nenhum item para vender");
       return false;
     }
     let vendidos = 0;
@@ -876,38 +945,68 @@
   /* --------------------------------- rodada ------------------------------- */
 
   async function rodada() {
-    let fezAlgo = false;
     vendasNaRodada = 0;
     await configurarVendaLote();
-    for (let i = 0; i < MAX_ACOES; i += 1) {
-      const ch = await api("/api/me/character");
-      salvarNiveis(ch);
+
+    let ch = await api("/api/me/character");
+    salvarNiveis(ch);
+
+    let agiu = false;
+    const modulos = [
+      { id: "equip", ligado: () => s().equip, acao: equiparUm },
+      { id: "gem", ligado: () => s().gems.ligado, acao: gemasUm },
+      { id: "socket", ligado: () => s().socket.ligado, acao: engastarUm },
+      { id: "enhance", ligado: () => s().enhance.ligado, acao: aprimorarUm },
+      { id: "forja", ligado: () => s().forge.ligado, acao: forjarUm },
+      { id: "sell", ligado: () => s().sell.ligado, acao: venderItens },
+      { id: "up", ligado: () => s().stats.ligado, acao: uparUm }
+    ];
+
+    // Escalonamento justo: cada módulo ligado tenta UMA ação por onda. Antes a
+    // ordem fixa fazia equipar/aprimorar consumirem a rodada inteira e a forja
+    // e a venda nunca chegavam a rodar.
+    for (let onda = 0; onda < 2; onda += 1) {
+      let fezNaOnda = false;
+      for (const m of modulos) {
+        if (!m.ligado()) continue;
+        if (m.id === "sell" && vendasNaRodada >= MAX_VENDAS) continue;
+        try {
+          const fez = await m.acao(ch);
+          if (!fez) continue;
+          fezNaOnda = true;
+          agiu = true;
+          // Rebusca só depois de uma ação de verdade: o inventário mudou.
+          ch = await api("/api/me/character");
+          salvarNiveis(ch);
+        } catch (e) {
+          // Um módulo com problema não pode derrubar os outros.
+          console.warn(`[${m.id}]`, e);
+          setStatus(m.id, "Falhou nesta rodada");
+        }
+      }
+      if (!fezNaOnda) break;
+    }
+
+    if (ch) {
+      status.counts = {
+        forja: contarGruposForja(ch),
+        venda: contarVendaveis(ch)
+      };
       const resumo = resumoPersonagem(ch);
       const comparavel = { ...resumo, at: 0 };
       const anterior = status.character ? { ...status.character, at: 0 } : null;
       if (JSON.stringify(comparavel) !== JSON.stringify(anterior)) {
         status.character = resumo;
-        agendarStatus();
       }
-
-      const fez =
-        (s().equip && await equiparUm(ch)) ||
-        (s().gems.ligado && await gemasUm(ch)) ||
-        (s().socket.ligado && await engastarUm(ch)) ||
-        (s().enhance.ligado && await aprimorarUm(ch)) ||
-        (s().forge.ligado && await forjarUm(ch)) ||
-        (s().sell.ligado && await venderItens(ch)) ||
-        (s().stats.ligado && await uparUm(ch));
-
-      if (!fez) break;
-      fezAlgo = true;
     }
+    status.roundAt = Date.now();
+    agendarStatus();
 
     await organizarBaus();
-    if (fezAlgo) setStatus("lastAction", status.lastAction);
+    if (agiu) setStatus("lastAction", status.lastAction);
 
     // Com a aba à vista, faz o jogo atualizar a mochila e o ouro na tela.
-    if (fezAlgo && !SIMULAR && document.visibilityState === "visible") {
+    if (agiu && !SIMULAR && document.visibilityState === "visible") {
       document.dispatchEvent(new Event("visibilitychange"));
     }
   }
@@ -957,7 +1056,7 @@
   async function iniciar() {
     if (!store) {
       // Modo de teste fora da extensão.
-      window.__forjaTeste = { cfg, stats, status, rodar: ciclo };
+      window.__forjaTeste = { cfg, stats, status, rodar: rodada };
       setInterval(ciclo, INTERVALO);
       return;
     }

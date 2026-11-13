@@ -4,6 +4,34 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.1.0] - 2026-11-13
+
+### Corrigido
+
+- **Forja e venda finalmente rodam na mesma rodada.** A rodada antiga usava uma
+  ordem fixa com curto-circuito: equipar e aprimorar consumiam todas as ações e
+  a forja e a venda nunca eram chamadas. Agora cada módulo ligado tenta **uma
+  ação por onda**, com uma segunda onda, e nenhum módulo “mata” o outro.
+- **Venda individual sem VIP** com padrão **sem limite de nível** (`9999`) e sem
+  a opção “Desligado” no seletor de raridade, que era a causa mais comum de a
+  venda parecer parada. A venda também **não vende o que a forja está juntando**.
+- **Forja mais rápida:** forja **até 3 grupos por rodada** e mostra quantos
+  grupos estão prontos, em vez de esperar um ciclo por item.
+- **Comparação de itens:** item que o servidor não reconhece mais (4xx) deixa de
+  travar a forja e é apenas ignorado.
+
+### Alterado
+
+- **Interface totalmente refeita.** O painel agora é um **dock vertical**: um
+  trilho de módulos à esquerda e a área de conteúdo à direita, com identidade
+  própria (paleta verde-menta/ciano, números em fonte monoespaçada, ticker de
+  rodada). Não é mais o visual da extensão original com abas douradas.
+- Novo indicador **“rodada há Ns”** e botão **rodar** no rodapé para forçar uma
+  rodada na hora.
+- Diagnóstico na aba Base: **grupos de forja prontos** e **itens vendáveis**.
+- Ligar um módulo com o motor desligado **liga o motor junto**, evitando o
+  cenário “marquei tudo e não acontece nada”.
+
 ## [2.0.2] - 2026-11-13
 
 ### Adicionado
