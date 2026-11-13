@@ -3,7 +3,7 @@
   "name": "RiftStream AutoFarm",
   "short_name": "RiftStream Farm",
   "version": "1.3.0",
-  "description": "Procure lives, abra o chat da Twitch e cuide do inventário do RiftStream: equipar, gemas, forja e aprimoramento, sem VIP.",
+  "description": "Painel no próprio jogo para cuidar do inventário do RiftStream sozinho: equipar, forjar, upar atributos, gemas, engaste, organizar baús e venda — e ainda achar lives na Twitch.",
   "homepage_url": "https://github.com/nvd7/riftstream-autofarm",
   "permissions": [
     "storage",
@@ -11,8 +11,10 @@
     "tabs",
     "scripting"
   ],
+  "minimum_chrome_version": "116",
   "host_permissions": [
     "https://riftstream.com.br/*",
+    "https://www.riftstream.com.br/*",
     "https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com/*",
     "https://www.twitch.tv/*",
     "https://twitch.tv/*"
@@ -22,9 +24,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://riftstream.com.br/*"],
+      "matches": ["https://riftstream.com.br/*", "https://www.riftstream.com.br/*"],
       "js": ["content/riftstream.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://riftstream.com.br/*", "https://www.riftstream.com.br/*"],
+      "js": ["content/roleta.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     },
     {
       "matches": ["https://www.twitch.tv/*", "https://twitch.tv/*"],
