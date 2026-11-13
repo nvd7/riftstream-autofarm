@@ -113,6 +113,108 @@
     return out;
   }
 
+  /* -------------------- importação das versões antigas -------------------- */
+
+  // v1.3 guardava tudo em "rsaf_state_v1" com nomes autoXxx.
+  function migrarV1(velho) {
+    const out = structuredCloneSafe(DEFAULT_SETTINGS);
+    const mapa = { str: "forca", vit: "vitalidade", def: "defesa", agi: "agilidade", luk: "sorte" };
+    out.equip = velho.autoEquip !== false;
+    out.forge.ligado = false; // destrutiva: sempre volta desligada
+    out.forge.minLevel = num(velho.forgeMinLevel, 0);
+    out.forge.maxLevel = num(velho.forgeMaxLevel, 9999);
+    out.stats.ligado = velho.autoStats !== false;
+    if (Array.isArray(velho.statFocus) && velho.statFocus.length) {
+      for (const k of Object.keys(out.stats.sel)) out.stats.sel[k] = false;
+      for (const k of velho.statFocus) if (mapa[k]) out.stats.sel[mapa[k]] = true;
+    }
+    out.gems.ligado = velho.autoGems !== false;
+    out.socket.ligado = velho.autoSocket === true;
+    out.sell.ligado = velho.autoSellItem === true;
+    out.sell.rarity = num(velho.sellItemRarity, 2);
+    out.sell.level = num(velho.sellItemLevel, 40);
+    out.lote.ligado = velho.autoSell === true;
+    out.lote.rarity = num(velho.sellItemRarity, 2);
+    out.lote.level = num(velho.sellItemLevel, 40);
+    out.organize = velho.autoOrganize !== false;
+    out.goldReserve = num(velho.goldReserve, 50000);
+    out.theme = velho.theme === "light" ? "light" : "dark";
+    out.font = num(velho.font, 12);
+    if (["zone", "players", "balanced"].includes(velho.strategy)) out.strategy = velho.strategy;
+    out.minPlayers = num(velho.minPlayers, 3);
+    out.chatOnly = velho.chatOnly !== false;
+    out.muteTab = velho.muteTab !== false;
+    return out;
+  }
+
+  // Extensão "Rift Auto" (a base): chaves separadas forjaAuto/upAuto/gemasAuto.
+  function migrarRiftAuto(r) {
+    const out = structuredCloneSafe(DEFAULT_SETTINGS);
+    const f = r.forjaAuto || {};
+    const u = r.upAuto || {};
+    const g = r.gemasAuto || {};
+    const e = r.equiparAuto || {};
+    const ro = r.roletaRapida || {};
+    out.equip = e.ligado === true;
+    out.forge.ligado = f.ligado === true;
+    Object.assign(out.forge.raridades, f.forjas || {});
+    Object.assign(out.forge.tipos, f.tipos || {});
+    out.stats.ligado = u.ligado === true;
+    out.stats.modo = u.modo === "nivel" ? "nivel" : "igual";
+    let marcado = false;
+    for (const k of Object.keys(out.stats.sel)) {
+      if (u.sel && u.sel[k]) { out.stats.sel[k] = true; marcado = true; }
+      else out.stats.sel[k] = false;
+    }
+    if (!marcado) for (const k of Object.keys(out.stats.sel)) out.stats.sel[k] = true;
+    out.stats.metas = u.metas || {};
+    out.gems.ligado = g.ligado === true;
+    out.gems.juntar = g.juntar !== false;
+    out.gems.suprema = g.suprema === true;
+    out.roleta.ligada = ro.ligada === true;
+    out.roleta.vel = num(ro.vel, 4);
+    out.goldReserve = num(u.guardar, 50000);
+    return out;
+  }
+
+  async function importarLegado() {
+    if (!store) return null;
+    let r;
+    try {
+      r = await store.get([
+        KEY, "rsaf_state_v1", "forjaAuto", "upAuto", "gemasAuto", "equiparAuto",
+        "roletaRapida", "forjaTotal", "forjaPerdidos", "equipTotal", "gemTotais",
+        "upGasto", "upNiveis"
+      ]);
+    } catch {
+      return null;
+    }
+    // Já está no formato novo: não mexe.
+    if (r[KEY]?.settings?.forge) return null;
+
+    let settings = null;
+    if (r["rsaf_state_v1"]?.settings?.autoForge !== undefined) {
+      settings = migrarV1(r["rsaf_state_v1"].settings);
+    } else if (r.forjaAuto || r.upAuto || r.gemasAuto || r.equiparAuto || r.roletaRapida) {
+      settings = migrarRiftAuto(r);
+    }
+    if (!settings) return null;
+
+    const cfgNovo = { running: false, settings };
+    const statsNovo = {
+      forjaTotal: num(r.forjaTotal, 0),
+      forjaPerdidos: num(r.forjaPerdidos, 0),
+      equipTotal: num(r.equipTotal, 0),
+      gemTotais: { juntadas: 0, supremas: 0, perdidas: 0, ...(r.gemTotais || {}) },
+      upGasto: r.upGasto || {},
+      upNiveis: r.upNiveis || {}
+    };
+    try {
+      await store.set({ [KEY]: cfgNovo, [STATS_KEY]: statsNovo });
+    } catch { /* ignore */ }
+    return { cfg: cfgNovo, stats: statsNovo };
+  }
+
   const s = () => cfg.settings;
   const moduloLigado = () => {
     const x = s();
@@ -860,13 +962,16 @@
       return;
     }
     await descobrirApi();
+    const legado = await importarLegado();
     const r = await store.get([KEY, STATS_KEY, STATUS_KEY]);
-    await aplicarConfig(r[KEY]);
+    await aplicarConfig(r[KEY] || legado?.cfg);
     if (r[STATS_KEY]) {
       stats = { ...stats, ...r[STATS_KEY] };
       stats.gemTotais = { juntadas: 0, supremas: 0, perdidas: 0, ...(r[STATS_KEY].gemTotais || {}) };
       stats.upGasto = r[STATS_KEY].upGasto || {};
       stats.upNiveis = r[STATS_KEY].upNiveis || {};
+    } else if (legado?.stats) {
+      stats = { ...stats, ...legado.stats };
     }
     if (r[STATUS_KEY]) {
       status = { ...status, ...r[STATUS_KEY] };

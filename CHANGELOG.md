@@ -4,6 +4,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.0.2] - 2026-11-13
+
+### Adicionado
+
+- **Importação automática das versões anteriores:** ao abrir o jogo pela
+  primeira vez, a extensão lê as configurações da v1.3 (`rsaf_state_v1`) e da
+  extensão “Rift Auto” (`forjaAuto`, `upAuto`, `gemasAuto`, `equiparAuto`,
+  `roletaRapida`) e as converte para o formato novo.
+- **Contadores preservados:** forjados, perdidos, equipados, gemas, gasto e
+  níveis de atributos também são importados.
+- A importação roda uma única vez e nunca sobrescreve uma configuração já
+  existente.
+
 ## [2.0.1] - 2026-11-13
 
 ### Corrigido
