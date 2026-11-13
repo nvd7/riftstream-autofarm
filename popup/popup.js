@@ -1,9 +1,11 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
+const KEY = "rsaf";
 const CLASS_LABEL = { warrior: "Guerreiro", cleric: "Clérigo", archer: "Arqueiro" };
 
 let state = null;
+let cfg = { running: false, settings: {} };
 let localError = "";
 let localErrorTimer = null;
 let saveTimer = null;
@@ -12,6 +14,45 @@ let busy = false;
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString("pt-BR") : "—");
 const clsLabel = (c) => CLASS_LABEL[c] || (c ? String(c) : "—");
 const timeLabel = (t) => new Date(t).toLocaleTimeString("pt-BR", { hour12: false });
+
+function defaults() {
+  return {
+    equip: true,
+    forge: {
+      ligado: false,
+      raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false },
+      tipos: { arma: true, elmo: true, armadura: true, anel: true },
+      minLevel: 0, maxLevel: 9999
+    },
+    stats: {
+      ligado: true, modo: "igual",
+      sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
+      metas: {}
+    },
+    gems: { ligado: true, juntar: true, suprema: false },
+    socket: { ligado: false },
+    enhance: { ligado: false },
+    sell: { ligado: false, rarity: 2, level: 40 },
+    lote: { ligado: false, rarity: 2, level: 40 },
+    organize: true,
+    roleta: { ligada: false, vel: 4 },
+    goldReserve: 50000,
+    theme: "dark",
+    font: 12
+  };
+}
+
+function merge(base, extra) {
+  if (!extra || typeof extra !== "object") return base;
+  for (const [k, v] of Object.entries(extra)) {
+    if (v && typeof v === "object" && !Array.isArray(v) && base[k] && typeof base[k] === "object") {
+      merge(base[k], v);
+    } else if (v !== undefined) {
+      base[k] = v;
+    }
+  }
+  return base;
+}
 
 function setError(message) {
   localError = message || "";
@@ -29,7 +70,7 @@ async function send(type, extra = {}) {
   let res;
   try {
     res = await chrome.runtime.sendMessage({ type, ...extra });
-  } catch (e) {
+  } catch {
     throw new Error("Não consegui falar com a extensão. Feche e abra o painel de novo.");
   }
   if (res?.error) throw new Error(res.error);
@@ -38,57 +79,61 @@ async function send(type, extra = {}) {
 
 function setVal(id, value) {
   const el = $(id);
-  if (!el) return;
-  if (document.activeElement === el) return;
+  if (!el || document.activeElement === el) return;
   el.value = String(value ?? "");
 }
 
 function setCheck(id, value) {
   const el = $(id);
-  if (el) el.checked = !!value;
+  if (el && document.activeElement !== el) el.checked = !!value;
+}
+
+function applyAppearance(s) {
+  const dark = s?.theme !== "light";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const size = Math.min(18, Math.max(10, Number(s?.font) || 12));
+  document.documentElement.style.setProperty("--font-size", `${size}px`);
 }
 
 function render() {
   const errorBox = $("errorBox");
-  const err = localError || (state?.runtime?.status === "erro" ? state.runtime?.lastError : "");
-  if (err) {
-    errorBox.textContent = err;
+  if (localError) {
+    errorBox.textContent = localError;
     errorBox.className = "alert";
-  } else if (state?.runtime?.status === "instavel") {
-    errorBox.textContent = "O RiftStream está instável agora. Vou tentar de novo automaticamente.";
-    errorBox.className = "alert warn";
   } else {
     errorBox.className = "alert hidden";
   }
 
   if (!state) return;
 
-  const status = state.runtime?.status || "parado";
+  const running = !!cfg.running;
+  const algumModulo = cfg.settings?.equip || cfg.settings?.forge?.ligado ||
+    cfg.settings?.stats?.ligado || cfg.settings?.gems?.ligado ||
+    cfg.settings?.socket?.ligado || cfg.settings?.enhance?.ligado ||
+    cfg.settings?.sell?.ligado || cfg.settings?.lote?.ligado;
+
   const pill = $("statusPill");
   pill.className = "pill";
-  if (!state.running) {
+  if (!running) {
     pill.textContent = "parado";
-  } else if (status === "erro") {
-    pill.textContent = "erro";
-    pill.classList.add("err");
-  } else if (status === "instavel") {
-    pill.textContent = "instável";
-    pill.classList.add("wait");
-  } else if (status === "iniciando" || status === "aguardando") {
-    pill.textContent = status;
+  } else if (!algumModulo) {
+    pill.textContent = "sem módulos";
     pill.classList.add("wait");
   } else {
-    pill.textContent = "ativo";
+    pill.textContent = "ligado";
     pill.classList.add("on");
   }
 
-  setCheck("autoMaint", !!state.running);
+  setCheck("farmSwitch", running);
+  $("masterHint").textContent = running
+    ? (algumModulo ? "Ligado — manutenção a cada ~30 s" : "Ligado, mas nenhum módulo marcado")
+    : "Desligado — nada é enviado ao jogo";
 
-  applyAppearance(state.settings);
+  applyAppearance(cfg.settings);
 
-  renderScan();
-  renderCandidates();
   renderCharacter();
+  renderCandidates();
+  renderModules();
   renderSettings();
   renderLog();
 
@@ -97,9 +142,42 @@ function render() {
   $("scanBtn").disabled = busy;
 }
 
-function renderScan() {
-  const at = state?.runtime?.scanAt || 0;
-  $("scanAt").textContent = at ? `busca às ${timeLabel(at)}` : "nunca buscou";
+function renderCharacter() {
+  const box = $("charInfo");
+  const c = state?.runtime?.character;
+  box.textContent = "";
+
+  if (!c) {
+    const s = document.createElement("span");
+    s.className = "muted";
+    s.textContent = state?.hasToken
+      ? "Sem personagem carregado. Entre em uma live e use $jogar no chat."
+      : "Sem login detectado. Abra o site e entre com a Twitch.";
+    box.appendChild(s);
+    $("charAt").textContent = "";
+    return;
+  }
+
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = c.name || "Personagem";
+  const cls = document.createElement("span");
+  cls.className = "tag";
+  cls.textContent = clsLabel(c.cls);
+  name.appendChild(cls);
+  box.appendChild(name);
+
+  const stats = document.createElement("div");
+  stats.className = "line";
+  stats.innerHTML = `Nv <b>${fmt(c.level)}</b> · FC <b>${fmt(c.power)}</b> · Ouro <b>${fmt(c.gold)}</b>`;
+  box.appendChild(stats);
+
+  const extra = document.createElement("div");
+  extra.className = "line muted small";
+  extra.textContent = `${fmt(c.items)} itens · ${fmt(c.gems)} gemas`;
+  box.appendChild(extra);
+
+  $("charAt").textContent = c.at ? `atualizado ${timeLabel(c.at)}` : "";
 }
 
 function renderCandidates() {
@@ -107,6 +185,9 @@ function renderCandidates() {
   box.textContent = "";
   const list = state?.runtime?.candidates || [];
   const scanError = state?.runtime?.scanError;
+
+  const at = state?.runtime?.scanAt || 0;
+  $("scanAt").textContent = at ? `busca às ${timeLabel(at)}` : "nunca buscou";
 
   if (!list.length) {
     const s = document.createElement("span");
@@ -145,117 +226,51 @@ function renderCandidates() {
     b.append(n, z, p);
     box.appendChild(b);
   }
-
-  const hint = document.createElement("span");
-  hint.className = "muted small";
-  hint.textContent = "Clique em uma live para abrir o chat dela.";
-  box.appendChild(hint);
 }
 
-function bold(text) {
-  const b = document.createElement("b");
-  b.textContent = text;
-  return b;
-}
+const MODULOS = [
+  ["Equipar o mais forte", (x) => !!x.equip, "equip"],
+  ["Forja", (x) => x.forge?.ligado, "forja"],
+  ["Atributos", (x) => x.stats?.ligado, "up"],
+  ["Gemas", (x) => x.gems?.ligado, "gem"],
+  ["Engaste", (x) => x.socket?.ligado, "socket"],
+  ["Aprimoramento", (x) => x.enhance?.ligado, "enhance"],
+  ["Venda individual", (x) => x.sell?.ligado, "sell"]
+];
 
-function renderCharacter() {
-  const box = $("charInfo");
-  const c = state?.runtime?.character;
+function renderModules() {
+  const box = $("moduleList");
   box.textContent = "";
+  const st = cfg.settings || defaults();
+  const status = state?.status || {};
 
-  if (!c) {
-    const s = document.createElement("span");
-    s.className = "muted";
-    s.textContent = state?.hasToken
-      ? "Sem personagem carregado. Entre em uma live e use $jogar no chat."
-      : "Sem login detectado. Abra o site e entre com a Twitch.";
-    box.appendChild(s);
-    return;
+  for (const [nome, ligado, chave] of MODULOS) {
+    const on = !!ligado(st);
+    const item = document.createElement("div");
+    item.className = "module";
+    const dot = document.createElement("span");
+    dot.className = "mdot" + (on ? " on" : "");
+    const txt = document.createElement("div");
+    txt.className = "mtxt";
+    const b = document.createElement("b");
+    b.textContent = nome;
+    const small = document.createElement("small");
+    small.textContent = status[chave] || (on ? "Aguardando rodada..." : "Desligado");
+    txt.append(b, small);
+    item.append(dot, txt);
+    box.appendChild(item);
   }
-
-  const name = document.createElement("div");
-  name.className = "name";
-  name.textContent = c.name || "Personagem";
-  const cls = document.createElement("span");
-  cls.className = "tag";
-  cls.textContent = clsLabel(c.cls);
-  name.appendChild(cls);
-  if (c.afk) {
-    const afk = document.createElement("span");
-    afk.className = "tag afk";
-    afk.textContent = "AFK";
-    name.appendChild(afk);
-  }
-  box.appendChild(name);
-
-  const stats = document.createElement("div");
-  stats.className = "line";
-  stats.append("Nv ");
-  stats.appendChild(bold(fmt(c.level)));
-  stats.append(" · FC ");
-  stats.appendChild(bold(fmt(c.power)));
-  stats.append(" · Ouro ");
-  stats.appendChild(bold(fmt(c.gold)));
-  box.appendChild(stats);
-
-  const ch = document.createElement("div");
-  ch.className = "line";
-  if (c.channel) {
-    ch.append("Jogando em ");
-    ch.appendChild(bold(c.channel.name || c.channel.login));
-    ch.append(` — Z${c.channel.zone ?? 0}-W${c.channel.wave ?? 0}`);
-    if (c.reviveIn > 0) ch.append(` · revive em ${Math.ceil(c.reviveIn / 60)} min`);
-  } else {
-    ch.textContent = "Fora de uma live. Use “Procurar lives” e entre no chat.";
-  }
-  box.appendChild(ch);
 }
 
 function renderSettings() {
-  const s = state?.settings;
-  if (!s) return;
-  setVal("strategy", s.strategy);
-  setVal("maintenanceMin", s.maintenanceMin);
-  setVal("minPlayers", s.minPlayers);
-  setVal("goldReserve", s.goldReserve);
-  setVal("sellRarity", s.sellRarity);
-  setVal("sellLevel", s.sellLevel);
-  setVal("statPriority", s.statPriority);
-  setCheck("autoStats", s.autoStats);
-  setCheck("autoEquip", s.autoEquip);
-  setCheck("autoGems", s.autoGems);
-  setCheck("autoForge", s.autoForge);
-  setCheck("autoEnhance", s.autoEnhance);
-  setCheck("autoSocket", s.autoSocket);
-  setCheck("autoOrganize", s.autoOrganize);
-  setCheck("autoSell", s.autoSell);
-  setCheck("autoSellItem", s.autoSellItem);
-  setVal("sellItemRarity", s.sellItemRarity);
-  setVal("sellItemLevel", s.sellItemLevel);
-  setVal("forgeMinLevel", s.forgeMinLevel);
-  setVal("forgeMaxLevel", s.forgeMaxLevel);
-  setVal("theme", s.theme);
-  setVal("fontSize", s.fontSize);
-  renderStatFocus(s.statFocus);
-  setCheck("chatOnly", s.chatOnly);
-  setCheck("muteTab", s.muteTab);
-}
-
-function applyAppearance(s) {
-  if (!s) return;
-  const root = document.documentElement;
-  const theme = s.theme === "light" ? "light" : "dark";
-  root.dataset.theme = theme;
-  const size = Number(s.fontSize) || 12;
-  root.style.setProperty("--font-size", `${size}px`);
-  root.style.fontSize = `${size}px`;
-}
-
-function renderStatFocus(focus) {
-  const keys = Array.isArray(focus) ? focus : [];
-  for (const el of document.querySelectorAll("input[data-stat]")) {
-    el.checked = keys.includes(el.dataset.stat);
-  }
+  const st = cfg.settings || defaults();
+  setVal("strategy", st.strategy || "zone");
+  setVal("minPlayers", st.minPlayers ?? 3);
+  setVal("theme", st.theme === "light" ? "light" : "dark");
+  setVal("font", st.font ?? 12);
+  setVal("goldReserve", st.goldReserve ?? 0);
+  setVal("chatMode", st.chatOnly === false ? "live" : "chat");
+  setCheck("muteTab", st.muteTab !== false);
 }
 
 function renderLog() {
@@ -269,121 +284,80 @@ function renderLog() {
     box.appendChild(s);
     return;
   }
-  for (const item of list.slice(0, 40)) {
+  for (const entry of list.slice(0, 20)) {
     const row = document.createElement("div");
-    row.className = "entry" + (item.level === "ok" ? " ok" : item.level === "warn" ? " warn" : item.level === "error" ? " error" : "");
+    row.className = "entry" + (entry.level === "ok" ? " ok" : entry.level === "warn" ? " warn" : entry.level === "error" ? " error" : "");
     const t = document.createElement("span");
     t.className = "t";
-    t.textContent = timeLabel(item.t);
+    t.textContent = timeLabel(entry.t);
     const m = document.createElement("span");
-    m.textContent = item.msg;
+    m.textContent = entry.msg;
     row.append(t, m);
     box.appendChild(row);
   }
 }
 
+/* -------------------------------- ações -------------------------------- */
+
 async function refresh() {
+  const stored = await chrome.storage.local.get(KEY);
+  if (stored[KEY]) {
+    cfg = {
+      running: stored[KEY].running === true,
+      settings: merge(defaults(), stored[KEY].settings || {})
+    };
+  }
   try {
-    const next = await send("RSAF_GET_STATE");
-    if (next) {
-      state = next;
-      render();
-    }
+    state = await send("RSAF_GET_STATE");
+    if (state?.settings) cfg.settings = merge(cfg.settings, state.settings);
+    if (typeof state?.running === "boolean") cfg.running = state.running;
   } catch (e) {
     setError(e.message);
   }
+  render();
+}
+
+let cfgTimer = null;
+function scheduleSave() {
+  clearTimeout(cfgTimer);
+  $("saveHint").textContent = "salvando...";
+  cfgTimer = setTimeout(async () => {
+    await chrome.storage.local.set({ [KEY]: { running: cfg.running, settings: cfg.settings } });
+    $("saveHint").textContent = "salvo ✓";
+    setTimeout(() => { $("saveHint").textContent = ""; }, 1600);
+    render();
+  }, 260);
 }
 
 function gatherSettings() {
-  return {
-    strategy: $("strategy").value,
-    maintenanceMin: Number($("maintenanceMin").value),
-    minPlayers: Number($("minPlayers").value),
-    goldReserve: Number($("goldReserve").value),
-    sellRarity: Number($("sellRarity").value),
-    sellLevel: Number($("sellLevel").value),
-    statPriority: $("statPriority").value,
-    autoStats: $("autoStats").checked,
-    autoEquip: $("autoEquip").checked,
-    autoGems: $("autoGems").checked,
-    autoForge: $("autoForge").checked,
-    autoEnhance: $("autoEnhance").checked,
-    autoSocket: $("autoSocket").checked,
-    autoOrganize: $("autoOrganize").checked,
-    autoSell: $("autoSell").checked,
-    autoSellItem: $("autoSellItem").checked,
-    sellItemRarity: Number($("sellItemRarity").value),
-    sellItemLevel: Number($("sellItemLevel").value),
-    forgeMinLevel: Number($("forgeMinLevel").value),
-    forgeMaxLevel: Number($("forgeMaxLevel").value),
-    theme: $("theme").value,
-    fontSize: Number($("fontSize").value),
-    statFocus: Array.from(document.querySelectorAll("input[data-stat]:checked")).map((el) => el.dataset.stat),
-    chatOnly: $("chatOnly").checked,
-    muteTab: $("muteTab").checked
-  };
-}
-
-function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer);
-  const hint = $("saveHint");
-  hint.textContent = "salvando...";
-  hint.className = "muted small";
-  saveTimer = setTimeout(async () => {
-    try {
-      const next = await send("RSAF_SAVE_SETTINGS", { settings: gatherSettings() });
-      if (next) {
-        state = next;
-        render();
-        const h = $("saveHint");
-        h.textContent = "salvo";
-        h.className = "small save-ok";
-        setTimeout(() => {
-          if ($("saveHint").textContent === "salvo") $("saveHint").textContent = "";
-        }, 1800);
-      }
-    } catch (e) {
-      setError(e.message);
-    }
-  }, 450);
+  const st = cfg.settings;
+  st.strategy = $("strategy").value;
+  st.minPlayers = Number($("minPlayers").value);
+  st.theme = $("theme").value;
+  st.font = Number($("font").value);
+  st.goldReserve = Number($("goldReserve").value);
+  st.chatOnly = $("chatMode").value === "chat";
+  st.muteTab = $("muteTab").checked;
+  return st;
 }
 
 function wire() {
+  $("farmSwitch").addEventListener("change", async (e) => {
+    try {
+      state = await send("RSAF_SET_RUNNING", { running: e.target.checked });
+      cfg.running = e.target.checked;
+      render();
+    } catch (err) {
+      setError(err.message);
+      e.target.checked = !e.target.checked;
+    }
+  });
+
   $("scanBtn").addEventListener("click", async () => {
-    if (busy) return;
     busy = true;
-    const b = $("scanBtn");
-    b.textContent = "BUSCANDO...";
     render();
     try {
-      const next = await send("RSAF_SCAN");
-      if (next) {
-        state = next;
-        render();
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      busy = false;
-      b.textContent = "PROCURAR LIVES";
-      render();
-    }
-  });
-
-  $("candidates").addEventListener("click", async (ev) => {
-    const btn = ev.target.closest(".cand");
-    if (!btn || busy) return;
-    const login = btn.dataset.login;
-    if (!login) return;
-    busy = true;
-    localError = "";
-    render();
-    try {
-      const next = await send("RSAF_OPEN_CHANNEL", { login });
-      if (next) {
-        state = next;
-        render();
-      }
+      state = await send("RSAF_SCAN");
     } catch (e) {
       setError(e.message);
     } finally {
@@ -392,73 +366,64 @@ function wire() {
     }
   });
 
-  $("openSite").addEventListener("click", () => send("RSAF_OPEN_SITE").catch((e) => setError(e.message)));
-  $("openLive").addEventListener("click", () => send("RSAF_OPEN_LIVE").catch((e) => setError(e.message)));
-
-  $("autoMaint").addEventListener("change", async (ev) => {
-    if (busy) return;
-    busy = true;
-    const turnOn = ev.target.checked;
-    localError = "";
-    render();
+  $("candidates").addEventListener("click", async (e) => {
+    const b = e.target.closest(".cand");
+    if (!b) return;
     try {
-      const next = await send(turnOn ? "RSAF_START" : "RSAF_STOP");
-      if (next) {
-        state = next;
-        render();
-      }
-    } catch (e) {
-      setError(e.message);
-      setCheck("autoMaint", !turnOn);
-    } finally {
-      busy = false;
+      state = await send("RSAF_OPEN_CHANNEL", { login: b.dataset.login });
       render();
+    } catch (err) {
+      setError(err.message);
     }
+  });
+
+  $("openPanel").addEventListener("click", async () => {
+    try { await send("RSAF_OPEN_PANEL"); } catch (e) { setError(e.message); }
+  });
+
+  $("openSite").addEventListener("click", async () => {
+    try { await send("RSAF_OPEN_SITE"); } catch (e) { setError(e.message); }
+  });
+
+  $("openLive").addEventListener("click", async () => {
+    try { await send("RSAF_OPEN_LIVE"); } catch (e) { setError(e.message); }
   });
 
   $("maintenanceBtn").addEventListener("click", async () => {
-    if (busy) return;
     busy = true;
-    $("maintenanceBtn").textContent = "Rodando...";
     render();
     try {
-      await send("RSAF_MAINTENANCE");
-      localError = "";
-      await refresh();
+      state = await send("RSAF_MAINTENANCE");
+      if (!state?.dispatched) {
+        setError("Abra riftstream.com.br numa aba para a rodada acontecer.");
+      }
     } catch (e) {
       setError(e.message);
     } finally {
       busy = false;
-      $("maintenanceBtn").textContent = "Manutenção agora";
       render();
     }
   });
 
   $("clearLog").addEventListener("click", async () => {
-    try {
-      const next = await send("RSAF_RESET_LOG");
-      if (next) {
-        state = next;
-        render();
-      }
-    } catch (e) {
-      setError(e.message);
-    }
+    try { state = await send("RSAF_CLEAR_LOG"); render(); } catch (e) { setError(e.message); }
   });
 
-  for (const el of document.querySelectorAll(
-    "#strategy, #maintenanceMin, #minPlayers, #goldReserve, #sellRarity, #sellLevel, #statPriority, " +
-    "#sellItemRarity, #sellItemLevel, #forgeMinLevel, #forgeMaxLevel, #theme, #fontSize, " +
-    "#autoStats, #autoEquip, #autoGems, #autoForge, #autoEnhance, #autoSocket, #autoOrganize, #autoSell, " +
-    "#autoSellItem, #chatOnly, #muteTab, input[data-stat]"
-  )) {
-    el.addEventListener("change", scheduleSave);
+  for (const id of ["strategy", "minPlayers", "theme", "font", "goldReserve", "chatMode", "muteTab"]) {
+    const el = $(id);
+    el.addEventListener("change", () => {
+      gatherSettings();
+      scheduleSave();
+    });
     if (el.tagName === "INPUT" && el.type === "number") {
-      el.addEventListener("input", scheduleSave);
+      el.addEventListener("input", () => {
+        gatherSettings();
+        scheduleSave();
+      });
     }
   }
 }
 
 wire();
 refresh();
-setInterval(refresh, 2000);
+setInterval(refresh, 2500);
