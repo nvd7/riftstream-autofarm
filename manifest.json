@@ -3,7 +3,7 @@
   "name": "RiftStream AutoFarm",
   "short_name": "RiftStream Farm",
   "version": "1.3.0",
-  "description": "Painel no próprio jogo para cuidar do inventário do RiftStream sozinho: equipar, forjar, upar atributos, gemas, engaste, organizar baús e venda — e ainda achar lives na Twitch.",
+  "description": "Painel no próprio jogo para cuidar do inventário do RiftStream: forja, atributos, gemas, venda e lives na Twitch.",
   "homepage_url": "https://github.com/nvd7/riftstream-autofarm",
   "permissions": [
     "storage",
@@ -25,7 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://riftstream.com.br/*", "https://www.riftstream.com.br/*"],
-      "js": ["content/riftstream.js"],
+      "js": ["content/riftstream.js", "content/engine.js", "content/panel.js"],
       "run_at": "document_idle"
     },
     {
