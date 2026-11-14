@@ -97,8 +97,8 @@
   // Nomes antigos ("dark"/"light") continuam válidos para quem já tem config.
   const ALIASES = { dark: "farmline", light: "mint" };
   const ORDEM = [
-    "farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
-    "gruvbox", "rosepine", "liah", "solarized", "daybreak", "paper", "mint"
+    "liah", "farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
+    "gruvbox", "rosepine", "solarized", "daybreak", "paper", "mint"
   ];
 
   function resolver(id) {

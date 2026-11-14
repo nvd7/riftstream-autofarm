@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.3.1";
+  let VERSION = "2.3.2";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;

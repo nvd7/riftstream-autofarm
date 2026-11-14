@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "RiftStream AutoFarm",
   "short_name": "RiftStream Farm",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "Painel no próprio jogo para cuidar do inventário do RiftStream: forja, atributos, gemas, venda e lives na Twitch.",
   "author": "nvd7",
   "homepage_url": "https://github.com/nvd7/riftstream-autofarm",

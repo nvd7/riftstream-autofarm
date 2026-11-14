@@ -4,6 +4,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.3.2] - 2026-11-14
+
+### Alterado
+
+- **Tema da Liah em primeiro** no seletor de temas do painel e do popup.
+
 ## [2.3.1] - 2026-11-14
 
 ### Alterado
