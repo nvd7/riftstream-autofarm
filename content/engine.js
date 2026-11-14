@@ -108,7 +108,7 @@
     if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
     if (id === "light") return "mint";
     const conhecidos = ["farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
-      "gruvbox", "rosepine", "solarized", "daybreak", "paper", "mint"];
+      "gruvbox", "rosepine", "liah", "solarized", "daybreak", "paper", "mint"];
     return conhecidos.includes(id) ? id : "farmline";
   }
 

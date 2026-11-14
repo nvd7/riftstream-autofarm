@@ -4,6 +4,13 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.3.0] - 2026-11-14
+
+### Adicionado
+
+- **Tema da Liah:** novo tema rosa (escuro, com destaques rosa e lilás),
+  disponível no seletor de Ajustes e no popup.
+
 ## [2.2.1] - 2026-11-14
 
 ### Adicionado

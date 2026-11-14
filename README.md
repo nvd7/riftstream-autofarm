@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.2.1-f5c451" alt="Versão 2.2.1"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.3.0-f5c451" alt="Versão 2.3.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -90,9 +90,9 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
-- **12 temas de cor** (estilo OpenCode) e **tamanho da fonte** aplicados na hora e
-  salvos. O mesmo tema vale para o painel e para o popup; o botão ◐ do cabeçalho
-  percorre a lista.
+- **13 temas de cor** (estilo OpenCode) e **tamanho da fonte** aplicados na hora e
+  salvos — incluindo o **Tema da Liah** (rosa). O mesmo tema vale para o painel e
+  para o popup; o botão ◐ do cabeçalho percorre a lista.
 - **Roleta rápida** (2×, 4×, 8×): acelera **só a animação** quando você gira na
   mão. O resultado vem do servidor — a chance não muda.
 - **Uma aba por vez:** `navigator.locks` garante que só uma aba do jogo rode a
@@ -252,7 +252,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Lives | `chatOnly` | `true` | Abre só o chat em vez da live completa |
 | Lives | `muteTab` | `true` | Silencia a aba da Twitch |
 | Geral | `goldReserve` | `50000` | Ouro que nunca é gasto |
-| Geral | `theme` | `farmline` | `farmline`, `opencode`, `midnight`, `tokyo`, `dracula`, `nord`, `gruvbox`, `rosepine`, `solarized`, `daybreak`, `paper` ou `mint` |
+| Geral | `theme` | `farmline` | `farmline`, `opencode`, `midnight`, `tokyo`, `dracula`, `nord`, `gruvbox`, `rosepine`, `liah`, `solarized`, `daybreak`, `paper` ou `mint` |
 | Geral | `font` | `12` | Tamanho da fonte do painel/popup (10–18 px) |
 | Equipar | `equip` | `true` | Equipa o item com maior FC |
 | Forja | `forge.ligado` | `false` | Liga a forja (destrutiva) |
@@ -299,7 +299,7 @@ página do jogo (engine) ──► API oficial ──► inventário
 |---|---|
 | `background.js` | Acorda as abas do jogo a cada ~30 s, busca lives, abre o chat e mantém o badge |
 | `content/engine.js` | Toda a automação, rodando na página com o token e a API do jogo |
-| `content/themes.js` | Catálogo das 12 paletas de tema, compartilhado entre painel e popup |
+| `content/themes.js` | Catálogo das 13 paletas de tema, compartilhado entre painel e popup |
 | `content/panel.js` | Painel flutuante (Shadow DOM, 6 abas, tema e fonte) |
 | `content/roleta.js` | Acelera só a animação da roleta (mundo MAIN da página) |
 | `content/riftstream.js` | Ponte do token para o popup saber se há login |

@@ -62,6 +62,12 @@
       line: "#3d3859", line2: "#514a70", text: "#e0def4", muted: "#9a94b8",
       accent: "#ebbcba", accent2: "#9ccfd8", red: "#eb6f92", extra: "#c4a7e7"
     },
+    liah: {
+      nome: "Tema da Liah", modo: "dark",
+      bg: "#1a0f18", bg2: "#221320", surface: "#2c1828", surface2: "#381e33",
+      line: "#4a2742", line2: "#613454", text: "#ffe8f5", muted: "#c48fae",
+      accent: "#ff79c6", accent2: "#c9a0ff", red: "#ff5c7a", extra: "#ff9ee0"
+    },
     solarized: {
       nome: "Solarizado", modo: "dark",
       bg: "#002b36", bg2: "#073642", surface: "#0b3f4c", surface2: "#10505f",
@@ -92,7 +98,7 @@
   const ALIASES = { dark: "farmline", light: "mint" };
   const ORDEM = [
     "farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
-    "gruvbox", "rosepine", "solarized", "daybreak", "paper", "mint"
+    "gruvbox", "rosepine", "liah", "solarized", "daybreak", "paper", "mint"
   ];
 
   function resolver(id) {
