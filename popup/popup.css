@@ -17,7 +17,7 @@
   --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
 }
 
-:root[data-theme="light"] {
+:root[data-mode="light"] {
   --bg: #edfaf4;
   --bg2: #f7fffb;
   --panel: #ffffff;
@@ -375,8 +375,8 @@ details.card > *:not(summary) { margin-top: 9px; }
 
 /* ------------------------------ tema claro ------------------------------- */
 
-:root[data-theme="light"] .logo { box-shadow: 0 0 16px #0a9d7430; }
-:root[data-theme="light"] .switch .track { background: var(--bg); }
-:root[data-theme="light"] .mdot { background: #a7d5c5; }
-:root[data-theme="light"] .cand:hover { background: #ffffff; }
-:root[data-theme="light"] .entry .t { color: #8fbcae; }
+:root[data-mode="light"] .logo { box-shadow: 0 0 16px #0a9d7430; }
+:root[data-mode="light"] .switch .track { background: var(--bg); }
+:root[data-mode="light"] .mdot { background: #a7d5c5; }
+:root[data-mode="light"] .cand:hover { background: #ffffff; }
+:root[data-mode="light"] .entry .t { color: #8fbcae; }

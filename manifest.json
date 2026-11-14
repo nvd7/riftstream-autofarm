@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "RiftStream AutoFarm",
   "short_name": "RiftStream Farm",
-  "version": "2.1.4",
+  "version": "2.2.0",
   "description": "Painel no próprio jogo para cuidar do inventário do RiftStream: forja, atributos, gemas, venda e lives na Twitch.",
   "homepage_url": "https://github.com/nvd7/riftstream-autofarm",
   "permissions": [
@@ -25,7 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://riftstream.com.br/*", "https://www.riftstream.com.br/*"],
-      "js": ["content/riftstream.js", "content/engine.js", "content/panel.js"],
+      "js": ["content/themes.js", "content/riftstream.js", "content/engine.js", "content/panel.js"],
       "run_at": "document_idle"
     },
     {

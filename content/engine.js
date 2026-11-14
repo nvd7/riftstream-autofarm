@@ -69,7 +69,7 @@
     organize: true,
     roleta: { ligada: false, vel: 4 },
     goldReserve: 50000,
-    theme: "dark",
+    theme: "farmline",
     font: 12
   };
 
@@ -103,13 +103,22 @@
     return base;
   }
 
+  // Aceita os nomes antigos ("dark"/"light") e só deixa passar temas conhecidos.
+  function normalizarTema(id) {
+    if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
+    if (id === "light") return "mint";
+    const conhecidos = ["farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
+      "gruvbox", "rosepine", "solarized", "daybreak", "paper", "mint"];
+    return conhecidos.includes(id) ? id : "farmline";
+  }
+
   function normalizedSettings(raw) {
     const out = structuredCloneSafe(DEFAULT_SETTINGS);
     merge(out, raw || {});
     out.goldReserve = Math.max(0, Number(out.goldReserve) || 0);
     out.forge.minLevel = Math.max(0, Number(out.forge.minLevel) || 0);
     out.forge.maxLevel = Math.max(out.forge.minLevel, Number(out.forge.maxLevel) || 9999);
-    out.theme = out.theme === "light" ? "light" : "dark";
+    out.theme = normalizarTema(out.theme);
     out.font = Math.min(20, Math.max(10, Number(out.font) || 12));
     out.sell.rarity = Math.max(-1, Math.min(3, Math.round(num(out.sell.rarity, 2))));
     out.sell.level = Math.max(0, Math.min(9999, Math.round(num(out.sell.level, 9999))));
@@ -143,7 +152,7 @@
     out.lote.level = num(velho.sellItemLevel, 40);
     out.organize = velho.autoOrganize !== false;
     out.goldReserve = num(velho.goldReserve, 50000);
-    out.theme = velho.theme === "light" ? "light" : "dark";
+    out.theme = normalizarTema(velho.theme);
     out.font = num(velho.font, 12);
     if (["zone", "players", "balanced"].includes(velho.strategy)) out.strategy = velho.strategy;
     out.minPlayers = num(velho.minPlayers, 3);

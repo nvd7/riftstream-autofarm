@@ -4,6 +4,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.2.0] - 2026-11-14
+
+### Adicionado
+
+- **12 temas de cor (estilo OpenCode):** Farmline, OpenCode, Meia-noite, Tóquio,
+  Drácula, Nórdico, Gruvbox, Rosa, Solarizado, Amanhecer, Papel e Menta clara.
+  Cada tema define fundo, superfícies, texto, dois destaques e o modo claro/escuro.
+- **Seletor visual de temas** na aba Ajustes, com amostra das cores e o mesmo
+  tema aplicado ao painel e ao popup.
+- **Botão ◐ do cabeçalho** agora percorre os temas em vez de só alternar claro/escuro.
+- Configurações antigas (`theme: "dark"` / `"light"`) são migradas automaticamente
+  para `farmline` / `mint`.
+
 ## [2.1.4] - 2026-11-13
 
 ### Corrigido

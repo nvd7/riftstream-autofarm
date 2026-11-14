@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.1.4";
+  let VERSION = "2.2.0";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -64,7 +64,7 @@
         organize: true,
         roleta: { ligada: false, vel: 4 },
         goldReserve: 50000,
-        theme: "dark",
+        theme: "farmline",
         font: 12
       }
     };
@@ -109,10 +109,11 @@
       font:var(--fs)/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
       color:var(--text);
     }
-    .app[data-theme="light"]{
+    /* Fallback claro: o tema escolhido sobrescreve estas variáveis via JS. */
+    .app[data-mode="light"]{
       --bg:#edfaf4; --bg2:#f7fffb; --surface:#ffffff; --surface2:#e6f5ee;
       --line:#c6e6d9; --line2:#a7d5c5; --text:#0b2b22; --muted:#4f776b;
-      --mint:#0a9d74; --mint-dim:#0a9d7414; --cyan:#0b78a8; --red:#c93a3a;
+      --mint:#0a9d74; --mint-dim:#0a9d7416; --cyan:#0b78a8; --red:#c93a3a;
       --shadow:0 22px 55px #12352a2e, 0 0 0 1px #c6e6d9;
     }
     .bubble{
@@ -238,6 +239,21 @@
     .seg button{ padding:7px 4px; border:0; background:transparent; color:var(--muted); font:600 10px/1 var(--mono); cursor:pointer; }
     .seg button.on{ background:var(--mint-dim); color:var(--mint); }
 
+    /* Seletor de temas: cada cartão mostra a própria paleta. */
+    .temas{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:7px 0 3px; }
+    .tema{
+      display:flex; align-items:center; gap:7px; padding:6px 8px; cursor:pointer;
+      border:1px solid var(--line2); border-radius:7px; background:var(--bg2);
+      color:var(--muted); font:600 9.5px/1 var(--mono); text-align:left; transition:.14s;
+      min-width:0;
+    }
+    .tema:hover{ color:var(--text); border-color:var(--t-accent,var(--mint)); }
+    .tema.on{ color:var(--text); border-color:var(--t-accent,var(--mint)); box-shadow:inset 0 0 0 1px var(--t-accent,var(--mint)); }
+    .tema .sw3{ display:flex; flex:none; width:30px; height:15px; border-radius:4px; overflow:hidden; border:1px solid #00000033; }
+    .tema .sw3 i{ flex:1; }
+    .tema .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tema .mo{ margin-left:auto; flex:none; font:8px var(--mono); color:var(--muted); opacity:.75; }
+
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; }
     .field{ display:flex; flex-direction:column; gap:4px; color:var(--muted); font:600 9px/1.2 var(--mono); letter-spacing:.4px; text-transform:uppercase; }
     .field input, .field select{
@@ -266,7 +282,7 @@
     .statusbox small{ display:block; margin-top:3px; color:var(--muted); font:9.5px var(--mono); }
 
     .risk{ margin:8px 0 0; padding:6px 8px; border-radius:5px; background:#ff7a7a1c; color:#ff9d94; font-size:10.5px; }
-    .app[data-theme="light"] .risk{ color:#a12a2a; }
+    .app[data-mode="light"] .risk{ color:#a12a2a; }
     .hint{ margin:6px 0 0; color:var(--muted); font-size:10.5px; line-height:1.45; }
 
     .hero{
@@ -283,7 +299,7 @@
     .hero-top span{ color:var(--mint); font:600 9px var(--mono); text-transform:uppercase; letter-spacing:1px; }
     .hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:9px; position:relative; z-index:1; }
     .hero-grid div{ background:#0000001f; border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
-    .app[data-theme="light"] .hero-grid div{ background:#0a9d7408; }
+    .app[data-mode="light"] .hero-grid div{ background:#0a9d7408; }
     .hero-grid span{ display:block; color:var(--muted); font:600 8.5px var(--mono); letter-spacing:.8px; text-transform:uppercase; }
     .hero-grid b{ display:block; font:700 13px var(--mono); margin-top:2px; }
 
@@ -331,7 +347,7 @@
     @media (prefers-reduced-motion: reduce){ .panel, .dot.work{ animation:none } }
   </style>
 
-  <div class="app" id="app" data-aberto="1" data-theme="dark" data-min="0">
+  <div class="app" id="app" data-aberto="1" data-theme="farmline" data-mode="dark" data-min="0">
     <button class="bubble" id="bubble" title="Abrir RiftStream AutoFarm">◆</button>
     <div class="shell">
       <header class="head" id="head">
@@ -515,10 +531,7 @@
 
             <section class="panel" data-panel="ajustes">
               <h3>Tema</h3>
-              <div class="seg" id="segTema">
-                <button data-tema="dark">Escuro</button>
-                <button data-tema="light">Claro</button>
-              </div>
+              <div class="temas" id="temasGrid"></div>
               <h3>Tamanho da fonte</h3>
               <div class="row">
                 <input id="fontRange" type="range" min="10" max="18" step="1" />
@@ -559,6 +572,66 @@
 
   const q = (id) => raiz.getElementById(id);
   const app = q("app");
+
+  /* -------------------------------- temas --------------------------------- */
+
+  const CATALOGO = window.RSAF_THEMES || {};
+  const ORDEM_TEMAS = (window.RSAF_THEME_ORDER || Object.keys(CATALOGO)).slice();
+
+  function temaId(id) {
+    if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
+    if (id === "light") return "mint";
+    if (id === "dark") return "farmline";
+    return CATALOGO[id] ? id : "farmline";
+  }
+
+  function temaDe(id) {
+    const chave = temaId(id);
+    return { id: chave, ...(CATALOGO[chave] || CATALOGO.farmline || {}) };
+  }
+
+  // Aplica a paleta no cartão do painel. Sem themes.js (harness antigo) mantém
+  // as cores do CSS e só ajusta o modo claro/escuro.
+  function aplicarTema(id) {
+    const t = temaDe(id);
+    app.dataset.theme = t.id;
+    app.dataset.mode = t.modo === "light" ? "light" : "dark";
+    if (typeof window.RSAF_varsPainel === "function") {
+      for (const [k, v] of Object.entries(window.RSAF_varsPainel(t))) {
+        app.style.setProperty(k, v);
+      }
+    }
+    return t;
+  }
+
+  const botoesTema = ORDEM_TEMAS.map((id) => {
+    const t = temaDe(id);
+    const b = document.createElement("button");
+    b.className = "tema";
+    b.dataset.tema = t.id;
+    b.title = `${t.nome || t.id} · ${t.modo === "light" ? "claro" : "escuro"}`;
+    b.style.setProperty("--t-accent", t.accent || "#4de3b0");
+    const amostra = document.createElement("span");
+    amostra.className = "sw3";
+    for (const cor of [t.bg, t.accent, t.accent2]) {
+      const i = document.createElement("i");
+      i.style.background = cor || "transparent";
+      amostra.append(i);
+    }
+    const nome = document.createElement("span");
+    nome.className = "nm";
+    nome.textContent = t.nome || t.id;
+    const modo = document.createElement("span");
+    modo.className = "mo";
+    modo.textContent = t.modo === "light" ? "claro" : "escuro";
+    b.append(amostra, nome, modo);
+    b.addEventListener("click", () => {
+      cfg.settings.theme = t.id;
+      salvarCfg();
+    });
+    q("temasGrid").append(b);
+    return b;
+  });
 
   /* ------------------------------ elementos ------------------------------- */
 
@@ -704,17 +777,17 @@
     salvarCfg();
   });
 
+  // O botão do cabeçalho percorre a lista de temas.
   q("themeQuick").addEventListener("click", () => {
-    cfg.settings.theme = cfg.settings.theme === "light" ? "dark" : "light";
+    const atual = temaId(cfg.settings.theme);
+    const lista = ORDEM_TEMAS.length ? ORDEM_TEMAS : [atual];
+    const proximo = lista[(lista.indexOf(atual) + 1) % lista.length];
+    cfg.settings.theme = proximo;
     salvarCfg();
   });
 
   raiz.querySelectorAll("#segModo button").forEach((b) => b.addEventListener("click", () => {
     cfg.settings.stats.modo = b.dataset.modo;
-    salvarCfg();
-  }));
-  raiz.querySelectorAll("#segTema button").forEach((b) => b.addEventListener("click", () => {
-    cfg.settings.theme = b.dataset.tema;
     salvarCfg();
   }));
 
@@ -905,7 +978,7 @@
   function desenhar() {
     const st = cfg.settings;
 
-    app.dataset.theme = st.theme === "light" ? "light" : "dark";
+    aplicarTema(st.theme);
     app.dataset.aberto = ui.aberto ? "1" : "0";
     app.dataset.min = ui.minimizado ? "1" : "0";
     app.style.setProperty("--fs", `${Math.min(18, Math.max(10, Number(st.font) || 12))}px`);
@@ -1022,7 +1095,7 @@
       `Vendidos: ${fmt(stats.vendidos)} · Sem VIP`;
 
     // Ajustes
-    raiz.querySelectorAll("#segTema button").forEach((b) => b.classList.toggle("on", b.dataset.tema === (st.theme === "light" ? "light" : "dark")));
+    botoesTema.forEach((b) => b.classList.toggle("on", b.dataset.tema === temaId(st.theme)));
     if (!ativo(q("fontRange"))) q("fontRange").value = st.font ?? 12;
     q("fontVal").textContent = `${st.font ?? 12}px`;
     q("swRoleta").classList.toggle("on", !!st.roleta.ligada);

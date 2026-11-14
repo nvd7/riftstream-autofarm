@@ -37,7 +37,7 @@ function defaults() {
     organize: true,
     roleta: { ligada: false, vel: 4 },
     goldReserve: 50000,
-    theme: "dark",
+    theme: "farmline",
     font: 12
   };
 }
@@ -88,11 +88,45 @@ function setCheck(id, value) {
   if (el && document.activeElement !== el) el.checked = !!value;
 }
 
+function temaId(id) {
+  if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
+  if (id === "light") return "mint";
+  if (id === "dark") return "farmline";
+  return window.RSAF_THEMES && window.RSAF_THEMES[id] ? id : "farmline";
+}
+
 function applyAppearance(s) {
-  const dark = s?.theme !== "light";
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const catalogo = window.RSAF_THEMES || {};
+  const id = temaId(s?.theme);
+  const t = catalogo[id];
+  const claro = t ? t.modo === "light" : s?.theme === "light";
+  document.documentElement.dataset.theme = id;
+  document.documentElement.dataset.mode = claro ? "light" : "dark";
+  if (t && typeof window.RSAF_varsPopup === "function") {
+    for (const [k, v] of Object.entries(window.RSAF_varsPopup(t))) {
+      document.documentElement.style.setProperty(k, v);
+    }
+  }
   const size = Math.min(18, Math.max(10, Number(s?.font) || 12));
   document.documentElement.style.setProperty("--font-size", `${size}px`);
+}
+
+// Preenche o seletor com os temas disponíveis (o valor é o id da paleta).
+function preencherTemas() {
+  const sel = $("theme");
+  if (!sel || sel.dataset.pronto) return;
+  const catalogo = window.RSAF_THEMES || {};
+  const ordem = window.RSAF_THEME_ORDER || Object.keys(catalogo);
+  sel.textContent = "";
+  for (const id of ordem) {
+    const t = catalogo[id];
+    if (!t) continue;
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${t.nome || id}${t.modo === "light" ? " · claro" : ""}`;
+    sel.appendChild(opt);
+  }
+  sel.dataset.pronto = "1";
 }
 
 function render() {
@@ -264,9 +298,10 @@ function renderModules() {
 
 function renderSettings() {
   const st = cfg.settings || defaults();
+  preencherTemas();
   setVal("strategy", st.strategy || "zone");
   setVal("minPlayers", st.minPlayers ?? 3);
-  setVal("theme", st.theme === "light" ? "light" : "dark");
+  setVal("theme", temaId(st.theme));
   setVal("font", st.font ?? 12);
   setVal("goldReserve", st.goldReserve ?? 0);
   setVal("chatMode", st.chatOnly === false ? "live" : "chat");
