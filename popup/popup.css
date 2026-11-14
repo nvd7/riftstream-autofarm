@@ -373,6 +373,18 @@ details.card > *:not(summary) { margin-top: 9px; }
   line-height: 1.5;
 }
 
+.made {
+  margin: 12px 0 2px;
+  text-align: center;
+  color: var(--muted);
+  font: 600 9.5px var(--mono);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  opacity: .8;
+}
+
+.made b { color: var(--gold); letter-spacing: 1.6px; }
+
 /* ------------------------------ tema claro ------------------------------- */
 
 :root[data-mode="light"] .logo { box-shadow: 0 0 16px #0a9d7430; }

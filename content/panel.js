@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.2.0";
+  let VERSION = "2.2.1";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -280,6 +280,7 @@
       font-size:11px; color:var(--text); word-break:break-word;
     }
     .statusbox small{ display:block; margin-top:3px; color:var(--muted); font:9.5px var(--mono); }
+    .statusbox .by{ color:var(--mint); font-weight:700; }
 
     .risk{ margin:8px 0 0; padding:6px 8px; border-radius:5px; background:#ff7a7a1c; color:#ff9d94; font-size:10.5px; }
     .app[data-mode="light"] .risk{ color:#a12a2a; }
@@ -553,7 +554,7 @@
                 da extensão.
               </p>
               <div class="statusbox" style="margin-top:12px">
-                <span>FARMLINE · RiftStream AutoFarm</span><small>Versão ${VERSION} · engine na própria página</small>
+                <span>FARMLINE · RiftStream AutoFarm</span><small>Versão ${VERSION} · made by <b class="by">nvd7</b></small>
               </div>
             </section>
           </div>

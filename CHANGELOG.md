@@ -4,6 +4,13 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.2.1] - 2026-11-14
+
+### Adicionado
+
+- Crédito **made by nvd7** na aba Ajustes do painel, no rodapé do popup, no
+  `manifest.json` e no README.
+
 ## [2.2.0] - 2026-11-14
 
 ### Adicionado
