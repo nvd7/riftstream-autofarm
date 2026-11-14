@@ -18,7 +18,13 @@
   const STATUS_KEY = "rsafStatus";
   const UI_KEY = "rsafPanel";
 
-  const VERSION = "2.1.0";
+  // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
+  let VERSION = "2.1.4";
+  try {
+    if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
+      VERSION = chrome.runtime.getManifest().version || VERSION;
+    }
+  } catch {}
   const RARIDADES = [
     ["comum", "Comum", "#4de3b0"],
     ["incomum", "Incomum", "#5cc8ff"],

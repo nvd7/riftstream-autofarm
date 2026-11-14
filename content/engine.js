@@ -902,7 +902,9 @@
       .slice(0, restantes);
 
     if (!alvos.length) {
-      const protegidos = idsDaForja(ch);
+      // Já vendeu nesta rodada: a segunda onda não pode apagar o "N vendidos"
+      // com um "0 vendáveis", senão o painel parece que não vendeu nada.
+      if (vendasNaRodada > 0) return false;
       const totalElegiveis = (ch.items || []).filter((it) => elegivelVenda(it)).length;
       const realmenteVendaveis = totalElegiveis - protegidos.size;
       if (protegidos.size > 0) {
@@ -915,16 +917,19 @@
       return false;
     }
     let vendidos = 0;
+    let ultimoErro = null;
     for (const it of alvos) {
       if (SIMULAR) {
         window.__plano?.push(`vender ${it.name} (nv ${it.itemLevel})`);
         return true;
       }
       try {
-        await api("/api/me/items/sell", { itemId: it.id });
+        // Endpoint individual do próprio jogo: POST /api/me/items/{id}/sell (sem corpo).
+        await api(`/api/me/items/${encodeURIComponent(it.id)}/sell`, null);
         vendidos += 1;
       } catch (e) {
-        console.warn("[Venda]", e);
+        console.warn("[Venda]", it.name, e && e.codigo ? e.codigo : e);
+        ultimoErro = e;
         if (e.codigo && e.codigo >= 400 && e.codigo < 500) continue;
         break;
       }
@@ -935,6 +940,11 @@
       setStatus("sell", `${plural(vendidos, "item vendido", "itens vendidos")} (sem VIP)`);
       status.lastAction = `${plural(vendidos, "item vendido", "itens vendidos")}`;
       return true;
+    }
+    // Antes o erro 4xx era engolido e a tela continuava dizendo "identificou".
+    if (ultimoErro) {
+      const codigo = ultimoErro.codigo ? ` (${ultimoErro.codigo})` : "";
+      setStatus("sell", `A venda falhou${codigo}: ${ultimoErro.message || "erro na API"}`);
     }
     return false;
   }

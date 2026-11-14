@@ -4,6 +4,18 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.1.4] - 2026-11-13
+
+### Corrigido
+
+- **Venda sem VIP não vendia:** a engine chamava `POST /api/me/items/sell` com
+  `{ itemId }`, caminho que não existe na API do jogo. O erro 404 era ignorado,
+  então o painel "identificava" os itens mas nunca vendia. Agora usa o endpoint
+  individual real, `POST /api/me/items/{id}/sell`.
+- **Status da venda enganoso:** na segunda onda da mesma rodada, a mensagem
+  "N itens vendidos" era sobrescrita por "0 vendáveis · N protegidos". Agora o
+  resultado da venda é preservado quando itens já foram vendidos na rodada.
+
 ## [2.1.3] - 2026-11-13
 
 ### Corrigido

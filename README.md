@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.1.3-f5c451" alt="Versão 2.1.3"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.1.4-f5c451" alt="Versão 2.1.4"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
   <a href="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml"><img src="https://github.com/nvd7/riftstream-autofarm/actions/workflows/validar.yml/badge.svg" alt="Validação"></a>
@@ -323,7 +323,7 @@ página do jogo (engine) ──► API oficial ──► inventário
 | Suprema | `POST /api/me/gems/supreme` | 4 Perfeitas; roleta |
 | Engastar | `POST /api/me/items/{id}/socket` | Melhor gema por classe/tier |
 | Aprimorar | `POST /api/me/items/enhance` | Prévia em `/enhance/preview`; doadores mais fracos |
-| Vender item | `POST /api/me/items/sell` | Individual, sem VIP |
+| Vender item | `POST /api/me/items/{id}/sell` | Individual, sem VIP |
 | Venda em lote | `PUT /api/shop/autosell` | VIP |
 | Organizar | `POST /api/me/items/organize` | A cada 6 horas |
 
