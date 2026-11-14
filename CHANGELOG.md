@@ -4,6 +4,15 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.3.1] - 2026-11-14
+
+### Alterado
+
+- **Tema da Liah mais exclusivo:** o botão do tema ganhou uma borda neon rosa
+  girando em volta, e o painel inteiro recebe um brilho rosa pulsante enquanto o
+  tema está ativo. O popup também pulsa o logo em rosa. As animações respeitam
+  `prefers-reduced-motion`.
+
 ## [2.3.0] - 2026-11-14
 
 ### Adicionado

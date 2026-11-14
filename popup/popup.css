@@ -385,6 +385,19 @@ details.card > *:not(summary) { margin-top: 9px; }
 
 .made b { color: var(--gold); letter-spacing: 1.6px; }
 
+/* ---------------------------- tema da liah ------------------------------ */
+
+:root[data-theme="liah"] .logo { animation: liahLogo 3.4s ease-in-out infinite; }
+
+@keyframes liahLogo {
+  0%, 100% { box-shadow: 0 0 10px #ff79c640; }
+  50% { box-shadow: 0 0 22px #ff79c688; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="liah"] .logo { animation: none; }
+}
+
 /* ------------------------------ tema claro ------------------------------- */
 
 :root[data-mode="light"] .logo { box-shadow: 0 0 16px #0a9d7430; }

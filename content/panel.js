@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.3.0";
+  let VERSION = "2.3.1";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -130,6 +130,15 @@
       border-radius:14px; border:1px solid var(--line2);
       background:var(--bg); box-shadow:var(--shadow);
       flex-direction:column;
+    }
+    /* Tema da Liah: brilho neon rosa em volta do painel. */
+    .app[data-theme="liah"] .shell{
+      border-color:#ff79c699;
+      animation:liahGlow 4.2s ease-in-out infinite;
+    }
+    @keyframes liahGlow{
+      0%, 100%{ box-shadow:var(--shadow), 0 0 16px #ff79c62e, 0 0 0 1px #ff79c655; }
+      50%{ box-shadow:var(--shadow), 0 0 34px #ff79c65c, 0 0 0 1px #ff79c6aa; }
     }
 
     .head{
@@ -253,6 +262,31 @@
     .tema .sw3 i{ flex:1; }
     .tema .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .tema .mo{ margin-left:auto; flex:none; font:8px var(--mono); color:var(--muted); opacity:.75; }
+
+    /* Tema da Liah: borda neon rosa girando em volta do botão. */
+    .tema.liah{
+      position:relative; overflow:hidden; border-color:transparent;
+      background:var(--bg2);
+      box-shadow:0 0 10px #ff79c63d;
+    }
+    .tema.liah::before{
+      content:""; position:absolute; inset:-70%; z-index:0; pointer-events:none;
+      background:conic-gradient(from 0deg,
+        transparent 0 58%, #ff79c6 72%, #ff9ee0 82%, #c9a0ff 90%, transparent 100%);
+      animation:liahSpin 2.8s linear infinite;
+    }
+    .tema.liah::after{
+      content:""; position:absolute; inset:1.5px; z-index:0; pointer-events:none;
+      border-radius:5px; background:var(--bg2);
+    }
+    .tema.liah > *{ position:relative; z-index:1; }
+    .tema.liah:hover{ box-shadow:0 0 14px #ff79c66b; }
+    @keyframes liahSpin{ to{ transform:rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce){
+      .tema.liah::before{ animation:none; }
+      .app[data-theme="liah"] .shell{ animation:none; }
+    }
 
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; }
     .field{ display:flex; flex-direction:column; gap:4px; color:var(--muted); font:600 9px/1.2 var(--mono); letter-spacing:.4px; text-transform:uppercase; }
@@ -608,9 +642,9 @@
   const botoesTema = ORDEM_TEMAS.map((id) => {
     const t = temaDe(id);
     const b = document.createElement("button");
-    b.className = "tema";
+    b.className = "tema" + (t.id === "liah" ? " liah" : "");
     b.dataset.tema = t.id;
-    b.title = `${t.nome || t.id} · ${t.modo === "light" ? "claro" : "escuro"}`;
+    b.title = `${t.nome || t.id} · ${t.modo === "light" ? "claro" : "escuro"}${t.id === "liah" ? " · exclusivo" : ""}`;
     b.style.setProperty("--t-accent", t.accent || "#4de3b0");
     const amostra = document.createElement("span");
     amostra.className = "sw3";

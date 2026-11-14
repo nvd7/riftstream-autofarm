@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.3.0-f5c451" alt="Versão 2.3.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.3.1-f5c451" alt="Versão 2.3.1"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -91,8 +91,9 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
 - **13 temas de cor** (estilo OpenCode) e **tamanho da fonte** aplicados na hora e
-  salvos — incluindo o **Tema da Liah** (rosa). O mesmo tema vale para o painel e
-  para o popup; o botão ◐ do cabeçalho percorre a lista.
+  salvos — incluindo o **Tema da Liah** (rosa, com borda neon girando no botão e
+  brilho pulsante no painel). O mesmo tema vale para o painel e para o popup; o
+  botão ◐ do cabeçalho percorre a lista.
 - **Roleta rápida** (2×, 4×, 8×): acelera **só a animação** quando você gira na
   mão. O resultado vem do servidor — a chance não muda.
 - **Uma aba por vez:** `navigator.locks` garante que só uma aba do jogo rode a
