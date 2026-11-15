@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.4.0";
+  let VERSION = "2.4.1";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -65,7 +65,20 @@
         roleta: { ligada: false, vel: 4 },
         goldReserve: 50000,
         theme: "farmline",
-        font: 12
+        font: 12,
+        alchemy: {
+          ligado: false,
+          reciclar: true,
+          criar: true,
+          subirNivel: true,
+          slotAlvo: "arma",
+          raridadeAlvo: 0
+        },
+        transmog: {
+          ligado: false,
+          alvoSlot: "arma",
+          fonteSlot: "arma"
+        }
       }
     };
   }
@@ -84,9 +97,11 @@
 
   const store = chrome.storage.local;
   let cfg = defaults();
-  let stats = { forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0, gemTotais: {}, upNiveis: {}, upGasto: {} };
+  let stats = { forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0, gemTotais: {}, upNiveis: {}, upGasto: {},
+    alchemyCriados: 0, alchemyReciclados: 0, alchemyUpados: 0, transmogFeitos: 0 };
   let status = {
     forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", socket: "", organize: "",
+    alchemy: "", transmog: "",
     character: null, lastAction: "", updatedAt: 0, counts: { forja: 0, venda: 0, alchemy: 0, transmog: 0 }, roundAt: 0
   };
   let ui = { aberto: true, aba: "inicio", x: null, y: null, minimizado: false };

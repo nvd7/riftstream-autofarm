@@ -4,6 +4,16 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.4.1] - 2026-11-15
+
+### Corrigido
+
+- **Painel não quebra ao atualizar de versões antigas:** os padrões do painel
+  agora incluem `alchemy` e `transmog`, então uma configuração salva antes da
+  2.4.0 é mesclada sem erro.
+- Contadores e status de alquimia/transmog também entram nos valores padrão do
+  painel, evitando `undefined` no primeiro desenho.
+
 ## [2.4.0] - 2026-11-15
 
 ### Adicionado
