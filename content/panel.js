@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.3.2";
+  let VERSION = "2.4.0";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -87,7 +87,7 @@
   let stats = { forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0, gemTotais: {}, upNiveis: {}, upGasto: {} };
   let status = {
     forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", socket: "", organize: "",
-    character: null, lastAction: "", updatedAt: 0, counts: { forja: 0, venda: 0 }, roundAt: 0
+    character: null, lastAction: "", updatedAt: 0, counts: { forja: 0, venda: 0, alchemy: 0, transmog: 0 }, roundAt: 0
   };
   let ui = { aberto: true, aba: "inicio", x: null, y: null, minimizado: false };
 
@@ -405,6 +405,8 @@
           <button class="tab" data-tab="atributos"><span class="ico">↗</span><span>Upar</span><i id="vivoAtributos"></i></button>
           <button class="tab" data-tab="gemas"><span class="ico">◉</span><span>Gemas</span><i id="vivoGemas"></i></button>
           <button class="tab" data-tab="venda"><span class="ico">⌫</span><span>Venda</span><i id="vivoVenda"></i></button>
+          <button class="tab" data-tab="alchemy"><span class="ico">⚗</span><span>Alquimia</span><i id="vivoAlchemy"></i></button>
+          <button class="tab" data-tab="transmog"><span class="ico">🪞</span><span>Transmog</span><i id="vivoTransmog"></i></button>
           <button class="tab" data-tab="ajustes"><span class="ico">⚙</span><span>Ajustes</span><i id="vivoAjustes"></i></button>
           <span class="spacer"></span>
           <span class="ver">v${VERSION}</span>
@@ -562,6 +564,64 @@
                 <button class="sw" id="swOrganize"></button>
               </div>
               <div class="statusbox"><span id="stSell">Desligada</span><small id="ctSell"></small></div>
+            </section>
+
+            <section class="panel" data-panel="alchemy">
+              <div class="row">
+                <span class="grow">Alquimia sozinha<small>Recicla itens, cria peças garantidas e sobe de nível</small></span>
+                <button class="sw" id="swAlchemy"></button>
+              </div>
+              <div class="row">
+                <span class="grow">Reciclar itens soltos<small>Destroi itens não equipados/favoritos/sem gemas para virar fragmentos</small></span>
+                <button class="sw" id="swAlchemyReciclar"></button>
+              </div>
+              <div class="row">
+                <span class="grow">Criar peças com fragmentos<small>5 fragmentos iguais = item garantido, sem risco</small></span>
+                <button class="sw" id="swAlchemyCriar"></button>
+              </div>
+              <div class="row">
+                <span class="grow">Subir de nível<small>Paga o ouro indicado quando enche a EXP</small></span>
+                <button class="sw" id="swAlchemySubir"></button>
+              </div>
+              <h3>Peça para criar</h3>
+              <div class="seg" id="segAlchemySlot">
+                <button data-slot="arma">Arma</button>
+                <button data-slot="elmo">Elmo</button>
+                <button data-slot="armadura">Armadura</button>
+                <button data-slot="anel">Anel</button>
+              </div>
+              <h3>Raridade para criar</h3>
+              <div class="seg" id="segAlchemyRaridade">
+                <button data-raridade="0">Comum</button>
+                <button data-raridade="1">Incomum</button>
+                <button data-raridade="2">Raro</button>
+              </div>
+              <p class="hint">
+                A reciclagem ignora itens equipados, favoritos, com gemas, peças
+                melhores que a equipada, o que a forja está juntando e o que a
+                própria alquimia acabou de criar.
+              </p>
+              <div class="statusbox"><span id="stAlchemy">Desligada</span><small id="ctAlchemy"></small></div>
+            </section>
+
+            <section class="panel" data-panel="transmog">
+              <div class="row">
+                <span class="grow">Transmog sozinho<small>Troca a aparência de um item usando outro como molde</small></span>
+                <button class="sw" id="swTransmog"></button>
+              </div>
+              <h3>Item alvo (recebe a aparência)</h3>
+              <div class="seg" id="segTransmogAlvo">
+                <button data-slot="arma">Arma</button>
+                <button data-slot="elmo">Elmo</button>
+                <button data-slot="armadura">Armadura</button>
+                <button data-slot="anel">Anel</button>
+              </div>
+              <p class="hint">
+                O molde é consumido e precisa ser do mesmo tipo do alvo. A automação
+                escolhe o molde de melhor aparência disponível, usa o item equipado
+                como alvo e não repete o slot quando o visual já foi aplicado.
+              </p>
+              <div class="statusbox"><span id="stTransmog">Desligado</span><small id="ctTransmog"></small></div>
             </section>
 
             <section class="panel" data-panel="ajustes">
@@ -807,6 +867,45 @@
   q("swOrganize").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.organize = !cfg.settings.organize;
   }));
+
+  q("swAlchemy").addEventListener("click", () => mexerModulo(() => {
+    cfg.settings.alchemy.ligado = !cfg.settings.alchemy.ligado;
+  }));
+  q("swAlchemyReciclar").addEventListener("click", () => {
+    cfg.settings.alchemy.reciclar = !cfg.settings.alchemy.reciclar;
+    salvarCfg();
+  });
+  q("swAlchemyCriar").addEventListener("click", () => {
+    cfg.settings.alchemy.criar = !cfg.settings.alchemy.criar;
+    salvarCfg();
+  });
+  q("swAlchemySubir").addEventListener("click", () => {
+    cfg.settings.alchemy.subirNivel = !cfg.settings.alchemy.subirNivel;
+    salvarCfg();
+  });
+  raiz.querySelectorAll("#segAlchemySlot button").forEach((b) => {
+    b.addEventListener("click", () => {
+      cfg.settings.alchemy.slotAlvo = b.dataset.slot;
+      salvarCfg();
+    });
+  });
+  raiz.querySelectorAll("#segAlchemyRaridade button").forEach((b) => {
+    b.addEventListener("click", () => {
+      cfg.settings.alchemy.raridadeAlvo = Number(b.dataset.raridade);
+      salvarCfg();
+    });
+  });
+
+  q("swTransmog").addEventListener("click", () => mexerModulo(() => {
+    cfg.settings.transmog.ligado = !cfg.settings.transmog.ligado;
+  }));
+  raiz.querySelectorAll("#segTransmogAlvo button").forEach((b) => {
+    b.addEventListener("click", () => {
+      cfg.settings.transmog.alvoSlot = b.dataset.slot;
+      cfg.settings.transmog.fonteSlot = b.dataset.slot;
+      salvarCfg();
+    });
+  });
   q("swRoleta").addEventListener("click", () => {
     cfg.settings.roleta.ligada = !cfg.settings.roleta.ligada;
     salvarCfg();
@@ -986,7 +1085,9 @@
     ["gemas", "Gemas", (x) => x.gems.ligado, "gem"],
     ["socket", "Engaste", (x) => x.socket.ligado, "socket"],
     ["enhance", "Aprimoramento", (x) => x.enhance.ligado, "enhance"],
-    ["venda", "Venda", (x) => x.sell.ligado, "sell"]
+    ["venda", "Venda", (x) => x.sell.ligado, "sell"],
+    ["alchemy", "Alquimia", (x) => x.alchemy.ligado, "alchemy"],
+    ["transmog", "Transmog", (x) => x.transmog.ligado, "transmog"]
   ];
 
   function textoModulo(chave) {
@@ -998,6 +1099,8 @@
       case "socket": return status.socket || "Desligado";
       case "enhance": return status.enhance || "Desligado";
       case "sell": return status.sell || "Desligada";
+      case "alchemy": return status.alchemy || "Desligada";
+      case "transmog": return status.transmog || "Desligado";
       default: return "";
     }
   }
@@ -1129,6 +1232,28 @@
     q("ctSell").textContent = `${fmt(status.counts?.venda ?? 0)} vendável(is) agora · ` +
       `Vendidos: ${fmt(stats.vendidos)} · Sem VIP`;
 
+    // Alquimia
+    q("swAlchemy").classList.toggle("on", !!st.alchemy.ligado);
+    q("swAlchemyReciclar").classList.toggle("on", !!st.alchemy.reciclar);
+    q("swAlchemyCriar").classList.toggle("on", !!st.alchemy.criar);
+    q("swAlchemySubir").classList.toggle("on", !!st.alchemy.subirNivel);
+    raiz.querySelectorAll("#segAlchemySlot button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.slot === st.alchemy.slotAlvo);
+    });
+    raiz.querySelectorAll("#segAlchemyRaridade button").forEach((b) => {
+      b.classList.toggle("on", Number(b.dataset.raridade) === st.alchemy.raridadeAlvo);
+    });
+    q("stAlchemy").textContent = st.alchemy.ligado ? (status.alchemy || "Procurando fragmentos...") : "Desligada";
+    q("ctAlchemy").textContent = `Criados: ${fmt(stats.alchemyCriados)} · Reciclados: ${fmt(stats.alchemyReciclados)} · Upados: ${fmt(stats.alchemyUpados)}`;
+
+    // Transmog
+    q("swTransmog").classList.toggle("on", !!st.transmog.ligado);
+    raiz.querySelectorAll("#segTransmogAlvo button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.slot === st.transmog.alvoSlot);
+    });
+    q("stTransmog").textContent = st.transmog.ligado ? (status.transmog || "Procurando itens...") : "Desligado";
+    q("ctTransmog").textContent = `Transmogs: ${fmt(stats.transmogFeitos)}`;
+
     // Ajustes
     botoesTema.forEach((b) => b.classList.toggle("on", b.dataset.tema === temaId(st.theme)));
     if (!ativo(q("fontRange"))) q("fontRange").value = st.font ?? 12;
@@ -1142,6 +1267,8 @@
     q("vivoAtributos").classList.toggle("vivo", !!st.stats.ligado);
     q("vivoGemas").classList.toggle("vivo", !!st.gems.ligado || !!st.socket.ligado);
     q("vivoVenda").classList.toggle("vivo", !!st.sell.ligado || !!st.lote.ligado);
+    q("vivoAlchemy").classList.toggle("vivo", !!st.alchemy.ligado);
+    q("vivoTransmog").classList.toggle("vivo", !!st.transmog.ligado);
     q("vivoAjustes").classList.toggle("vivo", false);
 
     q("footStatus").textContent = status.lastAction

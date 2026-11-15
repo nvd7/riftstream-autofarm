@@ -30,6 +30,7 @@
   const ESPERA_FALHA = 60000;
   const ESPERA_PROTEGIDO = 30000;
   const MAX_VENDAS = 10;     // por rodada
+  const MAX_RECICLAR = 20;   // itens por ação de alquimia
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
 
   const RARIDADES = ["comum", "incomum", "raro", "epico", "lendario"];
@@ -70,19 +71,34 @@
     roleta: { ligada: false, vel: 4 },
     goldReserve: 50000,
     theme: "farmline",
-    font: 12
+    font: 12,
+    alchemy: {
+      ligado: false,
+      reciclar: true,
+      criar: true,
+      subirNivel: true,
+      slotAlvo: "arma",
+      raridadeAlvo: 0
+    },
+    transmog: {
+      ligado: false,
+      alvoSlot: "arma",
+      fonteSlot: "arma"
+    }
   };
 
   const store = globalThis.chrome?.storage?.local;
   let cfg = { running: false, settings: structuredCloneSafe(DEFAULT_SETTINGS) };
   let stats = {
     forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0,
-    gemTotais: { juntadas: 0, supremas: 0, perdidas: 0 }, upNiveis: {}, upGasto: {}
+    gemTotais: { juntadas: 0, supremas: 0, perdidas: 0 }, upNiveis: {}, upGasto: {},
+    alchemyCriados: 0, alchemyReciclados: 0, alchemyUpados: 0, transmogFeitos: 0
   };
   let status = {
     forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", organize: "",
+    alchemy: "", transmog: "",
     character: null, lastAction: "", updatedAt: 0,
-    counts: { forja: 0, venda: 0 }, roundAt: 0
+    counts: { forja: 0, venda: 0, alchemy: 0, transmog: 0 }, roundAt: 0
   };
 
   /* ------------------------------ utilidades ------------------------------ */
@@ -124,6 +140,10 @@
     out.sell.level = Math.max(0, Math.min(9999, Math.round(num(out.sell.level, 9999))));
     out.lote.rarity = Math.max(-1, Math.min(3, Math.round(num(out.lote.rarity, 2))));
     out.lote.level = Math.max(0, Math.min(9999, Math.round(num(out.lote.level, 40))));
+    out.alchemy.slotAlvo = ["arma","elmo","armadura","anel"].includes(out.alchemy.slotAlvo) ? out.alchemy.slotAlvo : "arma";
+    out.alchemy.raridadeAlvo = Math.max(0, Math.min(2, Math.round(num(out.alchemy.raridadeAlvo, 0))));
+    out.transmog.alvoSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.alvoSlot) ? out.transmog.alvoSlot : "arma";
+    out.transmog.fonteSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.fonteSlot) ? out.transmog.fonteSlot : "arma";
     return out;
   }
 
@@ -451,6 +471,7 @@
     const grupos = new Map();
     for (const i of ch.items || []) {
       if (!podeForjar(i)) continue;
+      if (recemCriadosAlq.has(i.id)) continue;
       const lv = num(i.itemLevel, 0);
       if (lv < minLv || lv > maxLv) continue;
       const r = nivelRaridade(i);
@@ -871,6 +892,7 @@
   function elegivelVenda(it) {
     const c = s().sell;
     if (!it || it.equipped || it.favorite) return false;
+    if (recemCriadosAlq.has(it.id)) return false;
     if (it.slot === "cosmetic" || it.slot === "consumable") return false;
     if (it.gems?.length) return false;
     const maxR = num(c.rarity, 2);
@@ -958,6 +980,253 @@
     return false;
   }
 
+  /* --------------------------------- alquimia ------------------------------- */
+
+  // Itens que a própria alquimia acabou de criar: não podem ser reciclados logo
+  // na rodada seguinte como se fossem lixo.
+  const recemCriadosAlq = new Set();
+
+  // Item que pode ser destruído para virar fragmento: não equipado, não favorito,
+  // sem gemas engastadas e de um slot que a alquimia aceita.
+  function podeReciclar(i) {
+    if (!i || i.equipped || i.favorite) return false;
+    if (i.slot === "cosmetic" || i.slot === "consumable") return false;
+    if (i.gems?.length) return false;
+    return ["weapon", "helmet", "armor", "ring"].includes(i.slot);
+  }
+
+  function chaveSlot(slot) {
+    return { weapon: "arma", helmet: "elmo", armor: "armadura", ring: "anel" }[slot] || slot;
+  }
+
+  // O painel guarda o slot em português; a API usa o nome em inglês.
+  const SLOT_API = { arma: "weapon", elmo: "helmet", armadura: "armor", anel: "ring" };
+  function slotApi(v) {
+    return SLOT_API[v] || v;
+  }
+
+  // Uma rodada de alquimia: recicla itens soltos para gerar fragmentos, cria itens
+  // quando tem 5 fragmentos iguais e sobe de nível quando dá.
+  async function alquimiaUm(ch) {
+    const a = s().alchemy;
+    if (!a.ligado) return false;
+
+    const slotAlvo = slotApi(a.slotAlvo);
+    try {
+      // Formato real de GET /api/me/alchemy (conferido no bundle do jogo):
+      // { enabled, level, maxLevel, maxRarity, fragNeed, xp, xpNeed, xpReady,
+      //   levelCost, ilvlLo, ilvlHi, crafts, fragments: [{ slot, rarity, count }] }
+      const estado = await api("/api/me/alchemy");
+      if (!estado || estado.enabled === false) {
+        setStatus("alchemy", "Alquimia desligada no servidor");
+        return false;
+      }
+      const fragmentos = estado.fragments || [];
+      const nivel = num(estado.level, 1);
+      const maxNivel = Math.max(nivel, num(estado.maxLevel, nivel));
+      const maxRaridade = num(estado.maxRarity, 1);
+      const fragNeed = Math.max(2, num(estado.fragNeed, 5));
+      const exp = num(estado.xp, 0);
+      const expNeed = Math.max(1, num(estado.xpNeed, 0));
+      const custoSubir = num(estado.levelCost, 0);
+      const pronto = !!estado.xpReady;
+      const ouro = num(ch.gold, 0);
+
+      // 1) Subir de nível da alquimia: a barra precisa estar cheia (xpReady)
+      //    e o ouro precisa cobrir o custo do próximo nível.
+      if (a.subirNivel && pronto && nivel < maxNivel) {
+        if (ouro < custoSubir) {
+          setStatus("alchemy", `Barra cheia! Faltam ${(custoSubir - ouro).toLocaleString("pt-BR")}g para subir`);
+        } else {
+          if (SIMULAR) {
+            window.__plano?.push("alchemy subir nível");
+          } else {
+            await api("/api/me/alchemy/upgrade");
+          }
+          salvarStats({ alchemyUpados: num(stats.alchemyUpados) + 1 });
+          setStatus("alchemy", `Subiu para o nível ${nivel + 1}`);
+          status.lastAction = "Alquimia subiu de nível";
+          return true;
+        }
+      }
+
+      // 2) Criar item quando tem fragmentos suficientes do slot/raridade escolhidos.
+      if (a.criar) {
+        const raridadeAlvo = Math.min(num(a.raridadeAlvo, 0), maxRaridade);
+        const alvo = fragmentos.find(
+          (f) =>
+            f.slot === slotAlvo &&
+            num(f.rarity, 0) === raridadeAlvo &&
+            num(f.count, 0) >= fragNeed
+        );
+        if (alvo) {
+          if (SIMULAR) {
+            window.__plano?.push(`alchemy craft ${slotAlvo} ${raridadeAlvo}`);
+          } else {
+            // Resposta real: { state, character, message, crafted, xpGained }.
+            const res = await api("/api/me/alchemy/craft", { slot: slotAlvo, rarity: raridadeAlvo });
+            if (res && res.crafted && res.crafted.id) recemCriadosAlq.add(res.crafted.id);
+          }
+          salvarStats({ alchemyCriados: num(stats.alchemyCriados) + 1 });
+          setStatus("alchemy", `Criou ${chaveSlot(slotAlvo)} (${RARIDADE_NOME[raridadeAlvo] || raridadeAlvo})`);
+          status.lastAction = `Alquimia criou ${chaveSlot(slotAlvo)}`;
+          return true;
+        }
+      }
+
+      // 3) Reciclar itens que não servem para gerar fragmentos.
+      if (a.reciclar) {
+        const reciclaveis = (ch.items || []).filter(podeReciclar);
+        if (reciclaveis.length) {
+          // Não recicla itens que a forja está juntando (protegidos).
+          const protegidos = idsDaForja(ch);
+          // E não recicla peça melhor que a equipada no mesmo slot.
+          const equipados = {};
+          for (const i of ch.items || []) if (i.equipped) equipados[i.slot] = i;
+          const candidatos = [];
+          for (const i of reciclaveis) {
+            if (protegidos.has(i.id)) continue;
+            if (recemCriadosAlq.has(i.id)) continue;
+            if (candidatos.length >= MAX_RECICLAR) break;
+            const eq = equipados[i.slot];
+            if (eq && num(i.itemLevel, 0) >= num(eq.itemLevel, 0)) continue;
+            if (!SIMULAR && (await ehMelhor(i, ch.cls))) continue;
+            candidatos.push(i);
+          }
+          if (candidatos.length) {
+            const ids = candidatos.map((i) => i.id);
+            if (SIMULAR) {
+              window.__plano?.push(`alchemy reciclar ${ids.length} item(ns)`);
+            } else {
+              await api("/api/me/alchemy/destroy", { itemIds: ids });
+            }
+            salvarStats({ alchemyReciclados: num(stats.alchemyReciclados) + candidatos.length });
+            setStatus("alchemy", `Reciclou ${candidatos.length} item(ns)`);
+            status.lastAction = `Alquimia reciclou ${candidatos.length}`;
+            return true;
+          }
+        }
+      }
+
+      // Nada para fazer nesta rodada.
+      if (pronto && nivel < maxNivel) {
+        if (!a.subirNivel) {
+          setStatus("alchemy", "Barra cheia (subir de nível desligado)");
+        } else if (ouro < custoSubir) {
+          setStatus("alchemy", `Barra cheia! Faltam ${(custoSubir - ouro).toLocaleString("pt-BR")}g para subir`);
+        } else {
+          setStatus("alchemy", "Barra cheia, subindo de nível");
+        }
+      } else if (nivel >= maxNivel) {
+        setStatus("alchemy", "Nível máximo de alquimia");
+      } else {
+        const faltam = Math.max(0, expNeed - exp);
+        setStatus("alchemy", `EXP ${exp}/${expNeed} (faltam ${faltam})`);
+      }
+    } catch (e) {
+      console.warn("[Alquimia]", e);
+      if (e.codigo && e.codigo >= 400 && e.codigo < 500) {
+        setStatus("alchemy", "Alquimia não disponível nesta conta");
+      }
+    }
+    return false;
+  }
+
+  /* --------------------------------- transmog ------------------------------- */
+
+  // Troca a aparência de um item (target) usando outro item (source) como molde.
+  // Regras do jogo: mesmo slot, classes compatíveis, fonte não equipada nem
+  // favorita, aparência diferente e custo de 50% do sellValue do alvo.
+  function assinaturaVisual(i) {
+    return `${i.vKind ?? i.kind}|${i.vLook ?? i.look ?? 0}|${i.vTier ?? i.tier ?? 0}`;
+  }
+
+  function classeCompativel(a, b, cls) {
+    if (a.classReq && b.classReq) return a.classReq === b.classReq;
+    if (a.classReq) return a.classReq === cls;
+    if (b.classReq) return b.classReq === cls;
+    return true;
+  }
+
+  async function transmogUm(ch) {
+    const t = s().transmog;
+    if (!t.ligado) return false;
+
+    const slot = slotApi(t.alvoSlot);
+    const itens = ch.items || [];
+    const doSlot = itens.filter((i) => i.slot === slot);
+
+    // Alvo: o item equipado desse slot (é o que aparece no personagem); se não
+    // houver, o de maior nível.
+    const alvo =
+      doSlot.find((i) => i.equipped) ||
+      doSlot.slice().sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0))[0];
+
+    if (!alvo) {
+      setStatus("transmog", `Nenhum ${chaveSlot(slot)} para receber a aparência`);
+      return false;
+    }
+
+    // Se o servidor já devolve o visual aplicado (vLook/vKind/vTier), não gasta
+    // outro item repetindo o mesmo slot a cada rodada.
+    const jaTemVisual = (i) => i.vKind != null || i.vLook != null || i.vTier != null;
+    if (jaTemVisual(alvo)) {
+      setStatus("transmog", `${chaveSlot(slot)} já tem aparência aplicada`);
+      return false;
+    }
+
+    // Fonte: mesmo slot, não equipada/favorita, sem visual próprio, compatível
+    // e com aparência diferente. Prefere o item mais fraco para não desperdiçar.
+    const fontes = doSlot
+      .filter(
+        (i) =>
+          i.id !== alvo.id &&
+          !i.equipped &&
+          !i.favorite &&
+          !jaTemVisual(i) &&
+          !recemCriadosAlq.has(i.id) &&
+          classeCompativel(alvo, i, ch.cls) &&
+          assinaturaVisual(i) !== assinaturaVisual(alvo)
+      )
+      // Melhor aparência primeiro (tier/look); empate fica o item mais fraco.
+      .sort(
+        (a, b) =>
+          num(b.vTier ?? b.tier, 0) - num(a.vTier ?? a.tier, 0) ||
+          num(b.vLook ?? b.look, 0) - num(a.vLook ?? a.look, 0) ||
+          num(a.itemLevel, 0) - num(b.itemLevel, 0)
+      );
+
+    if (!fontes.length) {
+      setStatus("transmog", `Sem ${chaveSlot(slot)} disponível para usar como molde`);
+      return false;
+    }
+
+    const source = fontes[0];
+    const custo = Math.max(0, Math.round(num(alvo.sellValue, 0) * 0.5));
+    if (custo > 0 && num(ch.gold, 0) < custo) {
+      setStatus("transmog", `Faltam ${(custo - num(ch.gold, 0)).toLocaleString("pt-BR")}g para o transmog`);
+      return false;
+    }
+
+    try {
+      if (SIMULAR) {
+        window.__plano?.push(`transmog ${alvo.name} <- ${source.name}`);
+      } else {
+        await api("/api/me/items/transmog", { targetId: alvo.id, sourceId: source.id });
+      }
+      salvarStats({ transmogFeitos: num(stats.transmogFeitos) + 1 });
+      setStatus("transmog", `Transmog ${chaveSlot(slot)} (${source.name})`);
+      status.lastAction = `Transmog ${chaveSlot(slot)}`;
+      return true;
+    } catch (e) {
+      console.warn("[Transmog]", e);
+      if (e.codigo && e.codigo >= 400 && e.codigo < 500) {
+        setStatus("transmog", "Transmog não disponível");
+      }
+      return false;
+    }
+  }
+
   // Venda automática do site (essa sim é VIP). Só configura quando muda.
   let loteCfg = "";
   async function configurarVendaLote() {
@@ -1018,7 +1287,9 @@
       { id: "enhance", ligado: () => s().enhance.ligado, acao: aprimorarUm },
       { id: "forja", ligado: () => s().forge.ligado, acao: forjarUm },
       { id: "sell", ligado: () => s().sell.ligado, acao: venderItens },
-      { id: "up", ligado: () => s().stats.ligado, acao: uparUm }
+      { id: "up", ligado: () => s().stats.ligado, acao: uparUm },
+      { id: "alchemy", ligado: () => s().alchemy.ligado, acao: alquimiaUm },
+      { id: "transmog", ligado: () => s().transmog.ligado, acao: transmogUm }
     ];
 
     // Escalonamento justo: cada módulo ligado tenta UMA ação por onda. Antes a
@@ -1049,7 +1320,9 @@
     if (ch) {
       status.counts = {
         forja: contarGruposForja(ch),
-        venda: contarVendaveis(ch)
+        venda: contarVendaveis(ch),
+        alchemy: s().alchemy.ligado ? 1 : 0,
+        transmog: s().transmog.ligado ? 1 : 0
       };
       const resumo = resumoPersonagem(ch);
       const comparavel = { ...resumo, at: 0 };
@@ -1085,7 +1358,8 @@
       const mapa = {
         equip: s().equip, forja: s().forge.ligado, up: s().stats.ligado,
         gem: s().gems.ligado, sell: s().sell.ligado,
-        enhance: s().enhance.ligado, socket: s().socket.ligado
+        enhance: s().enhance.ligado, socket: s().socket.ligado,
+        alchemy: s().alchemy.ligado, transmog: s().transmog.ligado
       };
       for (const [campo, ligado] of Object.entries(mapa)) {
         if (ligado) setStatus(campo, texto);

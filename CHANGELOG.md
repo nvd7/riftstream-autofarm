@@ -4,6 +4,28 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.4.0] - 2026-11-15
+
+### Adicionado
+
+- **Alquimia automática:** nova aba ⚗ Alquimia no painel. Recicla itens soltos
+  para virar fragmentos, cria peças garantidas quando há fragmentos suficientes
+  e sobe o nível de alquimia pagando o ouro quando a barra enche. A reciclagem
+  nunca toca em itens equipados, favoritos, com gemas, peças melhores que a
+  equipada, no que a forja está juntando ou no que a própria alquimia acabou de
+  criar.
+- **Transmog automático:** nova aba 🪞 Transmog. Usa o item equipado do slot
+  escolhido como alvo e consome o melhor molde disponível do mesmo tipo, sem
+  repetir o slot quando o visual já foi aplicado e respeitando o custo em ouro.
+- Contadores novos no painel: criados, reciclados, níveis de alquimia e transmogs.
+- Endpoints novos validados contra o jogo: `GET /api/me/alchemy`,
+  `POST /api/me/alchemy/{destroy,craft,upgrade}` e `POST /api/me/items/transmog`.
+
+### Corrigido
+
+- Formato real da resposta de alquimia (`level`, `xpNeed`, `fragments[].count`,
+  `fragNeed` etc.) e conversão do slot do painel para o nome usado pela API.
+
 ## [2.3.2] - 2026-11-14
 
 ### Alterado

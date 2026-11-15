@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.3.2-f5c451" alt="Versão 2.3.2"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.4.0-f5c451" alt="Versão 2.3.2"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -55,14 +55,15 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v2.1.0.** Esta versão funde o AutoFarm com a engine do
+> **Status: v2.4.0.** Esta versão funde o AutoFarm com a engine do
 > “Rift Auto”: a automação roda **dentro da página do jogo**, descobre sozinha o
 > endereço da API, usa o token da própria sessão e garante que **só uma aba**
 > trabalhe por vez. A interface foi **totalmente refeita** como um dock vertical
 > com identidade própria. A rodada agora é **justa**: forja e venda rodam na
 > mesma passada dos outros módulos, e a forja faz **até 3 grupos por rodada**.
-> **Forja, aprimoramento, engaste e venda individual não precisam de VIP**; só a
-> venda automática em lote é exclusiva de VIP.
+> Esta versão também automatiza as abas **Alquimia** e **Transmog** do jogo.
+> **Forja, aprimoramento, engaste, alquimia, transmog e venda individual não
+> precisam de VIP**; só a venda automática em lote é exclusiva de VIP.
 
 ---
 
@@ -92,7 +93,7 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Painel flutuante ◆** injetado em `riftstream.com.br`, num Shadow DOM (não
   briga com o CSS do site). Arraste pelo cabeçalho, minimize ou feche; ao fechar
   ele vira uma bolinha no canto para reabrir.
-- **Seis abas:** Início, Forja, Atributos, Gemas, Venda e Ajustes.
+- **Oito abas:** Início, Forja, Atributos, Gemas, Venda, Alquimia, Transmog e Ajustes.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
@@ -143,6 +144,13 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   fracos do mesmo slot — nunca equipados, favoritos ou com gemas.
 - **Venda individual sem VIP:** vende um item por vez pelos endpoints normais,
   com filtros de raridade e nível. Nunca vende equipados, favoritos ou com gemas.
+- **Alquimia:** recicla itens soltos em fragmentos, cria peças garantidas com
+  fragmentos suficientes e sobe o nível pagando o ouro quando a barra enche.
+  Nunca recicla equipados, favoritos, com gemas, peças melhores que a equipada,
+  itens que a forja está juntando ou o que a alquimia acabou de criar.
+- **Transmog:** aplica no item equipado do slot escolhido a aparência do melhor
+  molde disponível do mesmo tipo, consumindo o molde e respeitando o custo em
+  ouro. Não repete o slot quando o visual já foi aplicado.
 - **Venda automática em lote (VIP):** configura o `autosell` do site; se a conta
   não tiver VIP, a opção é desativada com aviso.
 - **Organizar baús:** por nível, a cada 6 horas.
