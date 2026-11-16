@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.6.0-f5c451" alt="Versão 2.6.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.7.0-f5c451" alt="Versão 2.7.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -55,7 +55,7 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v2.6.0.** Esta versão funde o AutoFarm com a engine do
+> **Status: v2.7.0.** Esta versão funde o AutoFarm com a engine do
 > “Rift Auto”: a automação roda **dentro da página do jogo**, descobre sozinha o
 > endereço da API, usa o token da própria sessão e garante que **só uma aba**
 > trabalhe por vez. A interface foi **totalmente refeita** como um dock vertical
@@ -65,7 +65,9 @@
 > A forja agora chega ao **Imortal** e ao **Arcano** (grupos de 4 itens, com
 > roleta no próprio painel) e o que a alquimia reciclaria **não é mais vendido**.
 > O novo **Tema do nvd** é vermelho e preto, com dois chifres no topo do painel
-> e animações exclusivas.
+> e animações exclusivas. E a aba **Auto** faz tudo com um toque: sem configurar
+> nada, ela liga os módulos, calcula a reserva de ouro e escolhe a faixa da forja
+> pelo próprio inventário.
 > **Forja, aprimoramento, engaste, alquimia, transmog e venda individual não
 > precisam de VIP**; só a venda automática em lote é exclusiva de VIP.
 
@@ -97,7 +99,12 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Painel flutuante ◆** injetado em `riftstream.com.br`, num Shadow DOM (não
   briga com o CSS do site). Arraste pelo cabeçalho, minimize ou feche; ao fechar
   ele vira uma bolinha no canto para reabrir.
-- **Oito abas:** Início, Forja, Atributos, Gemas, Venda, Alquimia, Transmog e Ajustes.
+- **Nove abas:** Auto, Início, Forja, Atributos, Gemas, Venda, Alquimia, Transmog
+  e Ajustes.
+- **Auto (um botão só):** toque em **Jogar sozinho** e pronto. A extensão liga
+  todos os módulos com os ajustes recomendados, calcula a reserva de ouro a
+  partir do seu saldo e deixa a forja escolher a faixa de nível pelo próprio
+  inventário. Nada de configurar.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
@@ -236,11 +243,14 @@ popup.
 
 | Aba | O que controla |
 |---|---|
+| **Auto** | Um botão: liga tudo com os ajustes recomendados, sem configurar nada |
 | **Início** | Personagem, status ao vivo dos módulos e contadores |
 | **Forja** | Equipar o mais forte, ligar a forja, raridades, tipos, faixa de nível e aprimoramento |
 | **Atributos** | Dividir ouro ou metas por nível, foco de atributos e reserva |
 | **Gemas** | Combinar 3 em 3, Suprema e engaste nos equipados |
 | **Venda** | Venda individual sem VIP, lote VIP e organizar baús |
+| **Alquimia** | Reciclar, criar peças e subir de nível |
+| **Transmog** | Trocar a aparência do item equipado |
 | **Ajustes** | Tema, fonte, roleta rápida e posição do painel |
 
 ### Comandos (no chat da Twitch, digitados por você)
@@ -274,6 +284,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Lives | `minPlayers` | `3` | Esconde lives com menos jogadores |
 | Lives | `chatOnly` | `true` | Abre só o chat em vez da live completa |
 | Lives | `muteTab` | `true` | Silencia a aba da Twitch |
+| Geral | `auto` | `false` | Modo automático: reserva e faixa da forja saem do inventário |
 | Geral | `goldReserve` | `50000` | Ouro que nunca é gasto |
 | Geral | `theme` | `farmline` | `farmline`, `opencode`, `midnight`, `tokyo`, `dracula`, `nord`, `gruvbox`, `rosepine`, `liah`, `nvd`, `solarized`, `daybreak`, `paper` ou `mint` |
 | Geral | `font` | `12` | Tamanho da fonte do painel/popup (10–18 px) |
@@ -283,6 +294,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Forja | `forge.tipos` | Todos | Arma, elmo, armadura e anel |
 | Forja | `forge.minLevel` | `0` | Nível mínimo dos itens forjados |
 | Forja | `forge.maxLevel` | `9999` | Nível máximo dos itens forjados |
+| Forja | `forge.auto` | `false` | Faixa de nível calculada pelo inventário (modo automático) |
 | Forja | `forge.useScroll` | `false` | Usa Pergaminho de Sorte em cada forja |
 | Atributos | `stats.ligado` | `true` | Gasta ouro em atributos |
 | Atributos | `stats.modo` | `igual` | `igual` (dividir) ou `nivel` (metas) |

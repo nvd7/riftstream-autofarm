@@ -31,6 +31,7 @@
   const ESPERA_PROTEGIDO = 30000;
   const MAX_VENDAS = 10;     // por rodada
   const MAX_RECICLAR = 20;   // itens por ação de alquimia
+  const AUTO_JANELA_NIVEL = 40; // faixa de nível da forja no modo automático
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
 
   const RARIDADES = ["comum", "incomum", "raro", "epico", "lendario", "evento", "imortal", "arcano"];
@@ -47,9 +48,13 @@
   };
 
   const DEFAULT_SETTINGS = {
+    // Modo automático: um botão só. Quando ligado, a engine se configura sozinha
+    // (faixa de nível da forja e reserva de ouro saem do próprio inventário).
+    auto: false,
     equip: true,
     forge: {
       ligado: false,
+      auto: false,
       raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false, imortal: false },
       tipos: { arma: true, elmo: true, armadura: true, anel: true },
       minLevel: 0,
@@ -124,7 +129,7 @@
     if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
     if (id === "light") return "mint";
     const conhecidos = ["farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
-      "gruvbox", "rosepine", "liah", "solarized", "daybreak", "paper", "mint"];
+      "gruvbox", "rosepine", "liah", "nvd", "solarized", "daybreak", "paper", "mint"];
     return conhecidos.includes(id) ? id : "farmline";
   }
 
@@ -253,11 +258,24 @@
   const moduloLigado = () => {
     const x = s();
     return x.equip || x.forge.ligado || x.stats.ligado || x.gems.ligado ||
-      x.socket.ligado || x.enhance.ligado || x.sell.ligado || x.lote.ligado;
+      x.socket.ligado || x.enhance.ligado || x.sell.ligado || x.lote.ligado ||
+      x.alchemy?.ligado || x.transmog?.ligado;
   };
 
   const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
   const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+
+  // Reserva de ouro. No modo automático ela é recalculada na hora: guarda 10%
+  // do ouro atual para o personagem nunca ficar zerado, sem o jogador configurar.
+  function reserva(ch) {
+    const base = Math.max(0, num(s().goldReserve, 0));
+    if (!s().auto) return base;
+    const ouro = num(ch?.gold, 0);
+    if (ouro <= 0) return base;
+    // 10% do saldo atual, arredondado para mil. Ignora a reserva salva de
+    // propósito: no modo automático quem manda é o saldo, não um número antigo.
+    return Math.max(0, Math.round((ouro * 0.1) / 1000) * 1000);
+  }
   const nivelRaridade = (item) => (item.rarity === 5 ? 3 : num(item.rarity, 0));
   const destinoDe = (r) => (r === 4 ? 6 : r + 1);
   const precisaDe = (destino) => (destino >= 3 ? 4 : 3);
@@ -469,8 +487,33 @@
   // Agrupa o que pode ser forjado, já respeitando raridade, tipo e faixa de nível.
   function gruposForja(ch) {
     const f = s().forge;
-    const minLv = num(f.minLevel, 0);
-    const maxLv = num(f.maxLevel, 9999);
+    let minLv = num(f.minLevel, 0);
+    let maxLv = num(f.maxLevel, 9999);
+    // Modo automático: a faixa de nível sai do próprio inventário (os 40 níveis
+    // abaixo do melhor item forjável). Evita juntar Nv. 80 com Nv. 200 e derrubar
+    // o resultado sem o jogador precisar configurar nada.
+    if (f.auto) {
+      // Olha só os itens que realmente formam grupo: um item alto e sozinho não
+      // pode travar a forja dos grupos que existem de verdade.
+      const porGrupo = new Map();
+      for (const i of ch.items || []) {
+        if (!podeForjar(i) || recemCriadosAlq.has(i.id)) continue;
+        const r = nivelRaridade(i);
+        const k = `${r}|${i.slot}`;
+        if (!porGrupo.has(k)) porGrupo.set(k, []);
+        porGrupo.get(k).push(i);
+      }
+      let melhor = 0;
+      for (const arr of porGrupo.values()) {
+        const r = nivelRaridade(arr[0]);
+        if (arr.length < precisaDe(destinoDe(r))) continue;
+        for (const i of arr) melhor = Math.max(melhor, num(i.itemLevel, 0));
+      }
+      if (melhor > 0) {
+        maxLv = melhor;
+        minLv = Math.max(0, melhor - AUTO_JANELA_NIVEL);
+      }
+    }
     const grupos = new Map();
     for (const i of ch.items || []) {
       if (!podeForjar(i)) continue;
@@ -534,7 +577,7 @@
     let avisouSemPergaminho = false;
 
     let forjou = 0;
-    let livre = num(ch.gold) - s().goldReserve;
+    let livre = num(ch.gold) - reserva(ch);
     for (const g of grupos) {
       if (forjou >= MAX_FORJAS) break;
       const destino = destinoDe(g.r);
@@ -664,7 +707,7 @@
 
   async function uparUm(ch) {
     const u = s().stats;
-    const livre = num(ch.gold) - s().goldReserve;
+    const livre = num(ch.gold) - reserva(ch);
     const atributos = atributosDe(ch).filter((a) => !pausado(a.id));
 
     if (u.modo === "igual") {
@@ -703,7 +746,7 @@
       setStatus("up", `Juntando ouro para ${a.nome} (${a.custo.toLocaleString("pt-BR")})`);
       return false;
     }
-    const quantidade = s().goldReserve === 0 && meta - a.nivel >= 10 ? 10 : 1;
+    const quantidade = reserva(ch) === 0 && meta - a.nivel >= 10 ? 10 : 1;
     if (!(await comprar(a, quantidade))) return false;
     setStatus("up", `${a.nome}: nível ${a.nivel + quantidade} de ${meta}`);
     stats.upNiveis[a.id] = a.nivel + quantidade;
@@ -752,7 +795,7 @@
     }
 
     if (g.suprema) {
-      const livre = num(ch.gold) - s().goldReserve;
+      const livre = num(ch.gold) - reserva(ch);
       const alvo = lista.find((x) =>
         num(x.tier, 1) === 4 && num(x.count) >= 4 &&
         !pausado(`suprema-${x.type}`) && livre >= num(x.combineCost, 0)
@@ -802,7 +845,7 @@
   }
 
   async function engastarUm(ch) {
-    if (num(ch.gold) <= s().goldReserve) {
+    if (num(ch.gold) <= reserva(ch)) {
       setStatus("socket", "Juntando ouro para engastar");
       return false;
     }
@@ -874,7 +917,7 @@
       setStatus("enhance", "Nenhum alvo com doadores mais fracos");
       return false;
     }
-    let livre = num(ch.gold) - s().goldReserve;
+    let livre = num(ch.gold) - reserva(ch);
     for (const p of plano) {
       const corpo = { targetId: p.alvo.id, donorIds: p.doadores.map((d) => d.id) };
       let custo;

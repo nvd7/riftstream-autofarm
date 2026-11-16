@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.6.0";
+  let VERSION = "2.7.0";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -43,9 +43,11 @@
     return {
       running: false,
       settings: {
+        auto: false,
         equip: true,
         forge: {
           ligado: false,
+          auto: false,
           raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false, imortal: false },
           tipos: { arma: true, elmo: true, armadura: true, anel: true },
           minLevel: 0,
@@ -478,6 +480,42 @@
 
     .warn{ margin:11px 0 0; color:var(--muted); font-size:9.5px; line-height:1.4; border-left:2px solid var(--mint); padding-left:8px; }
 
+    /* Aba Auto: um botão só, sem o jogador precisar configurar nada. */
+    .autoHero{
+      padding:11px; border-radius:9px; border:1px solid var(--line2);
+      background:
+        radial-gradient(130% 150% at 100% 0%, var(--mint-dim), transparent 60%),
+        linear-gradient(150deg,var(--surface2),var(--surface));
+    }
+    .autoHero b{ display:block; font:700 12px var(--mono); letter-spacing:1px; }
+    .autoHero small{ display:block; margin-top:3px; color:var(--muted); font-size:10.5px; line-height:1.4; }
+    .autoBtn{
+      display:flex; align-items:center; gap:11px; width:100%; margin-top:11px;
+      padding:13px 14px; border-radius:10px; cursor:pointer; text-align:left;
+      border:1px solid var(--mint); color:var(--text);
+      background:linear-gradient(135deg,var(--mint-dim),transparent 70%);
+      transition:.16s;
+    }
+    .autoBtn:hover{ box-shadow:0 0 18px var(--mint-dim); }
+    .autoBtn .ai{
+      width:34px; height:34px; border-radius:9px; display:grid; place-items:center; flex:none;
+      background:linear-gradient(150deg,var(--mint),#18a982); color:#04231b;
+      font-size:15px; box-shadow:0 0 16px var(--mint-dim);
+    }
+    .autoBtn .at{ min-width:0; }
+    .autoBtn .at b{ display:block; font:700 12.5px var(--mono); letter-spacing:.8px; }
+    .autoBtn .at small{ display:block; margin-top:3px; color:var(--muted); font-size:10px; line-height:1.35; }
+    .autoBtn.on{ border-color:var(--red); background:linear-gradient(135deg,#ff2b3d1f,transparent 70%); }
+    .autoBtn.on .ai{ background:linear-gradient(150deg,var(--red),#7a0b14); color:#fff1f2; animation:autoPulse 1.8s ease-in-out infinite; }
+    @keyframes autoPulse{ 50%{ box-shadow:0 0 24px var(--red); } }
+    .autoStop{
+      width:100%; margin-top:8px; padding:9px; border-radius:8px; cursor:pointer;
+      border:1px solid var(--line2); background:transparent; color:var(--muted);
+      font:600 10px var(--mono); letter-spacing:.6px; text-transform:uppercase;
+    }
+    .autoStop:hover{ color:var(--text); border-color:var(--red); }
+    @media (prefers-reduced-motion: reduce){ .autoBtn.on .ai{ animation:none; } }
+
     .ticker{
       display:flex; align-items:center; gap:8px; padding:7px 11px; border-top:1px solid var(--line);
       color:var(--muted); font:9.5px var(--mono); background:var(--bg2); flex:none;
@@ -545,6 +583,7 @@
 
       <div class="work">
         <nav class="rail" id="tabs">
+          <button class="tab" data-tab="auto"><span class="ico">▶</span><span>Auto</span><i id="vivoAuto"></i></button>
           <button class="tab" data-tab="inicio"><span class="ico">◈</span><span>Base</span><i id="vivoInicio"></i></button>
           <button class="tab" data-tab="forja"><span class="ico">⚒</span><span>Forja</span><i id="vivoForja"></i></button>
           <button class="tab" data-tab="atributos"><span class="ico">↗</span><span>Upar</span><i id="vivoAtributos"></i></button>
@@ -567,6 +606,33 @@
           </div>
 
           <div class="body">
+            <section class="panel" data-panel="auto">
+              <div class="autoHero">
+                <b>DEIXA COMIGO</b>
+                <small>
+                  Um toque liga tudo com os ajustes certos: equipar, forjar,
+                  atributos, gemas, engaste, aprimoramento, venda, alquimia,
+                  transmog e baús. Você não precisa configurar nem entender nada.
+                </small>
+              </div>
+              <button class="autoBtn" id="autoTudo">
+                <span class="ai">▶</span>
+                <span class="at">
+                  <b>JOGAR SOZINHO</b>
+                  <small id="autoSub">Liga todos os módulos e começa a cuidar do inventário</small>
+                </span>
+              </button>
+              <button class="autoStop" id="autoParar" hidden>Parar de jogar sozinho</button>
+              <div class="statusbox"><span id="stAuto">Pronto para começar</span><small id="ctAuto"></small></div>
+              <div class="list" id="autoList"></div>
+              <p class="warn">
+                O modo automático liga a forja (que pode perder itens e ouro) e a
+                venda. O que é melhor que o item equipado fica protegido, mas o
+                risco existe — prefira uma conta alternativa. Quer afinar algo?
+                Use as outras abas.
+              </p>
+            </section>
+
             <section class="panel" data-panel="inicio">
               <div class="hero">
                 <div class="hero-top"><b id="charName">Sem personagem</b><span id="charCls"></span></div>
@@ -1073,7 +1139,8 @@
   const algumModulo = (st, soLigados) => {
     const s = st || cfg.settings;
     const x = !!(s.equip || s.forge.ligado || s.stats.ligado || s.gems.ligado ||
-      s.socket.ligado || s.enhance.ligado || s.sell.ligado || s.lote.ligado || s.organize);
+      s.socket.ligado || s.enhance.ligado || s.sell.ligado || s.lote.ligado || s.organize ||
+      s.alchemy?.ligado || s.transmog?.ligado);
     return soLigados ? x : x;
   };
 
@@ -1090,6 +1157,69 @@
     cfg.running = !cfg.running;
     salvarCfg();
   });
+
+  // ------------------------------ modo automático ---------------------------
+
+  // Um botão só: escolhe tudo sozinho e liga. A reserva de ouro é calculada a
+  // partir do ouro atual, e a engine recalcula a faixa de nível da forja pelo
+  // próprio inventário (settings.forge.auto).
+  function aplicarAuto() {
+    const st = cfg.settings;
+    const ouro = Number(status.character?.gold) || 0;
+    const reservaAuto = ouro > 0
+      ? Math.max(5000, Math.round((ouro * 0.1) / 1000) * 1000)
+      : (Number(st.goldReserve) || 50000);
+
+    st.auto = true;
+
+    st.equip = true;
+
+    st.forge.ligado = true;
+    st.forge.auto = true;
+    st.forge.useScroll = true;
+    st.forge.raridades = { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: false };
+    st.forge.tipos = { arma: true, elmo: true, armadura: true, anel: true };
+
+    st.stats.ligado = true;
+    st.stats.modo = "igual";
+    for (const k of Object.keys(st.stats.sel)) st.stats.sel[k] = true;
+
+    st.gems.ligado = true;
+    st.gems.juntar = true;
+    st.gems.suprema = false;
+    st.socket.ligado = true;
+    st.enhance.ligado = true;
+
+    st.sell.ligado = true;
+    st.sell.rarity = 2;
+    st.sell.level = 9999;
+    st.organize = true;
+
+    st.alchemy.ligado = true;
+    st.alchemy.reciclar = true;
+    st.alchemy.criar = true;
+    st.alchemy.subirNivel = true;
+
+    st.transmog.ligado = true;
+
+    st.goldReserve = reservaAuto;
+    st.roleta.ligada = true;
+
+    cfg.running = true;
+    salvarCfg();
+    q("footStatus").textContent = "Modo automático ligado";
+  }
+
+  function pararAuto() {
+    cfg.settings.auto = false;
+    cfg.settings.forge.auto = false;
+    cfg.running = false;
+    salvarCfg();
+    q("footStatus").textContent = "Modo automático desligado";
+  }
+
+  q("autoTudo").addEventListener("click", aplicarAuto);
+  q("autoParar").addEventListener("click", pararAuto);
   q("swForge").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.forge.ligado = !cfg.settings.forge.ligado;
   }));
@@ -1179,19 +1309,29 @@
     salvarCfg();
   }));
 
+  // Ajustar na mão é uma escolha do jogador: sai do modo automático para o
+  // valor digitado valer de verdade (o automático recalcula reserva e faixa).
+  function sairDoAuto() {
+    cfg.settings.auto = false;
+    cfg.settings.forge.auto = false;
+  }
+
   q("reserve").addEventListener("input", (e) => {
     const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
     cfg.settings.goldReserve = Number.isNaN(v) ? 0 : v;
+    sairDoAuto();
     salvarCfg();
   });
   q("forgeMin").addEventListener("input", (e) => {
     const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
     cfg.settings.forge.minLevel = Number.isNaN(v) ? 0 : v;
+    sairDoAuto();
     salvarCfg();
   });
   q("forgeMax").addEventListener("input", (e) => {
     const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
     cfg.settings.forge.maxLevel = Number.isNaN(v) ? 9999 : v;
+    sairDoAuto();
     salvarCfg();
   });
   q("sellLevel").addEventListener("input", (e) => {
@@ -1436,6 +1576,45 @@
       cont.append(d);
     }
 
+    // Auto
+    const autoAtivo = !!cfg.running && !!st.auto;
+    q("autoTudo").classList.toggle("on", autoAtivo);
+    q("autoParar").hidden = !autoAtivo;
+    q("autoSub").textContent = autoAtivo
+      ? (status.lastAction ? `Fazendo agora: ${status.lastAction}` : "Trabalhando no inventário...")
+      : "Liga todos os módulos e começa a cuidar do inventário";
+    q("stAuto").textContent = autoAtivo
+      ? "Jogando sozinho"
+      : (st.auto ? "Automático pausado (motor desligado)" : "Pronto para começar");
+    const modulosLigados = MODULOS.filter(([, , ligado]) => ligado(st));
+    q("ctAuto").textContent = `${modulosLigados.length} módulo(s) ativo(s) · ` +
+      `${st.auto ? "reserva automática (10% do ouro)" : `reserva ${fmt(st.goldReserve)}g`} · ` +
+      `forjados ${fmt(stats.forjaTotal)} · vendidos ${fmt(stats.vendidos)}`;
+    const listaAuto = q("autoList");
+    listaAuto.textContent = "";
+    if (!modulosLigados.length) {
+      const vazio = document.createElement("div");
+      vazio.className = "item";
+      vazio.innerHTML = '<span class="s"></span><div class="t"><b>Nada ligado</b><small>Toque em “Jogar sozinho”</small></div>';
+      listaAuto.append(vazio);
+    } else {
+      for (const [, nome, , chave] of modulosLigados) {
+        const item = document.createElement("div");
+        item.className = "item";
+        const marca = document.createElement("span");
+        marca.className = "s on";
+        const texto = document.createElement("div");
+        texto.className = "t";
+        const titulo = document.createElement("b");
+        titulo.textContent = nome;
+        const sub = document.createElement("small");
+        sub.textContent = cfg.running ? textoModulo(chave) : "Ligado — motor desligado";
+        texto.append(titulo, sub);
+        item.append(marca, texto);
+        listaAuto.append(item);
+      }
+    }
+
     // Forja
     q("swEquip").classList.toggle("on", !!st.equip);
     q("swEnhance").classList.toggle("on", !!st.enhance.ligado);
@@ -1448,7 +1627,8 @@
     if (!ativo(q("forgeMin"))) q("forgeMin").value = st.forge.minLevel ?? 0;
     if (!ativo(q("forgeMax"))) q("forgeMax").value = st.forge.maxLevel ?? 9999;
     q("stForja").textContent = st.forge.ligado ? (status.forja || "Procurando itens...") : "Desligada";
-    q("ctForja").textContent = `${fmt(status.counts?.forja ?? 0)} grupo(s) pronto(s) · ` +
+    q("ctForja").textContent = `${st.forge.auto ? "faixa automática · " : ""}` +
+      `${fmt(status.counts?.forja ?? 0)} grupo(s) pronto(s) · ` +
       `Forjados: ${fmt(stats.forjaTotal)} · Perdidos: ${fmt(stats.forjaPerdidos)}`;
 
     // Atributos
@@ -1516,6 +1696,7 @@
     chipsVel.forEach(([v, b]) => b.classList.toggle("on", Number(st.roleta.vel) === v));
 
     // Indicadores do trilho
+    q("vivoAuto").classList.toggle("vivo", autoAtivo);
     q("vivoInicio").classList.toggle("vivo", !!cfg.running && algum);
     q("vivoForja").classList.toggle("vivo", !!st.forge.ligado);
     q("vivoAtributos").classList.toggle("vivo", !!st.stats.ligado);

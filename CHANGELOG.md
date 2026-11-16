@@ -4,6 +4,29 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.7.0] - 2026-11-16
+
+### Adicionado
+
+- **Aba Auto (um botão só):** o botão **Jogar sozinho** liga equipar, forja,
+  atributos, gemas, engaste, aprimoramento, venda, alquimia, transmog e baús com
+  os ajustes recomendados. Sem configurar nada.
+- **Reserva automática:** no modo automático a reserva de ouro passa a ser 10%
+  do saldo atual (mínimo 5.000g), recalculada a cada rodada — a conta nunca fica
+  zerada.
+- **Faixa de forja automática:** a engine escolhe a janela de nível (40 níveis
+  abaixo dos melhores grupos forjáveis), em vez de misturar Nv. 5 com Nv. 200.
+  Um item alto e sozinho não trava mais a forja dos grupos que existem.
+- O botão **Parar de jogar sozinho** desliga o motor e sai do modo automático.
+- A aba Auto mostra, ao vivo, o que está sendo feito e o status de cada módulo.
+
+### Corrigido
+
+- Ligar só Alquimia ou Transmog não fazia o motor rodar: essas abas não estavam
+  na checagem de "algum módulo ligado" (engine e painel).
+- Digitar uma faixa de nível ou uma reserva na mão sai do modo automático, para
+  o valor escolhido valer de verdade.
+
 ## [2.6.0] - 2026-11-16
 
 ### Adicionado
