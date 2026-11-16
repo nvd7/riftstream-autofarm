@@ -4,6 +4,17 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.6.0] - 2026-11-16
+
+### Adicionado
+
+- **Tema do nvd:** paleta vermelho e preto com identidade própria. O painel
+  ganha **dois chifres no topo**, brilho de brasa pulsando na borda, faixa
+  varrendo o cabeçalho, logo em brasa, abas com glow vermelho e uma entrada de
+  aba mais suave — tudo desligado automaticamente com `prefers-reduced-motion`.
+- O popup acompanha o tema, com brilho no logo e chifres pequenos.
+- O tema aparece no seletor logo depois do Tema da Liah e também no botão ◐.
+
 ## [2.5.0] - 2026-11-16
 
 ### Adicionado

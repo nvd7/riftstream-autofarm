@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.5.0";
+  let VERSION = "2.6.0";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -156,6 +156,84 @@
       0%, 100%{ box-shadow:var(--shadow), 0 0 16px #ff79c62e, 0 0 0 1px #ff79c655; }
       50%{ box-shadow:var(--shadow), 0 0 34px #ff79c65c, 0 0 0 1px #ff79c6aa; }
     }
+
+    /* Tema do nvd: chifres no topo, brasa vermelha e animações de premium. */
+    .horns{ display:none; }
+    .app[data-theme="nvd"]{ position:relative; }
+    .app[data-theme="nvd"] .shell{
+      border-color:#ff2b3d99;
+      animation:nvdRim 4.6s ease-in-out infinite;
+    }
+    @keyframes nvdRim{
+      0%, 100%{ box-shadow:var(--shadow), 0 0 14px #ff2b3d26, 0 0 0 1px #ff2b3d55; }
+      50%{ box-shadow:var(--shadow), 0 0 38px #ff2b3d66, 0 0 0 1px #ff6b3dcc; }
+    }
+    .app[data-theme="nvd"] .horns{
+      display:block; position:absolute; left:0; right:0; top:-24px; height:38px;
+      pointer-events:none; z-index:3;
+    }
+    .app[data-theme="nvd"] .horns i{
+      position:absolute; bottom:0; width:34px; height:38px;
+      background:
+        radial-gradient(70% 55% at 70% 72%, #ff8a9240, transparent 70%),
+        linear-gradient(172deg,#ff5a64 0%,#e01b2c 26%,#7d0813 62%,#230206 100%);
+      clip-path:path("M 34 38 C 29 25 23 11 10 0 C 9 13 5 25 0 38 Z");
+      filter:drop-shadow(0 0 8px #ff2b3d99) drop-shadow(0 0 2px #ff8a9233);
+      animation:nvdHorn 3.8s ease-in-out infinite;
+    }
+    .app[data-theme="nvd"] .horns i:first-child{ left:28px; transform:rotate(-5deg); }
+    .app[data-theme="nvd"] .horns i:last-child{
+      right:28px; transform:scaleX(-1) rotate(-5deg); animation-delay:-1.9s;
+    }
+    @keyframes nvdHorn{
+      0%, 100%{ filter:drop-shadow(0 0 7px #ff2b3d80); translate:0 0; }
+      50%{ filter:drop-shadow(0 0 13px #ff4d5acc); translate:0 -2px; }
+    }
+    .app[data-theme="nvd"] .head{
+      background:linear-gradient(100deg,#2a0a10 0%,#12050a 38%,#3a0c13 52%,#12050a 66%,#2a0a10 100%);
+      background-size:240% 100%;
+      animation:nvdSheen 7s linear infinite;
+      border-bottom-color:#521b26;
+    }
+    @keyframes nvdSheen{ to{ background-position:-240% 0; } }
+    .app[data-theme="nvd"] .logo{
+      background:linear-gradient(150deg,#ff3b4a,#5c0410 72%);
+      color:#fff1f2;
+      animation:nvdLogo 3.4s ease-in-out infinite;
+    }
+    @keyframes nvdLogo{
+      0%, 100%{ box-shadow:0 0 14px #ff2b3d55, inset 0 0 6px #ff8a9233; }
+      50%{ box-shadow:0 0 26px #ff2b3daa, inset 0 0 12px #ff8a9266; }
+    }
+    .app[data-theme="nvd"] .power{
+      position:relative; overflow:hidden;
+      background:linear-gradient(90deg,#ff2b3d22,#16080a 55%,#070304);
+    }
+    .app[data-theme="nvd"] .power::after{
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background:linear-gradient(100deg,transparent 35%,#ff6b3d2e 50%,transparent 65%);
+      transform:translateX(-100%);
+      animation:nvdSweep 5.5s ease-in-out infinite;
+    }
+    @keyframes nvdSweep{ 45%, 100%{ transform:translateX(100%); } }
+    .app[data-theme="nvd"] .tab.on{
+      background:linear-gradient(90deg,#ff2b3d24,var(--surface2) 70%);
+      border-left-color:#ff4d5a;
+      box-shadow:inset 0 0 0 1px #521b26, 0 0 12px #ff2b3d1f;
+    }
+    .app[data-theme="nvd"] .tab.on .ico{ color:#ff6b76; text-shadow:0 0 8px #ff2b3d99; }
+    .app[data-theme="nvd"] .panel.on{ animation:nvdPanel .38s cubic-bezier(.2,.8,.2,1); }
+    @keyframes nvdPanel{
+      from{ opacity:0; transform:translateY(7px) scale(.99); filter:blur(3px); }
+      to{ opacity:1; transform:none; filter:blur(0); }
+    }
+    .app[data-theme="nvd"] .hero{
+      background:
+        radial-gradient(120% 140% at 100% 0%, #ff2b3d1f, transparent 55%),
+        linear-gradient(150deg,var(--surface2),var(--surface));
+      animation:nvdHero 6s ease-in-out infinite;
+    }
+    @keyframes nvdHero{ 50%{ border-color:#ff4d5a66; } }
 
     .head{
       display:flex; align-items:center; gap:10px; padding:9px 10px 9px 12px; cursor:grab;
@@ -299,9 +377,31 @@
     .tema.liah:hover{ box-shadow:0 0 14px #ff79c66b; }
     @keyframes liahSpin{ to{ transform:rotate(360deg); } }
 
+    /* Tema do nvd: borda vermelha girando mais rápida, com brasa laranja. */
+    .tema.nvd{
+      position:relative; overflow:hidden; border-color:transparent;
+      box-shadow:0 0 12px #ff2b3d4d;
+    }
+    .tema.nvd::before{
+      content:""; position:absolute; inset:-70%; z-index:0; pointer-events:none;
+      background:conic-gradient(from 180deg,
+        transparent 0 52%, #ff2b3d 68%, #ff6b3d 80%, #9d0f1c 90%, transparent 100%);
+      animation:nvdSpin 2.2s linear infinite;
+    }
+    .tema.nvd::after{
+      content:""; position:absolute; inset:1.5px; z-index:0; pointer-events:none;
+      border-radius:5px; background:var(--bg2);
+    }
+    .tema.nvd > *{ position:relative; z-index:1; }
+    .tema.nvd:hover{ box-shadow:0 0 18px #ff2b3d8c; }
+    @keyframes nvdSpin{ to{ transform:rotate(360deg); } }
+
     @media (prefers-reduced-motion: reduce){
-      .tema.liah::before{ animation:none; }
-      .app[data-theme="liah"] .shell{ animation:none; }
+      .tema.liah::before, .tema.nvd::before{ animation:none; }
+      .app[data-theme="liah"] .shell, .app[data-theme="nvd"] .shell,
+      .app[data-theme="nvd"] .head, .app[data-theme="nvd"] .logo,
+      .app[data-theme="nvd"] .power::after, .app[data-theme="nvd"] .horns i,
+      .app[data-theme="nvd"] .hero{ animation:none; }
     }
 
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; }
@@ -392,6 +492,7 @@
 
     .app[data-min="1"] .rail, .app[data-min="1"] .body,
     .app[data-min="1"] .ticker, .app[data-min="1"] .work{ display:none; }
+    .app[data-min="1"] .horns, .app[data-aberto="0"] .horns{ display:none; }
     .app[data-aberto="0"] .shell{ display:none; }
     .app[data-aberto="0"] .bubble{ display:flex; }
     .app[data-aberto="1"] .shell{ display:flex; }
@@ -426,6 +527,7 @@
   </style>
 
   <div class="app" id="app" data-aberto="1" data-theme="farmline" data-mode="dark" data-min="0">
+    <div class="horns" aria-hidden="true"><i></i><i></i></div>
     <button class="bubble" id="bubble" title="Abrir RiftStream AutoFarm">◆</button>
     <div class="shell">
       <header class="head" id="head">
@@ -854,9 +956,9 @@
   const botoesTema = ORDEM_TEMAS.map((id) => {
     const t = temaDe(id);
     const b = document.createElement("button");
-    b.className = "tema" + (t.id === "liah" ? " liah" : "");
+    b.className = "tema" + (t.id === "liah" || t.id === "nvd" ? " " + t.id : "");
     b.dataset.tema = t.id;
-    b.title = `${t.nome || t.id} · ${t.modo === "light" ? "claro" : "escuro"}${t.id === "liah" ? " · exclusivo" : ""}`;
+    b.title = `${t.nome || t.id} · ${t.modo === "light" ? "claro" : "escuro"}${t.id === "liah" || t.id === "nvd" ? " · exclusivo" : ""}`;
     b.style.setProperty("--t-accent", t.accent || "#4de3b0");
     const amostra = document.createElement("span");
     amostra.className = "sw3";

@@ -398,6 +398,57 @@ details.card > *:not(summary) { margin-top: 9px; }
   :root[data-theme="liah"] .logo { animation: none; }
 }
 
+/* ----------------------------- tema do nvd ------------------------------- */
+
+:root[data-theme="nvd"] .top {
+  background: linear-gradient(100deg, #2a0a10, #12050a 40%, #3a0c13 55%, #12050a 70%, #2a0a10);
+  background-size: 240% 100%;
+  border-bottom-color: #521b26;
+  animation: nvdPopSheen 7s linear infinite;
+}
+
+:root[data-theme="nvd"] .logo {
+  position: relative;
+  background: linear-gradient(150deg, #ff3b4a, #5c0410 72%);
+  color: #fff1f2;
+  animation: nvdPopLogo 3.4s ease-in-out infinite;
+}
+
+:root[data-theme="nvd"] .logo::before,
+:root[data-theme="nvd"] .logo::after {
+  content: "";
+  position: absolute;
+  top: -7px;
+  width: 9px;
+  height: 11px;
+  background: linear-gradient(180deg, #ff5a64, #7d0813 65%, #230206);
+  clip-path: path("M 9 11 C 8 7 6 3 3 0 C 2 4 1 8 0 11 Z");
+  filter: drop-shadow(0 0 4px #ff2b3d99);
+  animation: nvdPopHorn 3.8s ease-in-out infinite;
+}
+
+:root[data-theme="nvd"] .logo::before { left: 3px; }
+:root[data-theme="nvd"] .logo::after { right: 3px; transform: scaleX(-1); animation-delay: -1.9s; }
+
+@keyframes nvdPopSheen { to { background-position: -240% 0; } }
+
+@keyframes nvdPopLogo {
+  0%, 100% { box-shadow: 0 0 12px #ff2b3d55, inset 0 0 6px #ff8a9233; }
+  50% { box-shadow: 0 0 24px #ff2b3daa, inset 0 0 12px #ff8a9266; }
+}
+
+@keyframes nvdPopHorn {
+  0%, 100% { filter: drop-shadow(0 0 3px #ff2b3d80); translate: 0 0; }
+  50% { filter: drop-shadow(0 0 7px #ff4d5acc); translate: 0 -1px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="nvd"] .top,
+  :root[data-theme="nvd"] .logo,
+  :root[data-theme="nvd"] .logo::before,
+  :root[data-theme="nvd"] .logo::after { animation: none; }
+}
+
 /* ------------------------------ tema claro ------------------------------- */
 
 :root[data-mode="light"] .logo { box-shadow: 0 0 16px #0a9d7430; }

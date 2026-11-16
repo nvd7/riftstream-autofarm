@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png?v=232" alt="RiftStream AutoFarm - painel no jogo, 13 temas e lives na Twitch" width="100%">
+  <img src="docs/banner.png?v=232" alt="RiftStream AutoFarm - painel no jogo, 14 temas e lives na Twitch" width="100%">
 </p>
 
 <h1 align="center">RiftStream AutoFarm</h1>
@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.5.0-f5c451" alt="Versão 2.5.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.6.0-f5c451" alt="Versão 2.6.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -38,7 +38,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Painel dentro do jogo</b> · <b>13 temas com o Tema da Liah em destaque</b></sub>
+  <sub><b>Painel dentro do jogo</b> · <b>14 temas com o Tema da Liah e o Tema do nvd em destaque</b></sub>
 </p>
 
 > [!IMPORTANT]
@@ -55,7 +55,7 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v2.5.0.** Esta versão funde o AutoFarm com a engine do
+> **Status: v2.6.0.** Esta versão funde o AutoFarm com a engine do
 > “Rift Auto”: a automação roda **dentro da página do jogo**, descobre sozinha o
 > endereço da API, usa o token da própria sessão e garante que **só uma aba**
 > trabalhe por vez. A interface foi **totalmente refeita** como um dock vertical
@@ -64,6 +64,8 @@
 > Esta versão também automatiza as abas **Alquimia** e **Transmog** do jogo.
 > A forja agora chega ao **Imortal** e ao **Arcano** (grupos de 4 itens, com
 > roleta no próprio painel) e o que a alquimia reciclaria **não é mais vendido**.
+> O novo **Tema do nvd** é vermelho e preto, com dois chifres no topo do painel
+> e animações exclusivas.
 > **Forja, aprimoramento, engaste, alquimia, transmog e venda individual não
 > precisam de VIP**; só a venda automática em lote é exclusiva de VIP.
 
@@ -99,10 +101,11 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
-- **13 temas de cor** (estilo OpenCode) e **tamanho da fonte** aplicados na hora e
+- **14 temas de cor** (estilo OpenCode) e **tamanho da fonte** aplicados na hora e
   salvos — incluindo o **Tema da Liah** (rosa, com borda neon girando no botão e
-  brilho pulsante no painel). O mesmo tema vale para o painel e para o popup; o
-  botão ◐ do cabeçalho percorre a lista.
+  brilho pulsante no painel) e o **Tema do nvd** (vermelho e preto, com dois
+  chifres no topo do painel, brilho de brasa e animações próprias). O mesmo tema
+  vale para o painel e para o popup; o botão ◐ do cabeçalho percorre a lista.
 - **Roleta rápida** (2×, 4×, 8×): acelera **só a animação** quando você gira na
   mão. O resultado vem do servidor — a chance não muda.
 - **Uma aba por vez:** `navigator.locks` garante que só uma aba do jogo rode a
@@ -272,7 +275,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Lives | `chatOnly` | `true` | Abre só o chat em vez da live completa |
 | Lives | `muteTab` | `true` | Silencia a aba da Twitch |
 | Geral | `goldReserve` | `50000` | Ouro que nunca é gasto |
-| Geral | `theme` | `farmline` | `farmline`, `opencode`, `midnight`, `tokyo`, `dracula`, `nord`, `gruvbox`, `rosepine`, `liah`, `solarized`, `daybreak`, `paper` ou `mint` |
+| Geral | `theme` | `farmline` | `farmline`, `opencode`, `midnight`, `tokyo`, `dracula`, `nord`, `gruvbox`, `rosepine`, `liah`, `nvd`, `solarized`, `daybreak`, `paper` ou `mint` |
 | Geral | `font` | `12` | Tamanho da fonte do painel/popup (10–18 px) |
 | Equipar | `equip` | `true` | Equipa o item com maior FC |
 | Forja | `forge.ligado` | `false` | Liga a forja (destrutiva) |

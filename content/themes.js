@@ -68,6 +68,12 @@
       line: "#4a2742", line2: "#613454", text: "#ffe8f5", muted: "#c48fae",
       accent: "#ff79c6", accent2: "#c9a0ff", red: "#ff5c7a", extra: "#ff9ee0"
     },
+    nvd: {
+      nome: "Tema do nvd", modo: "dark",
+      bg: "#070304", bg2: "#0d0507", surface: "#16080a", surface2: "#200a0e",
+      line: "#35121a", line2: "#521b26", text: "#ffe9ea", muted: "#c08a90",
+      accent: "#ff2b3d", accent2: "#ff6b3d", red: "#ff2b3d", extra: "#9d0f1c"
+    },
     solarized: {
       nome: "Solarizado", modo: "dark",
       bg: "#002b36", bg2: "#073642", surface: "#0b3f4c", surface2: "#10505f",
@@ -97,7 +103,7 @@
   // Nomes antigos ("dark"/"light") continuam válidos para quem já tem config.
   const ALIASES = { dark: "farmline", light: "mint" };
   const ORDEM = [
-    "liah", "farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
+    "liah", "nvd", "farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
     "gruvbox", "rosepine", "solarized", "daybreak", "paper", "mint"
   ];
 
