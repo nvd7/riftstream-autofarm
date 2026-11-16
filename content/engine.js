@@ -33,7 +33,7 @@
   const MAX_RECICLAR = 20;   // itens por ação de alquimia
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
 
-  const RARIDADES = ["comum", "incomum", "raro", "epico", "lendario"];
+  const RARIDADES = ["comum", "incomum", "raro", "epico", "lendario", "evento", "imortal", "arcano"];
   const TIPOS = { weapon: "arma", helmet: "elmo", armor: "armadura", ring: "anel" };
   const ATRIBUTOS = { forca: "str", vitalidade: "vit", defesa: "def", agilidade: "agi", sorte: "luk" };
   const NOMES = { forca: "Força", vitalidade: "Vitalidade", defesa: "Defesa", agilidade: "Agilidade", sorte: "Sorte" };
@@ -50,7 +50,7 @@
     equip: true,
     forge: {
       ligado: false,
-      raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false },
+      raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false, imortal: false },
       tipos: { arma: true, elmo: true, armadura: true, anel: true },
       minLevel: 0,
       maxLevel: 9999,
@@ -437,8 +437,11 @@
 
   /* --------------------------------- forja -------------------------------- */
 
+  // Regra do jogo: equipamento de qualquer raridade abaixo de Arcano pode ser
+  // forjado. Equipados, favoritos e com gemas ficam de fora. Lendário vira
+  // Imortal (4 itens) e Imortal vira Arcano (4 itens), ambos com roleta.
   const podeForjar = (i) => !i.equipped && !i.favorite && TIPOS[i.slot] &&
-    !i.gems?.length && nivelRaridade(i) <= 4;
+    !i.gems?.length && nivelRaridade(i) <= 6;
 
   // Usa a mesma comparação da tela de detalhes do jogo (Força de Combate com o item equipado).
   async function ehMelhor(item, cls) {
@@ -507,6 +510,15 @@
   // cada item, mas também não dispara o inventário inteiro de uma vez.
   const MAX_FORJAS = 3;
 
+  // A forja de Lendário+ é decidida por roleta no servidor. O painel escuta este
+  // evento para mostrar a animação (a tela do jogo não é atualizada quando a
+  // extensão chama a API direto).
+  function avisarForja(detalhe) {
+    try {
+      document.dispatchEvent(new CustomEvent("rsaf:forja", { detail: detalhe }));
+    } catch { /* painel fechado ou evento indisponível */ }
+  }
+
   async function forjarUm(ch) {
     verEquipados(ch);
     const grupos = gruposForja(ch).filter((g) => !pausado(g.chave));
@@ -569,22 +581,38 @@
         pausados.set(g.chave, Infinity);
         return true;
       }
+      // Resultado Lendário+ (inclusive Imortal e Arcano) passa pela roleta.
+      const temRoleta = destino >= 4;
+      if (temRoleta) {
+        avisarForja({ tipo: "start", rotulo, destino, raridade: RARIDADES[destino] });
+      }
       try {
         const res = await api("/api/me/items/fuse", { itemIds: liberados.map((i) => i.id), scrollItemId: scrollId });
         // O pergaminho é consumido na tentativa, mesmo se a roleta falhar.
         if (scrollId) pergaminhos = Math.max(0, pergaminhos - 1);
-        if (res.success === false) {
+        const sucesso = res.success !== false;
+        const itemNome = res.result?.name || "";
+        if (temRoleta) {
+          avisarForja({
+            tipo: "fim", rotulo, destino, raridade: RARIDADES[destino],
+            sucesso, item: itemNome, chance: num(res.chance, NaN)
+          });
+        }
+        if (!sucesso) {
           salvarStats({ forjaPerdidos: num(stats.forjaPerdidos) + 1 });
           setStatus("forja", `Roleta falhou: ${rotulo}`);
         } else {
           salvarStats({ forjaTotal: num(stats.forjaTotal) + 1 });
-          setStatus("forja", `Forjado: ${res.result?.name || rotulo}`);
-          status.lastAction = `Forjou ${res.result?.name || rotulo}`;
+          setStatus("forja", `Forjado: ${itemNome || rotulo}`);
+          status.lastAction = `Forjou ${itemNome || rotulo}`;
         }
         livre -= custo;
         forjou += 1;
       } catch (e) {
         console.warn("[Forja]", e);
+        if (temRoleta) {
+          avisarForja({ tipo: "fim", rotulo, destino, raridade: RARIDADES[destino], sucesso: false, erro: e?.message || "falha na API" });
+        }
         bloquear(g.chave, `Não forjou ${rotulo} (sem ouro ou recusado pelo jogo)`, ESPERA_FALHA, "forja");
         // Sem ouro ou pedido inválido: não adianta tentar os outros agora.
         if (e.codigo === 400 || e.codigo === 402 || e.codigo === 403) break;
@@ -887,6 +915,13 @@
 
   /* --------------------------------- venda -------------------------------- */
 
+  // Item que a alquimia vai reciclar não deve ser vendido: o fragmento vale mais
+  // que o ouro, e vender primeiro deixaria a alquimia sem material.
+  function vaiParaAlquimia(it) {
+    const a = s().alchemy;
+    return !!(a && a.ligado && a.reciclar) && podeReciclar(it);
+  }
+
   // Itens que a venda individual (sem VIP) pode pegar. A raridade -1 desliga a
   // venda de propósito; nível 9999 significa "sem limite de nível".
   function elegivelVenda(it) {
@@ -895,6 +930,7 @@
     if (recemCriadosAlq.has(it.id)) return false;
     if (it.slot === "cosmetic" || it.slot === "consumable") return false;
     if (it.gems?.length) return false;
+    if (vaiParaAlquimia(it)) return false;
     const maxR = num(c.rarity, 2);
     if (maxR < 0) return false;
     if (num(it.rarity, 0) > maxR) return false;
@@ -938,10 +974,16 @@
       if (vendasNaRodada > 0) return false;
       const totalElegiveis = (ch.items || []).filter((it) => elegivelVenda(it)).length;
       const realmenteVendaveis = totalElegiveis - protegidos.size;
+      const paraAlq = (ch.items || []).filter(
+        (it) => vaiParaAlquimia(it) && !it.equipped && !it.favorite && !protegidos.has(it.id) && !recemCriadosAlq.has(it.id)
+      ).length;
+      const extraAlq = paraAlq > 0 ? ` · ${plural(paraAlq, "item vai", "itens vão")} para a alquimia` : "";
       if (protegidos.size > 0) {
-        setStatus("sell", `${plural(realmenteVendaveis, "item vendável", "itens vendáveis")} · ${plural(protegidos.size, "item", "itens")} protegido(s) pela forja`);
+        setStatus("sell", `${plural(realmenteVendaveis, "item vendável", "itens vendáveis")} · ${plural(protegidos.size, "item", "itens")} protegido(s) pela forja${extraAlq}`);
+      } else if (paraAlq > 0 && totalElegiveis === 0) {
+        setStatus("sell", `Nada para vender: ${plural(paraAlq, "item vai", "itens vão")} para a alquimia`);
       } else if (totalElegiveis > 0) {
-        setStatus("sell", `${plural(totalElegiveis, "item elegível", "itens elegíveis")} — a forja vai usar`);
+        setStatus("sell", `${plural(totalElegiveis, "item elegível", "itens elegíveis")} — a forja vai usar${extraAlq}`);
       } else {
         setStatus("sell", "Nenhum item para vender");
       }

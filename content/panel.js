@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.4.1";
+  let VERSION = "2.5.0";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -30,7 +30,8 @@
     ["incomum", "Incomum", "#5cc8ff"],
     ["raro", "Raro", "#9d8bff"],
     ["epico", "Épico ⚠", "#ffb454"],
-    ["lendario", "Lendário ⚠", "#ff7a7a"]
+    ["lendario", "Lendário ⚠", "#ff7a7a"],
+    ["imortal", "Imortal ⚠", "#ff2d3d"]
   ];
   const TIPOS = [["arma", "Arma"], ["elmo", "Elmo"], ["armadura", "Armadura"], ["anel", "Anel"]];
   const ATRIBUTOS = [
@@ -45,7 +46,7 @@
         equip: true,
         forge: {
           ligado: false,
-          raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false },
+          raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false, imortal: false },
           tipos: { arma: true, elmo: true, armadura: true, anel: true },
           minLevel: 0,
           maxLevel: 9999,
@@ -394,7 +395,34 @@
     .app[data-aberto="0"] .shell{ display:none; }
     .app[data-aberto="0"] .bubble{ display:flex; }
     .app[data-aberto="1"] .shell{ display:flex; }
-    @media (prefers-reduced-motion: reduce){ .panel, .dot.work{ animation:none } }
+    /* Roleta da forja: a chamada da extensão é direta na API, então a tela do
+       jogo não anima. Esta roleta mostra o giro e o resultado no painel. */
+    .rl{ position:fixed; inset:0; display:grid; place-items:center; background:#000000a8;
+      backdrop-filter:blur(3px); z-index:6; }
+    .rl[hidden]{ display:none; }
+    .rl-card{ width:min(330px,88vw); padding:18px 18px 15px; text-align:center;
+      border-radius:14px; border:1px solid var(--line2); box-shadow:var(--shadow);
+      background:linear-gradient(160deg,var(--surface2),var(--bg)); }
+    .rl-eyebrow{ display:block; font:600 9px var(--mono); letter-spacing:1.4px;
+      text-transform:uppercase; color:var(--muted); }
+    .rl-window{ position:relative; height:54px; margin:12px 0 10px; overflow:hidden;
+      border-radius:9px; border:1px solid var(--line2); background:var(--bg2);
+      box-shadow:inset 0 10px 14px -8px #000, inset 0 -10px 14px -8px #000; }
+    .rl-window::before{ content:"▶"; position:absolute; left:6px; top:50%; transform:translateY(-50%);
+      font-size:9px; color:var(--mint); z-index:2; }
+    .rl-reel{ display:flex; flex-direction:column; will-change:transform; }
+    .rl-reel span{ display:flex; align-items:center; justify-content:center; height:30px;
+      font:700 12px var(--mono); letter-spacing:.6px; color:var(--text); }
+    .rl-reel span:nth-child(6n+1){ color:#c9c5d8; }
+    .rl-reel span:nth-child(6n+2){ color:#6be08a; }
+    .rl-reel span:nth-child(6n+3){ color:#58a8ff; }
+    .rl-reel span:nth-child(6n+4){ color:#c77dff; }
+    .rl-reel span:nth-child(6n+5){ color:#ffb62e; }
+    .rl-reel span:nth-child(6n){ color:#ff2d3d; }
+    @keyframes rlSpin{ from{ transform:translateY(0); } to{ transform:translateY(-50%); } }
+    .rl-result{ display:block; font:700 14px ui-sans-serif,system-ui,sans-serif; }
+    .rl-sub{ display:block; margin-top:4px; color:var(--muted); font:10px var(--mono); }
+    @media (prefers-reduced-motion: reduce){ .panel, .dot.work{ animation:none } .rl-reel{ animation:none !important; } }
   </style>
 
   <div class="app" id="app" data-aberto="1" data-theme="farmline" data-mode="dark" data-min="0">
@@ -554,7 +582,9 @@
               </div>
               <p class="hint">
                 Nunca vende equipados, favoritos, itens com gemas nem o que a
-                forja está juntando. Nível 9999 = sem limite.
+                forja está juntando. Nível 9999 = sem limite. Com
+                <b>Reciclar itens soltos</b> ligado na Alquimia, o que ela
+                reciclaria vai para a alquimia em vez da venda.
               </p>
 
               <div class="row" style="margin-top:12px">
@@ -676,12 +706,119 @@
         </div>
       </div>
     </div>
+
+    <div class="rl" id="rl" hidden aria-live="polite">
+      <div class="rl-card">
+        <span class="rl-eyebrow" id="rlKind">Roleta da forja</span>
+        <div class="rl-window"><div class="rl-reel" id="rlReel"></div></div>
+        <b class="rl-result" id="rlResult">Girando…</b>
+        <small class="rl-sub" id="rlSub"></small>
+      </div>
+    </div>
   </div>`;
 
   document.documentElement.appendChild(host);
 
   const q = (id) => raiz.getElementById(id);
   const app = q("app");
+
+  /* ---------------------------- roleta da forja ---------------------------- */
+
+  const RL_NOMES = ["Comum", "Incomum", "Raro", "Épico", "Lendário", "Imortal"];
+  const rlEl = q("rl");
+  const rlReel = q("rlReel");
+  const rlKind = q("rlKind");
+  const rlResult = q("rlResult");
+  const rlSub = q("rlSub");
+  rlReel.innerHTML = [...RL_NOMES, ...RL_NOMES]
+    .map((n) => `<span>${n}</span>`)
+    .join("");
+
+  const rlFila = [];
+  let rlAtual = null;
+  let rlAnimando = false;
+
+  function rlSemMovimento() {
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
+  }
+
+  function rlVelocidade() {
+    const r = cfg.settings.roleta || {};
+    return r.ligada ? Math.max(1, Number(r.vel) || 1) : 1;
+  }
+
+  function rlCor(raridade) {
+    const achado = RARIDADES.find(([id]) => id === raridade);
+    return achado ? achado[2] : "var(--mint)";
+  }
+
+  function rlTocar(job) {
+    return new Promise((resolve) => {
+      const reduzido = rlSemMovimento();
+      const dur = reduzido ? 0 : Math.max(420, 1600 / rlVelocidade());
+      if (!ui.aberto) { resolve(); return; }
+
+      rlKind.textContent = "Roleta da forja";
+      rlResult.textContent = "Girando…";
+      rlResult.style.color = "";
+      rlSub.textContent = job.rotulo || "";
+      rlReel.style.animation = "none";
+      void rlReel.offsetHeight;
+      if (!reduzido) rlReel.style.animation = `rlSpin ${(0.4 / rlVelocidade()).toFixed(2)}s linear infinite`;
+      rlEl.hidden = false;
+
+      const inicio = Date.now();
+      const esperar = () => {
+        if (!job.fim) {
+          if (Date.now() - inicio > 20000) { rlEl.hidden = true; resolve(); return; }
+          setTimeout(esperar, 80);
+          return;
+        }
+        const falta = dur - (Date.now() - inicio);
+        if (falta > 0) { setTimeout(esperar, Math.min(120, falta)); return; }
+        concluir();
+      };
+      const concluir = () => {
+        const fim = job.fim;
+        rlReel.style.animation = "none";
+        rlResult.style.color = rlCor(job.raridade);
+        if (fim.sucesso) {
+          rlResult.textContent = fim.item || "Item forjado";
+          rlSub.textContent = `Forjado${Number.isFinite(fim.chance) && fim.chance <= 1 ? ` · ${Math.round(fim.chance * 100)}% de chance` : ""}`;
+        } else {
+          rlResult.textContent = "A roleta falhou";
+          rlSub.textContent = fim.erro ? `Erro: ${fim.erro}` : "Os itens usados foram perdidos";
+        }
+        setTimeout(() => { rlEl.hidden = true; resolve(); }, reduzido ? 700 : 1500);
+      };
+      setTimeout(esperar, 80);
+    });
+  }
+
+  async function rlRodarFila() {
+    if (rlAnimando) return;
+    rlAnimando = true;
+    while (rlFila.length) {
+      rlAtual = rlFila.shift();
+      await rlTocar(rlAtual);
+      rlAtual = null;
+    }
+    rlAnimando = false;
+  }
+
+  document.addEventListener("rsaf:forja", (ev) => {
+    const d = ev.detail || {};
+    if (d.tipo === "start") {
+      rlFila.push({ rotulo: d.rotulo, destino: d.destino, raridade: d.raridade, fim: null });
+    } else {
+      // O "fim" pertence ao giro que está na tela ou, se a engine respondeu
+      // rápido, ao primeiro da fila que ainda não recebeu resultado.
+      const job = (rlAtual && !rlAtual.fim ? rlAtual : null) || rlFila.find((j) => !j.fim);
+      if (!job) return;
+      job.fim = d;
+    }
+    rlRodarFila();
+  });
 
   /* -------------------------------- temas --------------------------------- */
 
@@ -1205,7 +1342,7 @@
     q("swForgeScroll").classList.toggle("on", !!st.forge.useScroll);
     chipsRarity.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.raridades[id]));
     chipsType.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.tipos[id]));
-    q("forgeRisk").hidden = !["epico", "lendario"].some((id) => st.forge.raridades[id]);
+    q("forgeRisk").hidden = !["epico", "lendario", "imortal"].some((id) => st.forge.raridades[id]);
     if (!ativo(q("forgeMin"))) q("forgeMin").value = st.forge.minLevel ?? 0;
     if (!ativo(q("forgeMax"))) q("forgeMax").value = st.forge.maxLevel ?? 9999;
     q("stForja").textContent = st.forge.ligado ? (status.forja || "Procurando itens...") : "Desligada";

@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.4.1-f5c451" alt="Versão 2.3.2"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.5.0-f5c451" alt="Versão 2.5.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -55,13 +55,15 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v2.4.1.** Esta versão funde o AutoFarm com a engine do
+> **Status: v2.5.0.** Esta versão funde o AutoFarm com a engine do
 > “Rift Auto”: a automação roda **dentro da página do jogo**, descobre sozinha o
 > endereço da API, usa o token da própria sessão e garante que **só uma aba**
 > trabalhe por vez. A interface foi **totalmente refeita** como um dock vertical
 > com identidade própria. A rodada agora é **justa**: forja e venda rodam na
 > mesma passada dos outros módulos, e a forja faz **até 3 grupos por rodada**.
 > Esta versão também automatiza as abas **Alquimia** e **Transmog** do jogo.
+> A forja agora chega ao **Imortal** e ao **Arcano** (grupos de 4 itens, com
+> roleta no próprio painel) e o que a alquimia reciclaria **não é mais vendido**.
 > **Forja, aprimoramento, engaste, alquimia, transmog e venda individual não
 > precisam de VIP**; só a venda automática em lote é exclusiva de VIP.
 
@@ -127,7 +129,8 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   equipamento muda.
 - **Forja protegida:** monta grupos de 3–4 itens do mesmo slot e raridade e,
   antes de forjar, compara cada candidato com o item equipado — itens melhores
-  ficam de fora.
+  ficam de fora. Lendário vira **Imortal** e Imortal vira **Arcano**: a partir de
+  Lendário o resultado passa pela **roleta**, com a animação e a chance na tela.
 - **Filtro de nível da forja (importante):** mínimo e máximo por item. Evita
   juntar um Nv. 80 com um Nv. 140 e gerar um resultado pior.
 - **Pergaminho na forja (opcional):** gasta um Pergaminho de Sorte por tentativa
@@ -144,6 +147,8 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   fracos do mesmo slot — nunca equipados, favoritos ou com gemas.
 - **Venda individual sem VIP:** vende um item por vez pelos endpoints normais,
   com filtros de raridade e nível. Nunca vende equipados, favoritos ou com gemas.
+  Com a reciclagem da alquimia ligada, o que ela reciclaria **vai para a
+  alquimia** em vez de virar ouro.
 - **Alquimia:** recicla itens soltos em fragmentos, cria peças garantidas com
   fragmentos suficientes e sobe o nível pagando o ouro quando a barra enche.
   Nunca recicla equipados, favoritos, com gemas, peças melhores que a equipada,
@@ -271,7 +276,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Geral | `font` | `12` | Tamanho da fonte do painel/popup (10–18 px) |
 | Equipar | `equip` | `true` | Equipa o item com maior FC |
 | Forja | `forge.ligado` | `false` | Liga a forja (destrutiva) |
-| Forja | `forge.raridades` | Comum/Incomum | Quais raridades forjar |
+| Forja | `forge.raridades` | Comum/Incomum | Quais raridades forjar (Imortal desligado) |
 | Forja | `forge.tipos` | Todos | Arma, elmo, armadura e anel |
 | Forja | `forge.minLevel` | `0` | Nível mínimo dos itens forjados |
 | Forja | `forge.maxLevel` | `9999` | Nível máximo dos itens forjados |
@@ -336,7 +341,7 @@ página do jogo (engine) ──► API oficial ──► inventário
 | Ação | Endpoint | Regra |
 |---|---|---|
 | Equipar | `POST /api/me/items/{id}/equip` | Só se `newPower > power` no `compare` |
-| Forjar | `POST /api/me/items/fuse` | 3–4 itens do mesmo slot/raridade, na faixa de nível, protegidos por `compare` |
+| Forjar | `POST /api/me/items/fuse` | 3–4 itens do mesmo slot/raridade, na faixa de nível, protegidos por `compare`; a partir de Lendário o resultado vem da roleta |
 | Atributos | `POST /api/me/character/stats/{atributo}` | `{ amount }`; foco, metas e reserva |
 | Combinar gemas | `POST /api/me/gems/combine-all` | Respeita `merges`, `cost` e `canAfford` |
 | Suprema | `POST /api/me/gems/supreme` | 4 Perfeitas; roleta |

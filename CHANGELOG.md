@@ -4,6 +4,27 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.5.0] - 2026-11-16
+
+### Adicionado
+
+- **Forja até o Arcano:** Lendário agora vira **Imortal** e Imortal vira
+  **Arcano**, sempre em grupos de **4 itens**. As raridades novas aparecem nos
+  filtros da aba Forja; Imortal vem desligado por ser destrutivo.
+- **Roleta no painel:** como a extensão chama a API direto, a tela do jogo não
+  anima. A forja de Lendário+ dispara `rsaf:forja` e o painel mostra o giro, o
+  item resultante e a chance informada pelo servidor.
+- **Venda que vira alquimia:** com a reciclagem da alquimia ligada, os itens que
+  ela reciclaria deixam de ser vendidos. O painel informa quantos itens foram
+  para a alquimia em vez da venda.
+
+### Corrigido
+
+- **Resultado da roleta não aparecia:** o giro em andamento saía da fila antes
+  da resposta, então o `fim` nunca encontrava o trabalho atual. O painel agora
+  acompanha o giro ativo e mostra o resultado.
+- Forja de raridades altas não era reconhecida pela engine nem pelo painel.
+
 ## [2.4.1] - 2026-11-15
 
 ### Corrigido
