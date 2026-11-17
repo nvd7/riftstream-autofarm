@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png?v=232" alt="RiftStream AutoFarm - painel no jogo, 14 temas e lives na Twitch" width="100%">
+  <img src="docs/banner.png?v=273" alt="RiftStream AutoFarm - painel no jogo, 14 temas e lives na Twitch" width="100%">
 </p>
 
 <h1 align="center">RiftStream AutoFarm</h1>
@@ -32,9 +32,9 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png?v=232" alt="Painel do RiftStream AutoFarm com o Tema da Liah" width="310">
+  <img src="docs/screenshot.png?v=273" alt="Painel do RiftStream AutoFarm com o Tema da Liah" width="310">
   &nbsp;&nbsp;
-  <img src="docs/temas.png?v=232" alt="Seletor de temas do painel" width="310">
+  <img src="docs/temas.png?v=273" alt="Seletor de temas do painel" width="310">
 </p>
 
 <p align="center">
