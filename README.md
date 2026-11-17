@@ -345,8 +345,8 @@ página do jogo (engine) ──► API oficial ──► inventário
 |---|---|
 | `background.js` | Acorda as abas do jogo a cada ~30 s, busca lives, abre o chat e mantém o badge |
 | `content/engine.js` | Toda a automação, rodando na página com o token e a API do jogo |
-| `content/themes.js` | Catálogo das 13 paletas de tema, compartilhado entre painel e popup |
-| `content/panel.js` | Painel flutuante (Shadow DOM, 6 abas, tema e fonte) |
+| `content/themes.js` | Catálogo das 14 paletas de tema, compartilhado entre painel e popup |
+| `content/panel.js` | Painel flutuante (Shadow DOM, 9 abas, tema e fonte) |
 | `content/roleta.js` | Acelera só a animação da roleta (mundo MAIN da página) |
 | `content/riftstream.js` | Ponte do token para o popup saber se há login |
 | `content/twitch.js` | Foca o campo do chat; não envia nada |
