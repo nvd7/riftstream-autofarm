@@ -19,7 +19,7 @@
   const UI_KEY = "rsafPanel";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
-  let VERSION = "2.7.0";
+  let VERSION = "2.7.1";
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.getManifest) {
       VERSION = chrome.runtime.getManifest().version || VERSION;
@@ -1499,13 +1499,18 @@
     }
   }
 
-  function idadeRodada() {
-    if (!status.roundAt) return "—";
-    const s = Math.max(0, Math.round((Date.now() - status.roundAt) / 1000));
+  function idadeRodada(desde) {
+    const quando = desde || status.roundAt;
+    if (!quando) return "—";
+    const s = Math.max(0, Math.round((Date.now() - quando) / 1000));
     if (s < 60) return `${s}s`;
     const m = Math.floor(s / 60);
     return m < 60 ? `${m}min` : `${Math.floor(m / 60)}h`;
   }
+
+  // Quando o motor começou a rodar (para avisar "sem rodada" mesmo se nenhuma
+  // rodada chegou a terminar).
+  let rodandoDesde = 0;
 
   function desenhar() {
     const st = cfg.settings;
@@ -1577,11 +1582,20 @@
     }
 
     // Auto
+    // Heartbeat do motor: se faz tempo que não acontece uma rodada, o painel
+    // avisa em vez de fingir que está trabalhando.
+    if (cfg.running && !rodandoDesde) rodandoDesde = Date.now();
+    if (!cfg.running) rodandoDesde = 0;
+    const marcaRodada = status.roundAt || rodandoDesde;
+    const parado = !!cfg.running && !!marcaRodada && (Date.now() - marcaRodada) > 120000;
+
     const autoAtivo = !!cfg.running && !!st.auto;
     q("autoTudo").classList.toggle("on", autoAtivo);
     q("autoParar").hidden = !autoAtivo;
     q("autoSub").textContent = autoAtivo
-      ? (status.lastAction ? `Fazendo agora: ${status.lastAction}` : "Trabalhando no inventário...")
+      ? (parado
+        ? `Sem rodada há ${idadeRodada(marcaRodada)} — toque em ▶ no rodapé`
+        : (status.lastAction ? `Fazendo agora: ${status.lastAction}` : "Trabalhando no inventário..."))
       : "Liga todos os módulos e começa a cuidar do inventário";
     q("stAuto").textContent = autoAtivo
       ? "Jogando sozinho"
@@ -1706,9 +1720,12 @@
     q("vivoTransmog").classList.toggle("vivo", !!st.transmog.ligado);
     q("vivoAjustes").classList.toggle("vivo", false);
 
-    q("footStatus").textContent = status.lastAction
-      ? status.lastAction
-      : (cfg.running ? (algum ? "Trabalhando..." : "Nenhum módulo ligado") : "Farm desligado");
+    // Se o motor ficou parado, o rodapé aponta o caminho em vez de mentir.
+    q("footStatus").textContent = parado
+      ? `Sem rodada há ${idadeRodada(marcaRodada)} — toque em ▶`
+      : (status.lastAction
+        ? status.lastAction
+        : (cfg.running ? (algum ? "Trabalhando..." : "Nenhum módulo ligado") : "Farm desligado"));
     q("roundAge").textContent = status.roundAt ? `rodada há ${idadeRodada()}` : "aguardando";
 
     posicionar();

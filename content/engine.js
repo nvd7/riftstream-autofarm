@@ -34,6 +34,13 @@
   const AUTO_JANELA_NIVEL = 40; // faixa de nível da forja no modo automático
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
 
+  // Rede de segurança: nenhuma resposta e nenhuma rodada podem travar o motor
+  // para sempre. Era isso que fazia o modo automático "parar de fazer as coisas".
+  const TEMPO_MAX_PEDIDO = 25000;      // prazo de cada chamada à API
+  const TEMPO_MAX_RODADA = 4 * 60000;  // prazo de uma rodada inteira
+  const TEMPO_TRAVA = 8000;            // espera máxima pela trava entre abas
+  const TEMPO_ESGOTADO = "tempo";
+
   const RARIDADES = ["comum", "incomum", "raro", "epico", "lendario", "evento", "imortal", "arcano"];
   const TIPOS = { weapon: "arma", helmet: "elmo", armor: "armadura", ring: "anel" };
   const ATRIBUTOS = { forca: "str", vitalidade: "vit", defesa: "def", agilidade: "agi", sorte: "luk" };
@@ -341,16 +348,53 @@
 
   // corpo omitido = GET; null = POST sem corpo; objeto = POST com JSON.
   async function api(caminho, corpo, metodoForcado) {
+    try {
+      const dados = await apiInterno(caminho, corpo, metodoForcado);
+      falhasSeguidas = 0;
+      esperaAte = 0;
+      return dados;
+    } catch (e) {
+      contarFalha(e);
+      throw e;
+    }
+  }
+
+  // Servidor fora do ar, 429 ou prazo estourado: espera um pouco mais a cada
+  // falha, em vez de continuar martelando a API a cada 3 segundos.
+  let esperaAte = 0;
+  let falhasSeguidas = 0;
+  function contarFalha(e) {
+    const codigo = e && e.codigo;
+    if (codigo && typeof codigo === "number" && codigo >= 400 && codigo < 500 && codigo !== 429) return;
+    falhasSeguidas = Math.min(7, falhasSeguidas + 1);
+    esperaAte = Date.now() + Math.min(120000, 3000 * 2 ** falhasSeguidas);
+    if (falhasSeguidas >= 2) {
+      setStatus("lastAction", `Servidor sem responder; tento de novo em ${Math.round((esperaAte - Date.now()) / 1000)}s`);
+    }
+  }
+
+  async function apiInterno(caminho, corpo, metodoForcado) {
     const token = localStorage.getItem("og.token");
     if (!token) throw new Error("sem sessão");
     const headers = { Accept: "application/json", Authorization: `Bearer ${token}` };
     if (corpo) headers["Content-Type"] = "application/json";
     const metodo = metodoForcado || (corpo === undefined ? "GET" : "POST");
-    const pedir = () => fetch(API + caminho, {
-      method: metodo,
-      headers,
-      body: corpo ? JSON.stringify(corpo) : undefined
-    });
+    // Prazo em cada pedido: uma resposta que nunca chega não pode congelar a
+    // rodada (e, com ela, o motor inteiro).
+    const pedir = async () => {
+      const ctl = typeof AbortController === "function" ? new AbortController() : null;
+      const alarme = ctl ? setTimeout(() => ctl.abort(), TEMPO_MAX_PEDIDO) : null;
+      try {
+        return await fetch(API + caminho, {
+          method: metodo,
+          headers,
+          body: corpo ? JSON.stringify(corpo) : undefined,
+          signal: ctl ? ctl.signal : undefined
+        });
+      } finally {
+        if (alarme) clearTimeout(alarme);
+      }
+    };
     let r;
     try {
       r = await pedir();
@@ -1429,12 +1473,47 @@
   }
 
   let ocupado = false;
+  let ocupadoDesde = 0;
+
+  // Espera a trava entre abas, mas não depende dela: se a API de trava não
+  // responder, a rodada acontece mesmo assim (melhor agir do que ficar parado).
+  async function comTrava(tarefa) {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : null;
+    if (!locks || typeof locks.request !== "function") return tarefa();
+    let rodou = false;
+    const umaVez = () => {
+      if (rodou) return null;
+      rodou = true;
+      return tarefa();
+    };
+    let liberar;
+    const prazo = new Promise((ok) => { liberar = setTimeout(() => ok(TEMPO_ESGOTADO), TEMPO_TRAVA); });
+    const pedido = Promise.resolve()
+      .then(() => locks.request("rift-auto", { ifAvailable: true }, (trava) => (trava ? umaVez() : null)))
+      .catch(() => umaVez());
+    const res = await Promise.race([pedido, prazo]);
+    clearTimeout(liberar);
+    if (res === TEMPO_ESGOTADO) {
+      console.warn("[Rift Auto] trava entre abas não respondeu; seguindo sem ela");
+      return umaVez();
+    }
+    return res;
+  }
+
   async function ciclo() {
-    if (!cfg.running || !moduloLigado() || ocupado) return;
+    if (!cfg.running || !moduloLigado()) return;
+    if (ocupado) {
+      // Se uma rodada ficou presa (resposta que nunca chega), libera o motor.
+      if (Date.now() - ocupadoDesde < TEMPO_MAX_RODADA) return;
+      console.warn("[Rift Auto] rodada travada; liberando o motor");
+      setStatus("lastAction", "Rodada travou; recomeçando");
+      ocupado = false;
+    }
+    if (Date.now() < esperaAte) return;
     ocupado = true;
+    ocupadoDesde = Date.now();
     try {
-      // Só uma aba do jogo trabalha por vez.
-      await navigator.locks.request("rift-auto", { ifAvailable: true }, (trava) => (trava ? rodada() : null));
+      await comTrava(rodada);
     } catch (e) {
       console.warn("[Rift Auto]", e);
       const texto = e.codigo === 401 || e.message === "sem sessão"
@@ -1500,6 +1579,18 @@
     setInterval(ciclo, INTERVALO);
     ciclo();
 
+    // Diagnóstico (fica só no mundo isolado da extensão): ajuda a saber por que
+    // o motor parou sem precisar abrir o console da página.
+    window.__rsafDepurar = {
+      get cfg() { return cfg; },
+      get status() { return status; },
+      get stats() { return stats; },
+      get ocupado() { return ocupado; },
+      get moduloLigado() { return moduloLigado(); },
+      ciclo,
+      rodar: () => rodada().catch((e) => console.warn("[Rift Auto] rodada manual", e))
+    };
+
     chrome.storage.onChanged.addListener((m) => {
       if (m[KEY]) aplicarConfig(m[KEY].newValue);
       if (m[STATS_KEY]) stats = { ...stats, ...m[STATS_KEY].newValue };
@@ -1508,8 +1599,12 @@
     chrome.runtime.onMessage.addListener((msg) => {
       if (!msg?.rodada) return;
       // "Rodar agora" no popup força uma rodada mesmo com o farm desligado.
-      if (msg.forcar) rodada().catch((e) => console.warn("[Rift Auto] rodada manual", e));
-      else ciclo();
+      if (msg.forcar) {
+        // Trazer o motor de volta mesmo se ele estiver preso numa rodada antiga.
+        ocupado = false;
+        ocupadoDesde = 0;
+        rodada().catch((e) => console.warn("[Rift Auto] rodada manual", e));
+      } else ciclo();
     });
   }
 

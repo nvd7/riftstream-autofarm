@@ -4,6 +4,27 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.7.1] - 2026-11-17
+
+### Corrigido
+
+- **O motor podia parar de fazer as coisas e não voltava sozinho.** Uma resposta
+  da API que nunca chegava (ou a espera pela trava entre abas) deixava a rodada
+  presa para sempre: o painel continuava dizendo "Trabalhando...", mas nada
+  acontecia. Agora:
+  - cada chamada à API tem prazo de 25 s (é abortada e tentada de novo);
+  - a espera pela trava entre abas tem prazo de 8 s — se ela não responder, a
+    rodada acontece mesmo assim;
+  - uma rodada presa por mais de 4 minutos é liberada automaticamente;
+  - o botão **Rodar agora** ▶ destrava o motor mesmo se ele estiver preso numa
+    rodada antiga.
+- **Aviso honesto no rodapé:** se ficou mais de 2 minutos sem rodada, o painel
+  mostra “Sem rodada há Xmin — toque em ▶” em vez de "Trabalhando...".
+- **Recuo automático (backoff):** quando o servidor não responde, dá 429 ou fica
+  fora do ar, a extensão espera cada vez mais antes de tentar de novo (até 2
+  min), em vez de martelar a API a cada 3 s. Isso evita o bloqueio por excesso
+  de pedidos, que também deixava o modo automático sem fazer nada.
+
 ## [2.7.0] - 2026-11-16
 
 ### Adicionado
