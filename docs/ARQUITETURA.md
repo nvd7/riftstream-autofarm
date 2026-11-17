@@ -58,30 +58,40 @@ service worker atua apenas como coordenador.
 
 Roda em todas as páginas do RiftStream. Uma rodada é:
 
-1. `configurarVendaLote()` — aplica o `autosell` VIP somente quando muda.
-2. Para até 12 ações:
+1. `configurarVendaLote()` — no modo automático, desliga o `autosell` VIP ao
+   abrir; fora dele, aplica a configuração manual somente quando ela muda.
+2. Para até 2 ondas:
    - `GET /api/me/character` (atualiza o resumo do painel);
-   - tenta, nesta ordem: **equipar → gemas → engastar → aprimorar → forjar →
-     vender → atributos**;
-   - para na primeira ação que não fez nada.
+   - tenta, nesta ordem: **equipar → forjar → gemas → engastar → aprimorar →
+     vender → atributos → alquimia → transmog**;
+   - cada módulo faz no máximo uma ação por onda; para quando nada aconteceu.
 3. Organiza baús se passaram 6 h.
 4. Se algo mudou e a aba está visível, dispara `visibilitychange` para o jogo
    atualizar mochila/ouro.
 
 Regras importantes:
 
+- **Reserva da forja:** com `forge.ligado`, `idsDaForja` separa os itens por
+  raridade/slot e reserva as faixas de nível que podem virar grupo (inclusive
+  as incompletas). Venda, aprimoramento, alquimia e transmog só usam o que não
+  está reservado. É isso que impede os módulos de competirem pelo mesmo item.
 - **Equipar** usa `/compare`; só equipa se `newPower > power`. O cache de
   comparações é limpo quando o conjunto equipado muda.
-- **Forja** agrupa por `slot + raridade`, respeita `forge.minLevel/maxLevel`,
-  estima o custo com reserva de ouro e usa `/compare?simGems=true` para não
+- **Forja** agrupa por `slot + raridade`, respeita `forge.minLevel/maxLevel` no
+  modo manual e, no automático, calcula uma faixa de 40 níveis por grupo.
+  Estima o custo com reserva de ouro e usa `/compare?simGems=true` para não
   destruir item melhor que o equipado.
 - **Atributos** têm dois modos: `igual` (dividir ouro, escolhendo quem recebeu
   menos) e `nivel` (metas por atributo). `stats.sel` funciona como foco; a
   reserva (`goldReserve`) nunca é gasta.
 - **Gemas** combina 3 em 3 pelo endpoint do site e, se marcado, faz Suprema.
 - **Engaste** escolhe a melhor gema por classe e tier.
-- **Aprimorar** pede a prévia de custo e só usa doadores mais fracos.
-- **Venda individual** vende até 10 por rodada, sem VIP.
+- **Aprimorar** pede a prévia de custo e só usa doadores mais fracos que não
+  estejam reservados para a forja.
+- **Venda individual** vende até 10 por rodada, sem VIP, e nunca leva item
+  reservado para a forja.
+- **Transmog** usa o item equipado como alvo, não consome molde reservado e
+  lembra os alvos já feitos em `stats.transmogAlvos`.
 - **Pausas** (`pausados`) impedem repetir um grupo que acabou de falhar por
   30–60 s.
 

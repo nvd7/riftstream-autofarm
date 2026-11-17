@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.7.1-f5c451" alt="Versão 2.7.1"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.7.2-f5c451" alt="Versão 2.7.2"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -55,7 +55,7 @@
 > conta alternativa e por sua conta e risco.
 
 > [!NOTE]
-> **Status: v2.7.1.** Esta versão funde o AutoFarm com a engine do
+> **Status: v2.7.2.** Esta versão funde o AutoFarm com a engine do
 > “Rift Auto”: a automação roda **dentro da página do jogo**, descobre sozinha o
 > endereço da API, usa o token da própria sessão e garante que **só uma aba**
 > trabalhe por vez. A interface foi **totalmente refeita** como um dock vertical
@@ -64,10 +64,12 @@
 > Esta versão também automatiza as abas **Alquimia** e **Transmog** do jogo.
 > A forja agora chega ao **Imortal** e ao **Arcano** (grupos de 4 itens, com
 > roleta no próprio painel) e o que a alquimia reciclaria **não é mais vendido**.
-> O novo **Tema do nvd** é vermelho e preto, com dois chifres no topo do painel
-> e animações exclusivas. E a aba **Auto** faz tudo com um toque: sem configurar
-> nada, ela liga os módulos, calcula a reserva de ouro e escolhe a faixa da forja
-> pelo próprio inventário.
+> No modo automático, a **forja tem prioridade**: ela reserva os grupos
+> completos e os quase completos, e venda, aprimoramento, alquimia e transmog só
+> usam o que sobra. O novo **Tema do nvd** é vermelho e preto, com dois chifres
+> no topo do painel e animações exclusivas. E a aba **Auto** faz tudo com um
+> toque: sem configurar nada, ela liga os módulos, calcula a reserva de ouro e
+> escolhe a faixa da forja pelo próprio inventário.
 > **Forja, aprimoramento, engaste, alquimia, transmog e venda individual não
 > precisam de VIP**; só a venda automática em lote é exclusiva de VIP.
 
@@ -104,7 +106,8 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Auto (um botão só):** toque em **Jogar sozinho** e pronto. A extensão liga
   todos os módulos com os ajustes recomendados, calcula a reserva de ouro a
   partir do seu saldo e deixa a forja escolher a faixa de nível pelo próprio
-  inventário. Nada de configurar.
+  inventário. Nada de configurar. A **forja tem prioridade**: ela reserva os
+  grupos (inclusive os quase completos) e os outros módulos só usam o que sobra.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
@@ -141,8 +144,13 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   antes de forjar, compara cada candidato com o item equipado — itens melhores
   ficam de fora. Lendário vira **Imortal** e Imortal vira **Arcano**: a partir de
   Lendário o resultado passa pela **roleta**, com a animação e a chance na tela.
+  Enquanto a forja está ligada, tudo o que pode entrar em um grupo fica
+  **reservado para ela**, inclusive os grupos incompletos; venda, aprimoramento,
+  alquimia e transmog só usam o que sobra.
 - **Filtro de nível da forja (importante):** mínimo e máximo por item. Evita
-  juntar um Nv. 80 com um Nv. 140 e gerar um resultado pior.
+  juntar um Nv. 80 com um Nv. 140 e gerar um resultado pior. No modo automático
+  a extensão calcula uma faixa de 40 níveis **por raridade/slot**, então uma
+  raridade desligada não esconde os grupos de nível baixo.
 - **Pergaminho na forja (opcional):** gasta um Pergaminho de Sorte por tentativa
   para aumentar a chance de sucesso. Se o estoque acabar, a forja segue sem ele.
 - **Atributos do jeito que você quiser:**
@@ -156,16 +164,19 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Aprimorar:** pede a prévia de custo antes de aplicar e só destrói itens mais
   fracos do mesmo slot — nunca equipados, favoritos ou com gemas.
 - **Venda individual sem VIP:** vende um item por vez pelos endpoints normais,
-  com filtros de raridade e nível. Nunca vende equipados, favoritos ou com gemas.
-  Com a reciclagem da alquimia ligada, o que ela reciclaria **vai para a
-  alquimia** em vez de virar ouro.
+  com filtros de raridade e nível. Nunca vende equipados, favoritos, com gemas
+  nem itens reservados para a forja (inclusive grupos incompletos). Com a
+  reciclagem da alquimia ligada, o que ela reciclaria **vai para a alquimia** em
+  vez de virar ouro. No modo automático a venda automática do site fica
+  **desligada**: ela roda fora da extensão e venderia o material da forja.
 - **Alquimia:** recicla itens soltos em fragmentos, cria peças garantidas com
   fragmentos suficientes e sobe o nível pagando o ouro quando a barra enche.
   Nunca recicla equipados, favoritos, com gemas, peças melhores que a equipada,
-  itens que a forja está juntando ou o que a alquimia acabou de criar.
+  itens reservados para a forja ou o que a alquimia acabou de criar.
 - **Transmog:** aplica no item equipado do slot escolhido a aparência do melhor
   molde disponível do mesmo tipo, consumindo o molde e respeitando o custo em
-  ouro. Não repete o slot quando o visual já foi aplicado.
+  ouro. Não usa molde reservado para a forja, não repete o alvo e nunca gasta um
+  item mais forte que o equipado só pela aparência.
 - **Venda automática em lote (VIP):** configura o `autosell` do site; se a conta
   não tiver VIP, a opção é desativada com aviso.
 - **Organizar baús:** por nível, a cada 6 horas.

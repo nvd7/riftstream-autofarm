@@ -98,6 +98,13 @@
     return base;
   }
 
+  // O autosell do site não conhece a reserva da forja. Em configurações
+  // antigas ele pode ter ficado ligado junto com o modo automático; o painel
+  // mostra o mesmo estado efetivo que a engine aplica.
+  function ajustarConflitosAuto() {
+    if (cfg.settings.auto && cfg.settings.lote?.ligado) cfg.settings.lote.ligado = false;
+  }
+
   const store = chrome.storage.local;
   let cfg = defaults();
   let stats = { forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0, gemTotais: {}, upNiveis: {}, upGasto: {},
@@ -631,6 +638,12 @@
                 risco existe — prefira uma conta alternativa. Quer afinar algo?
                 Use as outras abas.
               </p>
+              <p class="hint">
+                <b>Prioridade:</b> a forja reserva os itens que formam grupo
+                (inclusive os quase completos). Venda, aprimoramento, alquimia e
+                transmog só usam o que sobra. A venda automática do site fica
+                desligada no modo automático para não vender o material da forja.
+              </p>
             </section>
 
             <section class="panel" data-panel="inicio">
@@ -750,9 +763,9 @@
               </div>
               <p class="hint">
                 Nunca vende equipados, favoritos, itens com gemas nem o que a
-                forja está juntando. Nível 9999 = sem limite. Com
-                <b>Reciclar itens soltos</b> ligado na Alquimia, o que ela
-                reciclaria vai para a alquimia em vez da venda.
+                forja reservou (inclusive grupos incompletos). Nível 9999 = sem
+                limite. Com <b>Reciclar itens soltos</b> ligado na Alquimia, o
+                que ela reciclaria vai para a alquimia em vez da venda.
               </p>
 
               <div class="row" style="margin-top:12px">
@@ -771,6 +784,11 @@
                 </label>
                 <label class="field">Nível até<input id="loteLevel" type="number" min="0" max="9999" step="5" inputmode="numeric" /></label>
               </div>
+              <p class="hint">
+                O autosell do site roda fora da extensão e pode vender o material
+                antes de a forja usar. No modo automático ele fica desligado;
+                ligar na mão sai do modo automático.
+              </p>
 
               <div class="row" style="margin-top:12px">
                 <span class="grow">Organizar baús<small>A cada 6 horas, por nível</small></span>
@@ -811,8 +829,8 @@
               </div>
               <p class="hint">
                 A reciclagem ignora itens equipados, favoritos, com gemas, peças
-                melhores que a equipada, o que a forja está juntando e o que a
-                própria alquimia acabou de criar.
+                melhores que a equipada, itens reservados para a forja (inclusive
+                grupos incompletos) e o que a própria alquimia acabou de criar.
               </p>
               <div class="statusbox"><span id="stAlchemy">Desligada</span><small id="ctAlchemy"></small></div>
             </section>
@@ -831,8 +849,9 @@
               </div>
               <p class="hint">
                 O molde é consumido e precisa ser do mesmo tipo do alvo. A automação
-                escolhe o molde de melhor aparência disponível, usa o item equipado
-                como alvo e não repete o slot quando o visual já foi aplicado.
+                usa o item equipado como alvo, escolhe o molde de melhor aparência
+                que <b>não</b> esteja reservado para a forja e não repete o mesmo
+                alvo depois de aplicar.
               </p>
               <div class="statusbox"><span id="stTransmog">Desligado</span><small id="ctTransmog"></small></div>
             </section>
@@ -1194,6 +1213,9 @@
     st.sell.rarity = 2;
     st.sell.level = 9999;
     st.organize = true;
+    // O autosell do site roda fora da extensão e não respeita a reserva da
+    // forja; no modo automático quem vende é a venda individual.
+    st.lote.ligado = false;
 
     st.alchemy.ligado = true;
     st.alchemy.reciclar = true;
@@ -1246,6 +1268,9 @@
     cfg.settings.sell.ligado = !cfg.settings.sell.ligado;
   }));
   q("swLote").addEventListener("click", () => mexerModulo(() => {
+    // O autosell do site não enxerga a reserva da forja. Ligar na mão sai do
+    // modo automático para a escolha ficar explícita.
+    if (!cfg.settings.lote.ligado && cfg.settings.auto) sairDoAuto();
     cfg.settings.lote.ligado = !cfg.settings.lote.ligado;
   }));
   q("swOrganize").addEventListener("click", () => mexerModulo(() => {
@@ -1643,6 +1668,7 @@
     q("stForja").textContent = st.forge.ligado ? (status.forja || "Procurando itens...") : "Desligada";
     q("ctForja").textContent = `${st.forge.auto ? "faixa automática · " : ""}` +
       `${fmt(status.counts?.forja ?? 0)} grupo(s) pronto(s) · ` +
+      `${fmt(status.counts?.reservados ?? 0)} reservado(s) para a forja · ` +
       `Forjados: ${fmt(stats.forjaTotal)} · Perdidos: ${fmt(stats.forjaPerdidos)}`;
 
     // Atributos
@@ -1738,6 +1764,7 @@
     if (r[KEY]) {
       cfg.running = r[KEY].running === true;
       cfg.settings = merge(defaults().settings, r[KEY].settings);
+      ajustarConflitosAuto();
     }
     if (r[STATS_KEY]) {
       stats = {
@@ -1757,6 +1784,7 @@
     if (m[KEY]?.newValue) {
       cfg.running = m[KEY].newValue.running === true;
       cfg.settings = merge(cfg.settings, m[KEY].newValue.settings);
+      ajustarConflitosAuto();
       desenhar();
     }
     if (m[STATS_KEY]?.newValue) {

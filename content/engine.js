@@ -33,6 +33,7 @@
   const MAX_RECICLAR = 20;   // itens por ação de alquimia
   const AUTO_JANELA_NIVEL = 40; // faixa de nível da forja no modo automático
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
+  const MAX_TRANSMOG_ALVOS = 80; // alvos já transmogados lembrados entre recargas
 
   // Rede de segurança: nenhuma resposta e nenhuma rodada podem travar o motor
   // para sempre. Era isso que fazia o modo automático "parar de fazer as coisas".
@@ -104,7 +105,7 @@
   let stats = {
     forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0,
     gemTotais: { juntadas: 0, supremas: 0, perdidas: 0 }, upNiveis: {}, upGasto: {},
-    alchemyCriados: 0, alchemyReciclados: 0, alchemyUpados: 0, transmogFeitos: 0
+    alchemyCriados: 0, alchemyReciclados: 0, alchemyUpados: 0, transmogFeitos: 0, transmogAlvos: {}
   };
   let status = {
     forja: "", up: "", gem: "", equip: "", sell: "", enhance: "", organize: "",
@@ -156,6 +157,9 @@
     out.alchemy.raridadeAlvo = Math.max(0, Math.min(2, Math.round(num(out.alchemy.raridadeAlvo, 0))));
     out.transmog.alvoSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.alvoSlot) ? out.transmog.alvoSlot : "arma";
     out.transmog.fonteSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.fonteSlot) ? out.transmog.fonteSlot : "arma";
+    // O autosell do site roda fora da extensão e não conhece a reserva da
+    // forja: no modo automático ele venderia o material antes de virar item.
+    if (out.auto) out.lote.ligado = false;
     return out;
   }
 
@@ -528,51 +532,116 @@
     return Math.round((5 + meio * 2) * (FORGE_COST_FACTOR[destino] ?? 1) * 2 * 1.15);
   }
 
-  // Agrupa o que pode ser forjado, já respeitando raridade, tipo e faixa de nível.
-  function gruposForja(ch) {
+  // Item que a forja pode usar de verdade: além de ser forjável, precisa da
+  // raridade e do tipo marcados no painel. A checagem vem antes da faixa de
+  // nível para uma raridade desligada (Imortal, por exemplo) não "puxar" a
+  // janela automática e esconder os grupos que o jogador quer forjar.
+  function forjavelNasConfig(i) {
+    if (!podeForjar(i) || recemCriadosAlq.has(i.id)) return false;
     const f = s().forge;
-    let minLv = num(f.minLevel, 0);
-    let maxLv = num(f.maxLevel, 9999);
-    // Modo automático: a faixa de nível sai do próprio inventário (os 40 níveis
-    // abaixo do melhor item forjável). Evita juntar Nv. 80 com Nv. 200 e derrubar
-    // o resultado sem o jogador precisar configurar nada.
-    if (f.auto) {
-      // Olha só os itens que realmente formam grupo: um item alto e sozinho não
-      // pode travar a forja dos grupos que existem de verdade.
-      const porGrupo = new Map();
-      for (const i of ch.items || []) {
-        if (!podeForjar(i) || recemCriadosAlq.has(i.id)) continue;
-        const r = nivelRaridade(i);
-        const k = `${r}|${i.slot}`;
-        if (!porGrupo.has(k)) porGrupo.set(k, []);
-        porGrupo.get(k).push(i);
-      }
-      let melhor = 0;
-      for (const arr of porGrupo.values()) {
-        const r = nivelRaridade(arr[0]);
-        if (arr.length < precisaDe(destinoDe(r))) continue;
-        for (const i of arr) melhor = Math.max(melhor, num(i.itemLevel, 0));
-      }
-      if (melhor > 0) {
-        maxLv = melhor;
-        minLv = Math.max(0, melhor - AUTO_JANELA_NIVEL);
-      }
-    }
+    const r = nivelRaridade(i);
+    return !!(f.raridades[RARIDADES[r]] && f.tipos[TIPOS[i.slot]]);
+  }
+
+  function agruparPorRaridadeSlot(itens) {
     const grupos = new Map();
-    for (const i of ch.items || []) {
-      if (!podeForjar(i)) continue;
-      if (recemCriadosAlq.has(i.id)) continue;
-      const lv = num(i.itemLevel, 0);
-      if (lv < minLv || lv > maxLv) continue;
-      const r = nivelRaridade(i);
-      if (!f.raridades[RARIDADES[r]] || !f.tipos[TIPOS[i.slot]]) continue;
-      const chave = `${r}|${i.slot}`;
-      if (!grupos.has(chave)) grupos.set(chave, { chave, r, slot: i.slot, itens: [] });
-      grupos.get(chave).itens.push(i);
+    for (const i of itens) {
+      const chave = `${nivelRaridade(i)}|${i.slot}`;
+      if (!grupos.has(chave)) grupos.set(chave, []);
+      grupos.get(chave).push(i);
     }
-    return [...grupos.values()]
-      .filter((g) => g.itens.length >= precisaDe(destinoDe(g.r)))
-      .sort((a, b) => a.r - b.r);
+    return grupos;
+  }
+
+  // Separa os itens de uma mesma raridade/slot em faixas que o jogo aceita
+  // juntar (até AUTO_JANELA_NIVEL de diferença). O automático usa uma faixa
+  // por vez para nunca misturar Nv. 80 com Nv. 200.
+  function faixasDeNivel(itens) {
+    const ordenados = [...itens].sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0));
+    const faixas = [];
+    for (const item of ordenados) {
+      const atual = faixas[faixas.length - 1];
+      const nivel = num(item.itemLevel, 0);
+      if (atual && nivel - num(atual[0].itemLevel, 0) <= AUTO_JANELA_NIVEL) atual.push(item);
+      else faixas.push([item]);
+    }
+    return faixas;
+  }
+
+  // Itens que a forja aceita agora. No manual, vale a faixa de nível digitada;
+  // no automático, a faixa é calculada por grupo.
+  function itensForjaveis(ch) {
+    const f = s().forge;
+    const minLv = num(f.minLevel, 0);
+    const maxLv = num(f.maxLevel, 9999);
+    const itens = [];
+    for (const i of ch.items || []) {
+      if (!forjavelNasConfig(i)) continue;
+      if (!f.auto) {
+        const lv = num(i.itemLevel, 0);
+        if (lv < minLv || lv > maxLv) continue;
+      }
+      itens.push(i);
+    }
+    return itens;
+  }
+
+  // Grupos prontos. No automático, cada faixa de 40 níveis é um grupo; no
+  // manual, usa os itens mais fracos da faixa escolhida (a forja consome os
+  // mais fracos primeiro e preserva o melhor).
+  function gruposForja(ch) {
+    const auto = s().forge.auto;
+    const grupos = [];
+    for (const [chave, itens] of agruparPorRaridadeSlot(itensForjaveis(ch))) {
+      const r = nivelRaridade(itens[0]);
+      const precisa = precisaDe(destinoDe(r));
+      if (auto) {
+        for (const faixa of faixasDeNivel(itens)) {
+          if (faixa.length < precisa) continue;
+          grupos.push({ chave, r, slot: itens[0].slot, itens: faixa.slice(0, precisa) });
+        }
+      } else {
+        if (itens.length < precisa) continue;
+        const ordenados = [...itens].sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0));
+        grupos.push({ chave, r, slot: itens[0].slot, itens: ordenados.slice(0, precisa) });
+      }
+    }
+    return grupos.sort((a, b) => a.r - b.r || num(a.itens[0].itemLevel, 0) - num(b.itens[0].itemLevel, 0));
+  }
+
+  // Tudo o que a forja pode usar fica reservado para ela. Venda, reciclagem,
+  // aprimoramento e transmog só podem pegar o que sobra. Faixas completas e
+  // quase completas (2+ itens no mesmo nível) ficam inteiras; dos itens
+  // soltos, guarda o mais alto de cada raridade/slot para o próximo grupo
+  // começar a se formar mesmo quando os drops chegam um de cada vez.
+  // Antes só o grupo COMPLETO era protegido: a venda/alquimia levava os 2/3
+  // ou 3/4 e a forja nunca chegava a acontecer.
+  function idsDaForja(ch) {
+    const ids = new Set();
+    if (!s().forge.ligado) return ids;
+    const auto = s().forge.auto;
+    for (const itens of agruparPorRaridadeSlot(itensForjaveis(ch)).values()) {
+      const r = nivelRaridade(itens[0]);
+      const precisa = precisaDe(destinoDe(r));
+      if (!auto) {
+        const ordenados = [...itens].sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0));
+        for (const i of ordenados.slice(0, precisa)) ids.add(i.id);
+        continue;
+      }
+      let soltoMaisAlto = null;
+      for (const faixa of faixasDeNivel(itens)) {
+        if (faixa.length >= 2) {
+          for (const i of faixa) ids.add(i.id);
+        } else {
+          const atual = faixa[0];
+          if (!soltoMaisAlto || num(atual.itemLevel, 0) > num(soltoMaisAlto.itemLevel, 0)) {
+            soltoMaisAlto = atual;
+          }
+        }
+      }
+      if (soltoMaisAlto) ids.add(soltoMaisAlto.id);
+    }
+    return ids;
   }
 
   function contarGruposForja(ch) {
@@ -586,9 +655,11 @@
       if (!i || i.equipped || i.favorite) continue;
       if (i.slot !== "consumable") continue;
       const nome = (i.name || "").toLowerCase();
-      if (nome.includes("pergaminho") || nome.includes("scroll") || nome.includes("forge scroll")) {
-        return i;
-      }
+      if (!nome.includes("pergaminho") && !nome.includes("scroll") && !nome.includes("forge scroll")) continue;
+      // Estoque zerado não conta: usar um pergaminho que já acabou fazia a
+      // forja falhar e ficar pausada de 60 em 60 segundos a noite inteira.
+      if (num(i.count ?? i.quantity ?? i.amount, 1) <= 0) continue;
+      return i;
     }
     return null;
   }
@@ -931,6 +1002,9 @@
   /* ----------------------------- aprimoramento ---------------------------- */
 
   function planoAprimorar(ch) {
+    // Nunca usa como alvo nem como doador o que a forja reservou: o
+    // aprimoramento roda antes da venda e comia os grupos incompletos.
+    const reservados = idsDaForja(ch);
     const porSlot = new Map();
     for (const it of ch.items || []) {
       if (!it || !TIPOS[it.slot]) continue;
@@ -941,10 +1015,13 @@
     for (const slot of Object.keys(TIPOS)) {
       const lista = porSlot.get(slot) || [];
       if (!lista.length) continue;
-      const equipado = lista.find((i) => i.equipped);
-      const alvo = equipado || lista.slice().sort((a, b) => num(b.itemLevel) - num(a.itemLevel))[0];
-      const doadores = lista
+      const livres = lista.filter((i) => !reservados.has(i.id));
+      const equipado = livres.find((i) => i.equipped);
+      const alvo = equipado || livres.slice().sort((a, b) => num(b.itemLevel) - num(a.itemLevel))[0];
+      if (!alvo) continue;
+      const doadores = livres
         .filter((i) => i.id !== alvo.id && !i.equipped && !i.favorite && !(i.gems?.length))
+        .filter((i) => !recemCriadosAlq.has(i.id))
         // Nunca destrói algo melhor que o alvo.
         .filter((i) => num(i.itemLevel) < num(alvo.itemLevel) && num(i.rarity) <= num(alvo.rarity))
         .sort((a, b) => num(a.itemLevel) - num(b.itemLevel))
@@ -1025,16 +1102,6 @@
     return true;
   }
 
-  // Não vende o que a forja está juntando: seria trocar ouro por item de graça.
-  function idsDaForja(ch) {
-    if (!s().forge.ligado) return new Set();
-    const ids = new Set();
-    for (const g of gruposForja(ch)) {
-      for (const i of g.itens) ids.add(i.id);
-    }
-    return ids;
-  }
-
   function contarVendaveis(ch) {
     if (!s().sell.ligado) return 0;
     const protegidos = idsDaForja(ch);
@@ -1051,26 +1118,24 @@
     if (vendasNaRodada >= MAX_VENDAS) return false;
     const protegidos = idsDaForja(ch);
     const restantes = MAX_VENDAS - vendasNaRodada;
-    const alvos = (ch.items || [])
-      .filter((it) => elegivelVenda(it) && !protegidos.has(it.id))
-      .slice(0, restantes);
+    const elegiveis = (ch.items || []).filter((it) => elegivelVenda(it));
+    const alvos = elegiveis.filter((it) => !protegidos.has(it.id)).slice(0, restantes);
 
     if (!alvos.length) {
       // Já vendeu nesta rodada: a segunda onda não pode apagar o "N vendidos"
       // com um "0 vendáveis", senão o painel parece que não vendeu nada.
       if (vendasNaRodada > 0) return false;
-      const totalElegiveis = (ch.items || []).filter((it) => elegivelVenda(it)).length;
-      const realmenteVendaveis = totalElegiveis - protegidos.size;
+      const reservados = elegiveis.filter((it) => protegidos.has(it.id)).length;
       const paraAlq = (ch.items || []).filter(
         (it) => vaiParaAlquimia(it) && !it.equipped && !it.favorite && !protegidos.has(it.id) && !recemCriadosAlq.has(it.id)
       ).length;
       const extraAlq = paraAlq > 0 ? ` · ${plural(paraAlq, "item vai", "itens vão")} para a alquimia` : "";
-      if (protegidos.size > 0) {
-        setStatus("sell", `${plural(realmenteVendaveis, "item vendável", "itens vendáveis")} · ${plural(protegidos.size, "item", "itens")} protegido(s) pela forja${extraAlq}`);
-      } else if (paraAlq > 0 && totalElegiveis === 0) {
+      if (reservados > 0) {
+        setStatus("sell", `${plural(reservados, "item reservado", "itens reservados")} para a forja${extraAlq}`);
+      } else if (paraAlq > 0 && elegiveis.length === 0) {
         setStatus("sell", `Nada para vender: ${plural(paraAlq, "item vai", "itens vão")} para a alquimia`);
-      } else if (totalElegiveis > 0) {
-        setStatus("sell", `${plural(totalElegiveis, "item elegível", "itens elegíveis")} — a forja vai usar${extraAlq}`);
+      } else if (elegiveis.length > 0) {
+        setStatus("sell", `${plural(elegiveis.length, "item elegível", "itens elegíveis")} — a forja vai usar${extraAlq}`);
       } else {
         setStatus("sell", "Nenhum item para vender");
       }
@@ -1277,6 +1342,18 @@
     return true;
   }
 
+  function transmogJaAplicado(id) {
+    return !!stats.transmogAlvos?.[id];
+  }
+
+  function marcarTransmogFeito(id) {
+    const alvos = { ...(stats.transmogAlvos || {}), [id]: Date.now() };
+    const recentes = Object.entries(alvos)
+      .sort((a, b) => num(b[1], 0) - num(a[1], 0))
+      .slice(0, MAX_TRANSMOG_ALVOS);
+    salvarStats({ transmogAlvos: Object.fromEntries(recentes) });
+  }
+
   async function transmogUm(ch) {
     const t = s().transmog;
     if (!t.ligado) return false;
@@ -1285,27 +1362,27 @@
     const itens = ch.items || [];
     const doSlot = itens.filter((i) => i.slot === slot);
 
-    // Alvo: o item equipado desse slot (é o que aparece no personagem); se não
-    // houver, o de maior nível.
-    const alvo =
-      doSlot.find((i) => i.equipped) ||
-      doSlot.slice().sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0))[0];
-
+    // O alvo é sempre o item equipado: transmog em item que pode virar
+    // material de forja era justamente o conflito antigo.
+    const alvo = doSlot.find((i) => i.equipped);
     if (!alvo) {
-      setStatus("transmog", `Nenhum ${chaveSlot(slot)} para receber a aparência`);
+      setStatus("transmog", `Nenhum ${chaveSlot(slot)} equipado para receber a aparência`);
       return false;
     }
 
     // Se o servidor já devolve o visual aplicado (vLook/vKind/vTier), não gasta
-    // outro item repetindo o mesmo slot a cada rodada.
+    // outro item repetindo o mesmo slot a cada rodada. Alguns itens não vêm com
+    // esses campos: a memória local/storage evita consumir um molde por rodada.
     const jaTemVisual = (i) => i.vKind != null || i.vLook != null || i.vTier != null;
-    if (jaTemVisual(alvo)) {
+    if (jaTemVisual(alvo) || transmogJaAplicado(alvo.id)) {
       setStatus("transmog", `${chaveSlot(slot)} já tem aparência aplicada`);
       return false;
     }
 
-    // Fonte: mesmo slot, não equipada/favorita, sem visual próprio, compatível
-    // e com aparência diferente. Prefere o item mais fraco para não desperdiçar.
+    // Fonte: mesmo slot, não equipada/favorita, sem visual próprio, compatível,
+    // com aparência diferente e que a forja não reservou. Nunca usa um item
+    // mais forte que o alvo só para pegar a aparência.
+    const reservados = idsDaForja(ch);
     const fontes = doSlot
       .filter(
         (i) =>
@@ -1314,6 +1391,9 @@
           !i.favorite &&
           !jaTemVisual(i) &&
           !recemCriadosAlq.has(i.id) &&
+          !reservados.has(i.id) &&
+          num(i.itemLevel, 0) <= num(alvo.itemLevel, 0) &&
+          num(i.rarity, 0) <= num(alvo.rarity, 0) &&
           classeCompativel(alvo, i, ch.cls) &&
           assinaturaVisual(i) !== assinaturaVisual(alvo)
       )
@@ -1326,7 +1406,7 @@
       );
 
     if (!fontes.length) {
-      setStatus("transmog", `Sem ${chaveSlot(slot)} disponível para usar como molde`);
+      setStatus("transmog", `Sem ${chaveSlot(slot)} sobrando para usar como molde`);
       return false;
     }
 
@@ -1343,6 +1423,7 @@
       } else {
         await api("/api/me/items/transmog", { targetId: alvo.id, sourceId: source.id });
       }
+      marcarTransmogFeito(alvo.id);
       salvarStats({ transmogFeitos: num(stats.transmogFeitos) + 1 });
       setStatus("transmog", `Transmog ${chaveSlot(slot)} (${source.name})`);
       status.lastAction = `Transmog ${chaveSlot(slot)}`;
@@ -1361,12 +1442,19 @@
   async function configurarVendaLote() {
     const c = s().lote;
     if (!c.ligado) {
-      if (loteCfg && loteCfg !== "off") {
-        try {
-          await api("/api/shop/autosell", { rarity: -1, level: 0 }, "PUT");
-          loteCfg = "off";
-          setStatus("lote", "Venda automática do site desligada");
-        } catch { /* ignore */ }
+      // Ao abrir a aba, a engine não sabe o que ficou configurado no site na
+      // sessão anterior. No modo automático desliga sempre: o autosell do site
+      // roda fora da extensão e venderia o material da forja pelas costas dela.
+      // Fora do automático, desliga só o que a própria extensão configurou,
+      // para não mexer numa escolha manual do jogador no site.
+      if (loteCfg === "off") return;
+      if (!s().auto && !loteCfg) return;
+      try {
+        await api("/api/shop/autosell", { rarity: -1, level: 0 }, "PUT");
+        loteCfg = "off";
+        setStatus("lote", "Venda automática do site desligada");
+      } catch (e) {
+        if (e.codigo && e.codigo >= 400 && e.codigo < 500) loteCfg = "off";
       }
       return;
     }
@@ -1411,10 +1499,12 @@
     let agiu = false;
     const modulos = [
       { id: "equip", ligado: () => s().equip, acao: equiparUm },
+      // Forja primeiro: é o módulo que mais depende de itens que os outros
+      // consumiriam (venda, aprimoramento, alquimia e transmog).
+      { id: "forja", ligado: () => s().forge.ligado, acao: forjarUm },
       { id: "gem", ligado: () => s().gems.ligado, acao: gemasUm },
       { id: "socket", ligado: () => s().socket.ligado, acao: engastarUm },
       { id: "enhance", ligado: () => s().enhance.ligado, acao: aprimorarUm },
-      { id: "forja", ligado: () => s().forge.ligado, acao: forjarUm },
       { id: "sell", ligado: () => s().sell.ligado, acao: venderItens },
       { id: "up", ligado: () => s().stats.ligado, acao: uparUm },
       { id: "alchemy", ligado: () => s().alchemy.ligado, acao: alquimiaUm },
@@ -1451,7 +1541,8 @@
         forja: contarGruposForja(ch),
         venda: contarVendaveis(ch),
         alchemy: s().alchemy.ligado ? 1 : 0,
-        transmog: s().transmog.ligado ? 1 : 0
+        transmog: s().transmog.ligado ? 1 : 0,
+        reservados: idsDaForja(ch).size
       };
       const resumo = resumoPersonagem(ch);
       const comparavel = { ...resumo, at: 0 };
@@ -1553,7 +1644,22 @@
   async function iniciar() {
     if (!store) {
       // Modo de teste fora da extensão.
-      window.__forjaTeste = { cfg, stats, status, rodar: rodada };
+      window.__forjaTeste = {
+        cfg, stats, status,
+        rodar: rodada,
+        definirSettings: (parcial) => { cfg.settings = normalizedSettings(parcial); },
+        normalizar: normalizedSettings,
+        gruposForja,
+        idsDaForja,
+        elegivelVenda,
+        vaiParaAlquimia,
+        planoAprimorar,
+        podeReciclar,
+        venderItens,
+        transmogUm,
+        configurarVendaLote,
+        plano: () => window.__plano || []
+      };
       setInterval(ciclo, INTERVALO);
       return;
     }

@@ -66,8 +66,12 @@ Ligue **Farm automático** e marque os módulos desejados.
 - [ ] A **reserva de ouro** nunca é ultrapassada.
 - [ ] **Forja** só usa itens dentro da faixa mín./máx. de nível.
 - [ ] A forja **não** usa itens melhores que o equipado.
+- [ ] Com a forja ligada, **venda, aprimoramento, alquimia e transmog** não
+      consomem itens reservados para a forja (inclusive grupos incompletos).
+- [ ] Deixar o modo automático ligado com poucos drops: a forja junta os grupos
+      aos poucos em vez de a venda/alquimia levar os itens soltos.
 - [ ] **Venda individual** vende só itens abaixo dos filtros, nunca equipados,
-      favoritos ou com gemas.
+      favoritos, com gemas ou reservados para a forja.
 - [ ] **Engaste** só acontece com gema tier ≥ 2 e encaixe livre.
 - [ ] **Aprimorar** mostra o custo e usa só doadores mais fracos.
 - [ ] **Organizar baús** roda no máximo a cada 6 horas.

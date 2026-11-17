@@ -132,6 +132,7 @@ const textFiles = [
   "docs/VALIDACAO.md",
   "docs/RELEASE.md",
   "tools/validate.mjs",
+  "tools/test-auto.mjs",
   ".github/workflows/validar.yml",
 ];
 
@@ -218,6 +219,17 @@ for (const file of textFiles) {
   for (const [re, label] of secretPatterns) {
     must(!re.test(txt), `sem ${label}: ${file}`);
   }
+}
+
+/* ---------------------- testes do modo automático ------------------------ */
+
+const testesAuto = spawnSync(process.execPath, [path.join(root, "tools/test-auto.mjs")], {
+  encoding: "utf8",
+});
+if (testesAuto.status === 0) ok("testes do modo automático");
+else {
+  const saida = (testesAuto.stderr || testesAuto.stdout || "").trim().split("\n").slice(-4).join(" ");
+  fail("testes do modo automático", saida);
 }
 
 /* --------------------------- versão consistente -------------------------- */

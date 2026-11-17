@@ -4,6 +4,40 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.7.2] - 2026-11-17
+
+### Corrigido
+
+- **O modo automático não forja mais em conflito com venda, aprimoramento,
+  alquimia e transmog.** Antes só o grupo completo era protegido: a venda e a
+  reciclagem levavam os grupos incompletos (2/3 ou 3/4), o aprimoramento usava
+  esses itens como doadores e o transmog consumia o molde. Agora a forja tem
+  prioridade:
+  - todo item que pode entrar em um grupo fica reservado, inclusive os quase
+    completos;
+  - dos itens soltos, o mais alto de cada raridade/slot fica guardado para o
+    próximo grupo começar a se formar mesmo quando os drops chegam um de cada
+    vez;
+  - venda, aprimoramento, alquimia e transmog só usam o que sobra;
+  - a forja roda antes dos outros módulos na rodada.
+- **Faixa automática por grupo:** a janela de 40 níveis agora é calculada
+  separadamente para cada raridade/slot. Uma raridade desligada (Imortal, por
+  exemplo) não "puxa" mais a janela e esconde os grupos de nível baixo.
+- **Transmog:** só usa o item equipado como alvo, não consome molde reservado
+  pela forja nem item mais forte que o alvo, e lembra o que já transmogou para
+  não gastar um molde por rodada quando o servidor não devolve o visual.
+- **Venda automática do site (VIP):** o modo automático a desliga para o
+  autosell do site não vender o material da forja. No modo automático, ao abrir
+  o jogo, a extensão também desliga o autosell que tenha ficado configurado
+  numa sessão antiga.
+- **Status da forja:** mostra quantos itens estão reservados para a forja.
+
+### Adicionado
+
+- **Testes de regressão do modo automático** em `tools/test-auto.mjs`, rodados
+  junto com o `tools/validate.mjs`. Cobrem grupos incompletos, venda,
+  aprimoramento, transmog, faixa de nível e a rodada completa.
+
 ## [2.7.1] - 2026-11-17
 
 ### Corrigido
