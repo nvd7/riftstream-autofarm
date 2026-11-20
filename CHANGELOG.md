@@ -4,6 +4,44 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.9.0] - 2026-11-20
+
+### Corrigido
+
+- **Intervalo manual passou a valer de verdade.** Antes o valor escolhido no
+  popup (10 a 55 min) era só reserva: com `/api/me` respondendo, a cadência
+  continuava sendo o último terço da janela do servidor. Agora qualquer valor
+  a partir de 10 min manda na cadência e ignora o relógio — o que o rótulo
+  promete.
+- **A janela do servidor sobrevive à queda do relógio.** Quando `/api/me`
+  falha (token vencido, timeout, rede caída), o modo automático caía num
+  intervalo fixo de 20 min. Num VIP de 120 min isso virava um `$jump` a cada
+  20 min — seis vezes mais que o necessário. Agora a janela da última leitura
+  boa continua valendo e a contagem segue andando pelo carimbo `readAt`.
+- **Falha de leitura não é mais retentada a cada minuto.** `401` (token
+  vencido) espera 15 min antes da próxima tentativa; os outros erros, 5 min.
+  A verificação de efeito continua forçando leitura nova depois de 60 s.
+- **O comando não vai mais para o canal errado.** Com o canal atual conhecido,
+  `ensureChatTab` só usa aba daquela live — antes caía na primeira aba da
+  Twitch, o que não renova o `lastActiveAt` do jogo e ainda aparecia no chat
+  de outra live. Sem aba da live certa, abre o popout dela.
+- **Bloqueio de comando é por canal.** O comando marcado como inócuo (não
+  renovou `lastActiveAt`) ficava bloqueado globalmente: trocar de live herdava
+  o bloqueio. Agora cada canal tem a própria lista, que zera no primeiro envio
+  confirmado por lá.
+- **A contagem do popup desconta o tempo desde a leitura.** Uma leitura velha
+  mostrava "AFK em 40 min" congelado.
+- **Fila de comandos esgotada não vira loop de 60 s.** Se nenhum dos comandos
+  conhecidos renovar `lastActiveAt` naquele canal, a extensão para por 30 min
+  em vez de repetir o ping a cada minuto; depois do cooldown, tenta o comando
+  configurado de novo e se recupera sozinha se ele voltar a funcionar.
+
+### Adicionado
+
+- **Janela e último erro no card do popup:** `janela 30 min` ou
+  `janela 120 min` ao lado da contagem, e o motivo do último envio que não
+  saiu (`logged_out`, `not_sent`, `sem efeito: $jump`).
+
 ## [2.8.0] - 2026-11-20
 
 ### Adicionado

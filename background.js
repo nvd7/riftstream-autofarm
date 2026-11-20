@@ -34,7 +34,13 @@ const CHAT_DEFAULTS = { ligado: true, minutos: 0, texto: "$jump" };
 // o ping mais discreto que o jogo aceita. $me é a rede de segurança.
 const CHAT_FALLBACK = ["$jump", "$pular", "$me"];
 const CHAT_RETRY_MS = 2 * 60 * 1000;
+const CHAT_CANSADO_MS = 30 * 60 * 1000;
 const CHAT_MARGEM_MIN = 4;
+// Janela usada quando `/api/me` nunca respondeu (30 é o padrão do jogo).
+const CHAT_JANELA_PADRAO = 30;
+// Falha de leitura também tem TTL: sem isso o worker bate em 401 a cada minuto.
+const CHAT_CLOCK_ERR_MS = 5 * 60 * 1000;
+const CHAT_CLOCK_401_MS = 15 * 60 * 1000;
 const GAME_OPEN_GAP = 10 * 60 * 1000;
 const REIDRATA_GAP = 5 * 60 * 1000;
 
@@ -217,14 +223,34 @@ function chatCfg(cfg) {
 async function loadChat() {
   return await get(CHAT_KEY, {
     lastAt: 0, fails: 0, lastError: null, retryAt: 0,
-    sentAt: 0, sentText: null, verifyAt: 0, bad: [], chainIdx: 0
+    sentAt: 0, sentText: null, sentChannel: "", verifyAt: 0,
+    badPorCanal: {}
   });
 }
 
 async function loadClock() {
   return await get(CHAT_CLOCK_KEY, {
-    ok: false, at: 0, reason: null, janela: null, restanteMin: null, afk: null, canal: null
+    ok: false, at: 0, readAt: 0, reason: null, status: 0,
+    janela: null, restanteMin: null, afk: null, canal: null
   });
+}
+
+// Quem já se provou inócuo naquele canal não volta para a fila até um envio
+// dar certo por lá — trocar de live não herda o bloqueio da anterior.
+function canalBad(chat) {
+  const mapa = chat?.badPorCanal;
+  if (!mapa || typeof mapa !== "object" || Array.isArray(mapa)) return {};
+  const copia = { ...mapa };
+  const chaves = Object.keys(copia);
+  // Memória curta: só os últimos canais visitados, para o storage não crescer.
+  if (chaves.length > 8) for (const k of chaves.slice(0, chaves.length - 8)) delete copia[k];
+  return copia;
+}
+
+function filaChat(c, chat, login) {
+  const bad = canalBad(chat)[String(login || "")] || [];
+  const fila = [...new Set([c.texto, ...CHAT_FALLBACK])].filter((t) => !bad.includes(t));
+  return fila[0] || null;
 }
 
 function findField(obj, key, depth = 0) {
@@ -246,12 +272,19 @@ function findField(obj, key, depth = 0) {
  */
 async function afkClock(force = false) {
   const cache = await loadClock();
-  const restante = cache.restanteMin;
-  const ttl = restante !== null && restante <= 8 ? 45000 : 4 * 60000;
-  if (!force && cache.ok && Date.now() - num(cache.at, 0) < ttl) return cache;
+  const agora = Date.now();
+  const ttl = Number.isFinite(cache.restanteMin) && cache.restanteMin <= 8 ? 45000 : 4 * 60000;
+  if (!force) {
+    if (cache.ok && agora - num(cache.readAt, 0) < ttl) return cache;
+    // Falha recente também tem TTL: 401 é token vencido (só o login resolve) e
+    // os outros erros já custaram 12 s de timeout — repetir a cada minuto só
+    // gasta bateria. O caminho de verificação usa force e ignora isso.
+    const espera = num(cache.status, 0) === 401 ? CHAT_CLOCK_401_MS : CHAT_CLOCK_ERR_MS;
+    if (!cache.ok && num(cache.at, 0) && agora - num(cache.at, 0) < espera) return cache;
+  }
 
   const token = await get(TOKEN_KEY, null);
-  if (!token) return { ...cache, ok: false, at: Date.now(), reason: "sem token" };
+  if (!token) return { ...cache, ok: false, at: agora, reason: "sem token" };
 
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 12000);
@@ -261,19 +294,23 @@ async function afkClock(force = false) {
       cache: "no-store",
       signal: ctl.signal
     });
-    if (!res.ok) return { ...cache, ok: false, at: Date.now(), status: res.status, reason: `HTTP ${res.status}` };
+    if (!res.ok) {
+      return { ...cache, ok: false, at: agora, status: res.status, reason: `HTTP ${res.status}` };
+    }
 
     const me = await res.json();
     const last = Date.parse(String(findField(me, "lastActiveAt") || ""));
-    const janela = Math.max(5, Math.round(num(findField(me, "afkMinutes"), 30)));
+    const janela = Math.max(5, Math.round(num(findField(me, "afkMinutes"), CHAT_JANELA_PADRAO)));
     const canal = findField(me, "currentChannel");
     const restanteMin = Number.isFinite(last)
-      ? Math.round((last + janela * 60000 - Date.now()) / 60000)
+      ? Math.round((last + janela * 60000 - agora) / 60000)
       : null;
 
     return {
       ok: true,
-      at: Date.now(),
+      at: agora,
+      readAt: agora,
+      status: 200,
       lastActiveAt: Number.isFinite(last) ? last : null,
       janela,
       restanteMin,
@@ -281,7 +318,10 @@ async function afkClock(force = false) {
       canal: canal?.login ? String(canal.login).replace(/^kick:/i, "").toLowerCase() : null
     };
   } catch (e) {
-    return { ...cache, ok: false, at: Date.now(), reason: e?.name === "AbortError" ? "timeout" : (e?.message || "erro") };
+    return {
+      ...cache, ok: false, at: agora, status: 0,
+      reason: e?.name === "AbortError" ? "timeout" : (e?.message || "erro")
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -336,9 +376,11 @@ async function ensureChatTab(login) {
   const lives = await loadLives();
   const tabs = await twitchTabs();
 
-  const conhecida = tabs.find((t) => t.id === lives.current?.tabId);
   const mesmaLive = querido ? tabs.find((t) => twitchLoginFromTab(t.url) === querido) : null;
-  const escolhida = mesmaLive || conhecida || tabs[0];
+  const conhecida = tabs.find((t) => t.id === lives.current?.tabId);
+  // Com canal conhecido só serve aba daquele canal: `$jump` em outra live não
+  // renova o `lastActiveAt` do jogo e ainda aparece no chat de estranhos.
+  const escolhida = mesmaLive || (querido ? null : conhecida || tabs[0]);
 
   if (escolhida?.id) {
     try { await chrome.tabs.update(escolhida.id, { autoDiscardable: false }); } catch { /* ignore */ }
@@ -374,8 +416,7 @@ async function chatTick({ force = false } = {}) {
   const agora = Date.now();
   const chat = await loadChat();
   const humano = num(await get(CHAT_HUMAN_KEY, 0), 0);
-  const clock = await afkClock(force);
-  await set({ [CHAT_CLOCK_KEY]: clock });
+  let clock = await afkClock(force);
 
   // Confere se o comando anterior renovou `lastActiveAt` de verdade. Se o bot
   // ignorar o comando, o relógio não anda e a fila troca para o próximo — em
@@ -383,54 +424,94 @@ async function chatTick({ force = false } = {}) {
   if (chat.verifyAt && agora >= num(chat.verifyAt, 0) && chat.sentAt) {
     const novo = await afkClock(true);
     const andou = novo.ok && novo.lastActiveAt && novo.lastActiveAt >= num(chat.sentAt, 0) - 120000;
+    const canal = String(chat.sentChannel || "");
+    const mapa = canalBad(chat);
     if (novo.ok && !andou) {
       const falhou = String(chat.sentText || c.texto);
-      const bad = [...new Set([...(chat.bad || []), falhou])];
-      const proximo = CHAT_FALLBACK.find((t) => !bad.includes(t)) || CHAT_FALLBACK[CHAT_FALLBACK.length - 1];
+      mapa[canal] = [...new Set([...(mapa[canal] || []), falhou])];
       Object.assign(chat, {
-        verifyAt: 0, bad, sentAt: 0, lastError: `sem efeito: ${falhou}`, retryAt: 0
+        verifyAt: 0, sentAt: 0, badPorCanal: mapa,
+        lastError: `sem efeito: ${falhou}`, retryAt: 0
       });
-      await set({ [CHAT_KEY]: chat });
-      await addLog(`Chat: "${falhou}" não renovou o relógio do jogo; troco para "${proximo}".`, "warn");
-      force = true;
+      const proximo = filaChat(c, chat, canal);
+      if (proximo) {
+        await set({ [CHAT_KEY]: chat });
+        await addLog(`Chat: "${falhou}" não renovou o relógio do jogo; troco para "${proximo}".`, "warn");
+        force = true;
+      } else {
+        // Nenhum comando conhecido funciona neste canal. Insistir de minuto em
+        // minuto só faria barulho no chat alheio: para por meia hora.
+        chat.retryAt = agora + CHAT_CANSADO_MS;
+        await set({ [CHAT_KEY]: chat });
+        await addLog(`Chat: "${falhou}" não renovou o relógio e a fila acabou em "${canal || "canal atual"}"; paro por 30 min.`, "warn");
+      }
     } else if (novo.ok) {
-      Object.assign(chat, { verifyAt: 0, bad: [], lastError: null });
+      mapa[canal] = [];
+      Object.assign(chat, { verifyAt: 0, badPorCanal: mapa, lastError: null });
+      await set({ [CHAT_KEY]: chat });
+      clock = novo;
+    } else if (agora - num(chat.sentAt, 0) > 10 * 60000) {
+      // Não deu para confirmar (token vencido, rede): depois de 10 min desiste
+      // em vez de forçar um `/api/me` novo a cada minuto.
+      Object.assign(chat, { verifyAt: 0, sentAt: 0, lastError: novo.reason || "relógio indisponível" });
       await set({ [CHAT_KEY]: chat });
     }
   }
+  await set({ [CHAT_CLOCK_KEY]: clock });
 
-  const janela = clock.ok ? clock.janela : Math.max(5, c.minutos || 20);
-  const margem = Math.max(CHAT_MARGEM_MIN, Math.round(janela * 0.3));
+  // Cadência: o modo manual manda no relógio; o automático usa o último terço
+  // da janela do servidor. Quando `/api/me` falha, a janela da última leitura
+  // continua valendo (VIP de 120 min não vira um chute de 20) e a contagem
+  // segue andando pelo carimbo `readAt` em vez de congelar.
   const ultimo = Math.max(num(chat.lastAt, 0), humano);
+  const janelaServidor = Math.max(5, num(clock.janela, 0) || CHAT_JANELA_PADRAO);
+  const fixo = c.minutos >= 10;
+  const janela = fixo ? c.minutos : janelaServidor;
+  const idadeMin = num(clock.readAt, 0) ? Math.max(0, (agora - num(clock.readAt, 0)) / 60000) : 0;
 
-  let due;
-  if (force) due = true;
-  else if (clock.ok && clock.restanteMin !== null) due = clock.restanteMin <= margem;
-  else due = agora - ultimo >= (c.minutos || 20) * 60000;
+  let restante;
+  if (fixo) restante = ultimo ? (ultimo + janela * 60000 - agora) / 60000 : 0;
+  else if (Number.isFinite(clock.restanteMin)) restante = clock.restanteMin - idadeMin;
+  else if (ultimo) restante = (ultimo + janela * 60000 - agora) / 60000;
+  else restante = 0; // sem relógio e sem envio anterior: um ping calibra a cadência
+
+  const margem = fixo ? 0 : Math.max(CHAT_MARGEM_MIN, Math.round(janela * 0.3));
+  const due = force || restante <= margem;
+  const restanteMin = Math.round(restante);
 
   if (!due) {
-    return { sent: false, reason: "aguardando", restanteMin: clock.restanteMin ?? null, janela };
+    return { sent: false, reason: "aguardando", restanteMin, janela };
   }
   if (!force && agora < num(chat.retryAt, 0)) {
-    return { sent: false, reason: "backoff", restanteMin: clock.restanteMin ?? null, janela };
+    return { sent: false, reason: "backoff", restanteMin, janela };
   }
 
-  const fila = [...new Set([c.texto, ...CHAT_FALLBACK])].filter((t) => !(chat.bad || []).includes(t));
-  const texto = fila[0] || c.texto;
-
   const lives = await loadLives();
-  const login = lives.current?.login || clock.canal || "";
+  const login = clock.canal || lives.current?.login || "";
+  // `force` aqui é o botão "Enviar agora" ou a troca de comando: nesses casos
+  // vale tentar o comando configurado mesmo que ele já tenha falhado no canal.
+  let texto = filaChat(c, chat, login);
+  if (!texto) {
+    // Fila esgotada e cooldown vencido: dá nova chance ao comando configurado
+    // em vez de ficar mudo para sempre. Se ele voltar a funcionar, a
+    // verificação de efeito limpa o bloqueio do canal sozinha.
+    const mapa = canalBad(chat);
+    mapa[login] = [];
+    Object.assign(chat, { badPorCanal: mapa });
+    await set({ [CHAT_KEY]: chat });
+    texto = c.texto;
+  }
   const tabId = await ensureChatTab(login);
   if (!tabId) {
     await addLog("Keepalive do chat sem aba da Twitch disponível.", "warn");
-    return { sent: false, reason: "sem aba da Twitch", restanteMin: clock.restanteMin ?? null };
+    return { sent: false, reason: "sem aba da Twitch", restanteMin, janela };
   }
 
   if (!(await ensureKeeper(tabId))) {
     await set({
       [CHAT_KEY]: { ...chat, lastAt: num(chat.lastAt, 0), fails: num(chat.fails, 0) + 1, lastError: "sem content script", retryAt: agora + CHAT_RETRY_MS }
     });
-    return { sent: false, reason: "sem content script" };
+    return { sent: false, reason: "sem content script", restanteMin, janela };
   }
 
   let r = null;
@@ -446,20 +527,20 @@ async function chatTick({ force = false } = {}) {
       [CHAT_KEY]: { ...chat, lastAt: num(chat.lastAt, 0), fails: num(chat.fails, 0) + 1, lastError: motivo, retryAt: agora + CHAT_RETRY_MS }
     });
     await addLog(`Chat: "${texto}" não saiu (${motivo}); tento em 2 min.`, "warn");
-    return { sent: false, reason: motivo, retryIn: CHAT_RETRY_MS, restanteMin: clock.restanteMin ?? null };
+    return { sent: false, reason: motivo, retryIn: CHAT_RETRY_MS, restanteMin, janela };
   }
 
-  // 60 s depois o próximo tick lê /api/me e confirma se lastActiveAt avançou.
+  // 60 s depois o próximo tick lê /api/me e confirma se `lastActiveAt` avançou.
   await set({
     [CHAT_KEY]: {
       ...chat, lastAt: agora, fails: 0, lastError: null, retryAt: 0,
-      sentAt: agora, sentText: texto, verifyAt: agora + 60000
+      sentAt: agora, sentText: texto, sentChannel: login, verifyAt: agora + 60000
     }
   });
-  const falta = clock.restanteMin ?? "?";
+  const falta = restanteMin;
   const estava = clock.afk ? " (estava AFK, voltando)" : "";
   await addLog(`Chat: "${texto}" enviado em ${login || "canal atual"} (faltavam ${falta} min de AFK)${estava}.`, "ok");
-  return { sent: true, at: agora, texto, restanteMin: clock.restanteMin ?? null };
+  return { sent: true, at: agora, texto, restanteMin, janela };
 }
 
 /* ------------------------------ ranking/lives ---------------------------- */

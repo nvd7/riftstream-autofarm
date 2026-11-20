@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.8.0-f5c451" alt="Versão 2.8.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.9.0-f5c451" alt="Versão 2.8.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -42,10 +42,9 @@
 </p>
 
 > [!IMPORTANT]
-> **A extensão não envia mensagens no chat.** Ela só busca as lives e abre o
-> chat da Twitch. Os comandos (`$jogar`, `$me`…) são digitados **por você**.
-> O trabalho automático é a **manutenção do inventário**, que usa a API oficial
-> do site e **não passa pelo chat**.
+> **A extensão envia um comando curto no chat** — o keepalive anti-AFK
+> (`$jump`, cosmético) — e mantém o inventário pela API oficial do site. O
+> `$jogar` e os comandos de progressão continuam sendo digitados **por você**.
 
 > [!WARNING]
 > **Automatizar o inventário viola os Termos do RiftStream.** A seção 5 proíbe
@@ -187,7 +186,8 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Backoff e pausas por grupo:** falhas de API pausam o item por 30–60 s em vez
   de insistir em loop.
 - **Forja nunca destrói o que seria equipado.**
-- **Nenhuma mensagem no chat.**
+- **Nenhuma mensagem além do keepalive.** O único envio automático é o
+  comando curto anti-AFK, e ele é abortado se você estiver digitando.
 - **Sem telemetria.**
 
 ---
@@ -264,14 +264,19 @@ popup.
 | **Transmog** | Trocar a aparência do item equipado |
 | **Ajustes** | Tema, fonte, roleta rápida e posição do painel |
 
-### Comandos (no chat da Twitch, digitados por você)
+### Comandos (no chat da Twitch)
 
 | Comando | Para que serve |
 |---|---|
 | `$jogar guerreiro` | Entra no canal com a classe escolhida |
 | `$jogar clerigo` | Idem, clérigo |
 | `$jogar arqueiro` | Idem, arqueiro |
-| `$me` | Mantém o personagem ativo antes do AFK |
+| `$me` | Mostra o personagem; também renova o relógio de atividade |
+| `$jump` | O herói pula — cosmético, sem resposta do bot |
+
+> O `$jogar` e os comandos de progressão são seus. A extensão só manda o
+> keepalive (`$jump` por padrão) quando o relógio do servidor está perto do
+> AFK.
 
 > [!TIP]
 > Sem argumento, `$jogar` deixa o jogo escolher a classe **menos populosa**, o
@@ -343,13 +348,14 @@ página do jogo (engine) ──► API oficial ──► inventário
 
 | Arquivo | Papel |
 |---|---|
-| `background.js` | Acorda as abas do jogo a cada ~30 s, busca lives, abre o chat e mantém o badge |
+| `background.js` | Acorda as abas do jogo a cada 1 min, busca lives, mantém o keepalive do chat e o badge |
 | `content/engine.js` | Toda a automação, rodando na página com o token e a API do jogo |
 | `content/themes.js` | Catálogo das 14 paletas de tema, compartilhado entre painel e popup |
 | `content/panel.js` | Painel flutuante (Shadow DOM, 9 abas, tema e fonte) |
 | `content/roleta.js` | Acelera só a animação da roleta (mundo MAIN da página) |
 | `content/riftstream.js` | Ponte do token para o popup saber se há login |
-| `content/twitch.js` | Foca o campo do chat; não envia nada |
+| `content/twitch.js` | Foca o campo do chat ao abrir a live; não envia nada |
+| `content/chatkeeper.js` | Envia o keepalive no chat e confirma que a caixa esvaziou |
 | `popup/` | Liga/desliga, personagem, lives, status e log |
 
 ### Busca de lives
@@ -379,7 +385,7 @@ página do jogo (engine) ──► API oficial ──► inventário
 
 A engine roda uma rodada a cada poucos segundos enquanto o farm está ligado e
 para quando não há mais nada a fazer. O background envia um “acorde” a cada
-~30 s para a aba escondida não ser descartada. Cada ação respeita a reserva de
+1 min para a aba escondida não ser descartada. Cada ação respeita a reserva de
 ouro e faz *backoff* em falhas.
 
 ### Permissões
@@ -387,11 +393,11 @@ ouro e faz *backoff* em falhas.
 | Permissão | Por quê |
 |---|---|
 | `storage` | Configurações, token, estatísticas e log locais |
-| `alarms` | Acordar as abas do jogo a cada ~30 s |
+| `alarms` | Acordar as abas do jogo a cada 1 min e vigiar o relógio de AFK |
 | `tabs` | Abrir/reutilizar/silenciar a aba da Twitch e achar a aba do jogo |
-| `scripting` | Reservado para injeção manual do content script em abas antigas |
+| `scripting` | Reinjetar o content script em abas antigas e no keepalive |
 | `riftstream.com.br` | Ler `localStorage["og.token"]` e chamar a API oficial |
-| `twitch.tv` | Abrir a aba e focar o campo do chat (sem enviar mensagens) |
+| `twitch.tv` | Abrir a aba, focar o campo do chat e enviar o keepalive |
 
 ---
 
@@ -399,12 +405,13 @@ ouro e faz *backoff* em falhas.
 
 ```text
 manifest.json           permissões, ícones e injeção dos scripts
-background.js           service worker: abas, ranking e badge
+background.js           service worker: abas, ranking, keepalive e badge
 content/engine.js       automação do inventário na página do jogo
 content/panel.js        painel flutuante (UI principal)
 content/roleta.js       aceleração só da animação da roleta
 content/riftstream.js   ponte do token
-content/twitch.js       foco do chat (não envia nada)
+content/twitch.js       foco do chat ao abrir a live
+content/chatkeeper.js   envio e confirmação do keepalive no chat
 popup/                  painel rápido (HTML/CSS/JS)
 icons/                  ícones 16, 48 e 128 px
 docs/                   banner, screenshot e documentação técnica
@@ -461,7 +468,7 @@ Documentação adicional:
 ## Privacidade
 
 - **Sem telemetria.** Nada é enviado para servidores do projeto.
-- **Nenhuma mensagem no chat.**
+- **Um comando no chat.** Só o keepalive anti-AFK, no canal da live atual.
 - **Token local.** Lido do site e usado apenas na API oficial do RiftStream.
 - **Rede.** Só `riftstream.com.br`, a API do site e `twitch.tv`.
 - **Logs e estatísticas** ficam no armazenamento da extensão e podem ser limpos.

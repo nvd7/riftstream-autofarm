@@ -79,7 +79,22 @@ Ligue **Farm automático** e marque os módulos desejados.
 - [ ] Com duas abas do jogo abertas, só uma executa a rodada (sem ações
       duplicadas).
 
-## 7. Resiliência
+## 7. Keepalive do chat (anti-AFK)
+
+- [ ] O card mostra `AFK em N min` e a `janela` lida do servidor (30 ou 120).
+- [ ] **Enviar agora** faz o `$jump` aparecer no chat e o herói pular no overlay.
+- [ ] Um minuto depois, o log confirma o envio ou troca para `$pular`/`$me` com
+      o aviso “não renovou o relógio do jogo”.
+- [ ] Com todas as abas da Twitch fechadas, a extensão abre o popout sozinha,
+      silenciada, sem roubar o foco.
+- [ ] Digitar na caixa do chat quando o envio está vencido aborta com
+      `user_typing` e zera a contagem.
+- [ ] Intervalo manual em 10 min envia a cada 10 min, ignorando o relógio.
+- [ ] Deslogar do site deixa `relógio: HTTP 401` no card e a cadência continua
+      usando a janela da última leitura (sem tempestade de requisições).
+- [ ] Trocar de live não herda o comando bloqueado na live anterior.
+
+## 8. Resiliência
 
 - [ ] Desligar o farm interrompe o ciclo e limpa o badge.
 - [ ] Fechar e reabrir o navegador mantém a configuração.
@@ -89,7 +104,7 @@ Ligue **Farm automático** e marque os módulos desejados.
 - [ ] Em `503`, o grupo afetado é pausado e tentado de novo depois.
 - [ ] Fechar a aba do jogo não recria a aba sozinho.
 
-## 8. Regressão antes de release
+## 9. Regressão antes de release
 
 - [ ] `node tools/validate.mjs`.
 - [ ] `node --check` em todos os JS (o validador já faz).

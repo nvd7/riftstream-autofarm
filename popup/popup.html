@@ -123,7 +123,10 @@
         no chat. O padrão <code>$jump</code> é cosmético (o herói só pula) e não
         gera resposta; se o bot ignorar, a extensão cai para
         <code>$pular</code> e depois <code>$me</code>. No modo automático ela lê
-        o seu relógio em <code>/api/me</code> e só envia quando falta pouco.
+        o seu relógio em <code>/api/me</code> e só envia no último terço da
+        janela; se o relógio ficar indisponível, a janela da última leitura
+        continua valendo. Um intervalo manual (10 a 55 min) ignora o relógio e
+        manda na cadência escolhida.
       </p>
     </section>
 
@@ -181,8 +184,8 @@
     </section>
 
     <p class="warn">
-      Esta extensão não envia mensagens no chat; você digita os comandos.
-      Mesmo assim, automatizar o inventário viola os Termos do RiftStream
+      Esta extensão envia um comando curto no chat (keepalive anti-AFK) e
+      automatiza o inventário. As duas coisas violam os Termos do RiftStream
       (seção 5). Sua conta pode ser banida. Use por sua conta e risco.
     </p>
 

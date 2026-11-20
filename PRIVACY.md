@@ -20,10 +20,13 @@ acessa, onde guarda e para onde envia dados.
 | Configurações do painel | Controlar o comportamento do farm | `chrome.storage.local` |
 | Log de ações | Diagnóstico e transparência | `chrome.storage.local` |
 | Lives abertas e canal escolhido | Montar a lista e abrir o chat | Memória/estado local |
+| Relógio de AFK (`lastActiveAt`, `afkMinutes`) | Decidir quando mandar o keepalive | `chrome.storage.local` |
 
-A extensão **não lê nem escreve mensagens no chat da Twitch**. Ela apenas abre a
-aba e foca o campo de digitação; os comandos (`$jogar`, `$me`) são digitados por
-você.
+A extensão **escreve uma única mensagem automática no chat da Twitch**: o
+keepalive anti-AFK (`$jump` por padrão, com `$pular`/`$me` de reserva). Ela não
+lê o conteúdo do chat, não responde a ninguém e aborta o envio se houver texto
+seu na caixa de digitação. Os comandos de progressão (`$jogar`, `$up`…) são
+digitados por você.
 
 O token é lido do `localStorage` de `riftstream.com.br`, no seu próprio
 navegador, e usado no cabeçalho `Authorization: Bearer` das chamadas à API
@@ -37,7 +40,8 @@ A extensão só se comunica com:
 - `https://riftstream.com.br` — leitura do token;
 - `https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com` — API oficial usada
   pelo próprio site do RiftStream;
-- `https://www.twitch.tv` — abertura da aba da live e foco no campo do chat.
+- `https://www.twitch.tv` — abertura da aba da live, foco no campo do chat e
+  envio do keepalive.
 
 Não há endpoint próprio, coleta de métricas, crash reporting ou atualização
 remota de código.
@@ -56,9 +60,9 @@ remota de código.
 | `storage` | Guardar token, configurações e log |
 | `alarms` | Manter o ciclo de 1 minuto |
 | `tabs` | Abrir/reutilizar a aba da Twitch e impedir seu descarte |
-| `scripting` | Ler o token no site se o content script não estiver pronto |
+| `scripting` | Reinjetar os content scripts em abas já abertas |
 | Hosts do RiftStream/API | Autenticação e chamadas à API oficial |
-| Host da Twitch | Abrir a aba da live e focar o campo do chat |
+| Host da Twitch | Abrir a aba da live, focar o chat e enviar o keepalive |
 
 ## Compartilhamento
 

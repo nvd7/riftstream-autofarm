@@ -316,11 +316,19 @@ function renderSettings() {
   const partes = [];
   if (ch.lastAt) partes.push(`último ${timeLabel(ch.lastAt)}`);
   else partes.push("nunca enviado");
-  if (clock.ok && Number.isFinite(clock.restanteMin)) {
-    partes.push(clock.restanteMin > 0 ? `AFK em ${clock.restanteMin} min` : "AFK agora");
+
+  if (Number.isFinite(clock.restanteMin)) {
+    // A contagem vem com carimbo de leitura: sem descontar o tempo passado, uma
+    // leitura velha (token vencido) mentiria "AFK em 40 min" a noite inteira.
+    const idadeMin = clock.readAt ? Math.max(0, (Date.now() - clock.readAt) / 60000) : 0;
+    const resta = Math.round(clock.restanteMin - idadeMin);
+    partes.push(resta > 0 ? `AFK em ${resta} min` : "AFK agora");
   } else if (clock.reason) {
     partes.push(`relógio: ${clock.reason}`);
   }
+  if (clock.janela) partes.push(`janela ${clock.janela} min`);
+  if (ch.lastError) partes.push(`erro: ${ch.lastError}`);
+
   $("chatAt").textContent = partes.join(" · ");
 }
 

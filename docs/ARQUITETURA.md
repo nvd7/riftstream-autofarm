@@ -10,7 +10,7 @@ service worker atua apenas como coordenador.
 │  content/riftstream.js      token (localStorage["og.token"]) → extensão          │
 │  content/engine.js          automação: equipar, forja, atributos, gemas,        │
 │                             engaste, aprimorar, venda, organizar                │
-│  content/panel.js           painel ◆ (Shadow DOM, 6 abas)                       │
+│  content/panel.js           painel ◆ (Shadow DOM, 9 abas)                       │
 │  content/roleta.js          mundo MAIN: acelera só a animação da roleta         │
 │                                                                                 │
 └───────────────┬───────────────────────────────┬─────────────────────────────────┘
@@ -18,9 +18,9 @@ service worker atua apenas como coordenador.
                 ▼                               ▼
 ┌──────────────────────────┐        ┌─────────────────────────────────────┐
 │ background.js            │        │ z6ywq6r3ub.execute-api...amazonaws  │
-│  alarme 30 s             │        │ /api/me/character, /items, /gems…   │
+│  alarme 1 min            │        │ /api/me/character, /items, /gems…   │
 │  ranking público         │        └─────────────────────────────────────┘
-│  abrir chat / badge      │
+│  keepalive / badge       │
 └──────────┬───────────────┘
            ▼
 ┌──────────────────────────┐
@@ -44,15 +44,23 @@ service worker atua apenas como coordenador.
 
 ### `background.js` (coordenador)
 
-- Mantém o badge (`ON`/vazio) e o alarme `rsaf_tick` (0,5 min).
+- Mantém o badge (`ON`/vazio) e o alarme `rsaf_tick` (1 min).
 - A cada alarme, consulta as abas de `riftstream.com.br`, impede o descarte e
   envia `{ rodada: true }` para cada uma. O engine decide se roda.
 - Busca lives em `/api/ranking/runs` e `/api/ranking/crowds`, confirma em
   `/api/ranking/channel/{login}` e grava a lista em `rsafLives`.
-- Abre/reutiliza a aba da Twitch, silencia e foca o chat. **Nunca envia
-  mensagem.**
+- Lê `lastActiveAt`/`afkMinutes` em `GET /api/me` e, no último terço da janela,
+  manda o keepalive no chat da live atual via `content/chatkeeper.js`. A janela
+  da última leitura continua valendo quando o relógio fica indisponível.
 - Responde ao popup (`RSAF_GET_STATE`, `RSAF_SCAN`, `RSAF_SET_RUNNING`,
-  `RSAF_OPEN_PANEL`, `RSAF_MAINTENANCE`…).
+  `RSAF_OPEN_PANEL`, `RSAF_MAINTENANCE`, `RSAF_CHAT_NOW`…).
+
+### `content/chatkeeper.js`
+
+Injetado na Twitch junto com `content/twitch.js`. Recebe `RSAF_CHAT_SEND`,
+preenche a caixa com o setter nativo do React, tenta o botão de enviar, cai no
+Enter e confirma que a caixa esvaziou. Aborta quando há texto do usuário na
+caixa e registra a atividade humana para o background não atropelar ninguém.
 
 ### `content/engine.js`
 
