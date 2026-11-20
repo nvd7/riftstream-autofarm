@@ -90,6 +90,45 @@
 
     <section class="card">
       <div class="card-head">
+        <h2>Keepalive do chat</h2>
+        <span id="chatAt" class="muted small">nunca enviado</span>
+      </div>
+
+      <div class="toggles">
+        <label class="toggle"><input id="chatKeep" type="checkbox" /><span>Enviar comando antes do AFK</span></label>
+      </div>
+
+      <div class="grid2">
+        <label class="field">
+          <span>Intervalo</span>
+          <select id="chatMinutes">
+            <option value="0">Automático</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="20">20 min</option>
+            <option value="30">30 min</option>
+            <option value="45">45 min</option>
+            <option value="55">55 min</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Comando</span>
+          <input id="chatText" type="text" maxlength="80" placeholder="$jump" />
+        </label>
+      </div>
+
+      <button id="chatNow" class="btn ghost" type="button">Enviar agora</button>
+      <p class="hint">
+        O jogo marca AFK quando você passa de <code>afkMinutes</code> sem falar
+        no chat. O padrão <code>$jump</code> é cosmético (o herói só pula) e não
+        gera resposta; se o bot ignorar, a extensão cai para
+        <code>$pular</code> e depois <code>$me</code>. No modo automático ela lê
+        o seu relógio em <code>/api/me</code> e só envia quando falta pouco.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
         <h2>Status dos módulos</h2>
       </div>
       <div id="moduleList" class="module-list"></div>

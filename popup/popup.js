@@ -38,7 +38,8 @@ function defaults() {
     roleta: { ligada: false, vel: 4 },
     goldReserve: 50000,
     theme: "farmline",
-    font: 12
+    font: 12,
+    chatKeep: { ligado: true, minutos: 0, texto: "$jump" }
   };
 }
 
@@ -306,6 +307,21 @@ function renderSettings() {
   setVal("goldReserve", st.goldReserve ?? 0);
   setVal("chatMode", st.chatOnly === false ? "live" : "chat");
   setCheck("muteTab", st.muteTab !== false);
+  setCheck("chatKeep", st.chatKeep?.ligado !== false);
+  setVal("chatMinutes", st.chatKeep?.minutos ?? 0);
+  setVal("chatText", st.chatKeep?.texto || "$jump");
+
+  const ch = state?.chat || {};
+  const clock = state?.chatClock || {};
+  const partes = [];
+  if (ch.lastAt) partes.push(`último ${timeLabel(ch.lastAt)}`);
+  else partes.push("nunca enviado");
+  if (clock.ok && Number.isFinite(clock.restanteMin)) {
+    partes.push(clock.restanteMin > 0 ? `AFK em ${clock.restanteMin} min` : "AFK agora");
+  } else if (clock.reason) {
+    partes.push(`relógio: ${clock.reason}`);
+  }
+  $("chatAt").textContent = partes.join(" · ");
 }
 
 function renderLog() {
@@ -373,6 +389,11 @@ function gatherSettings() {
   st.goldReserve = Number($("goldReserve").value);
   st.chatOnly = $("chatMode").value === "chat";
   st.muteTab = $("muteTab").checked;
+  st.chatKeep = {
+    ligado: $("chatKeep").checked,
+    minutos: Math.max(0, Math.min(55, Math.round(Number($("chatMinutes").value) || 0))),
+    texto: ($("chatText").value || "$jump").trim().slice(0, 200)
+  };
   return st;
 }
 
@@ -440,17 +461,32 @@ function wire() {
     }
   });
 
+  $("chatNow").addEventListener("click", async () => {
+    busy = true;
+    render();
+    try {
+      state = await send("RSAF_CHAT_NOW");
+      const r = state?.chatResult;
+      if (!r?.sent) setError(`Chat não enviou: ${r?.reason || "sem resposta"}`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      busy = false;
+      render();
+    }
+  });
+
   $("clearLog").addEventListener("click", async () => {
     try { state = await send("RSAF_CLEAR_LOG"); render(); } catch (e) { setError(e.message); }
   });
 
-  for (const id of ["strategy", "minPlayers", "theme", "font", "goldReserve", "chatMode", "muteTab"]) {
+  for (const id of ["strategy", "minPlayers", "theme", "font", "goldReserve", "chatMode", "muteTab", "chatKeep", "chatMinutes", "chatText"]) {
     const el = $(id);
     el.addEventListener("change", () => {
       gatherSettings();
       scheduleSave();
     });
-    if (el.tagName === "INPUT" && el.type === "number") {
+    if (el.tagName === "INPUT" && (el.type === "number" || el.type === "text")) {
       el.addEventListener("input", () => {
         gatherSettings();
         scheduleSave();

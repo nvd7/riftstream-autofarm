@@ -4,6 +4,47 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [2.8.0] - 2026-11-20
+
+### Adicionado
+
+- **Keepalive do chat (anti-AFK).** O servidor só renova `lastActiveAt` quando
+  um comando é enviado no chat da live; sem isso, o herói é marcado como AFK
+  em `afkMinutes` (30 por padrão, 120 para VIP) e sai do jogo mesmo com a aba
+  do site aberta. Agora o service worker envia um comando curto (`$me`) no
+  último terço da janela.
+  - **Modo automático:** lê `lastActiveAt` e `afkMinutes` em `GET /api/me` e
+    só envia quando falta pouco. Sem aba da Twitch, abre o popout do chat em
+    segundo plano, silenciado e não descartável.
+  - **`$jump` como padrão:** o comando extra do jogo ("o herói dá um pulinho")
+    é cosmético, não muda nada na partida e não gera resposta do bot — o ping
+    mais discreto possível. Se o bot ignorar, a fila cai para `$pular` e
+    depois `$me`.
+  - **Verificação de efeito:** 60 s depois do envio a extensão relê
+    `lastActiveAt`. Se o relógio não avançou, o comando é marcado como inócuo,
+    trocado pelo próximo da fila e reenviado na hora — em vez de repetir um
+    ping morto a noite inteira.
+  - **Intervalo manual:** de 10 a 55 min, para quem prefere cadência fixa.
+  - **Nunca atropela o usuário:** o envio é abortado se houver texto digitado
+    na caixa do chat, e o relógio humano zera a contagem.
+  - **Verificação de envio:** confere se a caixa esvaziou; se não, tenta
+    Enter, limpa o rascunho e registra o motivo (`logged_out`, `no_input`,
+    `not_sent`, `user_typing`) no log e no popup.
+- **Reinjeção de content script.** `acordarAbas` agora reinjeta a engine
+  quando o `sendMessage` falha (extensão atualizada, renderer reiniciado, aba
+  congelada) e só recarrega a aba na segunda falha seguida.
+- **Reanimação no `onInstalled`:** instalar ou atualizar a extensão reinjeta a
+  engine e o keepalive nas abas já abertas, sem precisar de F5.
+- **Detecção de retomada:** se o alarme atrasar mais de 3 min (notebook
+  suspenso, monitor desligado), a próxima rodada é imediata e registrada.
+- **Card "Keepalive do chat" no popup,** com intervalo, comando, último envio
+  e a contagem regressiva de AFK lida do servidor.
+
+### Alterado
+
+- Alarme de 30 s para 1 min: a engine já tem ciclo próprio de 3 s; o alarme é
+  para acordar o worker e vigiar abas, e 1 min gasta menos bateria.
+
 ## [2.7.2] - 2026-11-17
 
 ### Corrigido

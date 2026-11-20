@@ -7,9 +7,11 @@
  * assim o token é o mesmo do site e o endereço da API é descoberto na página.
  *
  * Aqui ficam apenas as tarefas de bastidor:
- *  - acordar as abas do RiftStream a cada ~30 s para rodar uma rodada;
+ *  - acordar as abas do RiftStream a cada minuto e reanimar a engine se ela
+ *    tiver morrido (aba congelada, renderer reiniciado, extensão atualizada);
  *  - buscar as lives online no ranking público;
- *  - abrir o chat/live escolhido (sem enviar mensagem nenhuma);
+ *  - manter o herói fora do AFK enviando um comando curto no chat da live,
+ *    no último quarto da janela de `afkMinutes` do servidor;
  *  - manter o badge e o estado que o popup mostra.
  * ========================================================================= */
 
@@ -20,8 +22,24 @@ const LIVES_KEY = "rsafLives";
 const STATUS_KEY = "rsafStatus";
 const LOG_KEY = "rsafLog";
 const TOKEN_KEY = "rsafToken";
+const CHAT_KEY = "rsafChat";
+const CHAT_CLOCK_KEY = "rsafChatClock";
+const CHAT_HUMAN_KEY = "rsafChatHuman";
+const TAB_MISS_KEY = "rsafTabMiss";
 const ALARM_NAME = "rsaf_tick";
 const RIFT_URLS = ["https://riftstream.com.br/*", "https://www.riftstream.com.br/*"];
+const TWITCH_URLS = ["https://www.twitch.tv/*", "https://twitch.tv/*"];
+const CHAT_DEFAULTS = { ligado: true, minutos: 0, texto: "$jump" };
+// $jump/$pular são cosméticos (o herói só pula) e não geram resposta do bot —
+// o ping mais discreto que o jogo aceita. $me é a rede de segurança.
+const CHAT_FALLBACK = ["$jump", "$pular", "$me"];
+const CHAT_RETRY_MS = 2 * 60 * 1000;
+const CHAT_MARGEM_MIN = 4;
+const GAME_OPEN_GAP = 10 * 60 * 1000;
+const REIDRATA_GAP = 5 * 60 * 1000;
+
+let lastGameOpen = 0;
+let lastReidrata = 0;
 
 const TWITCH_RESERVED = new Set([
   "directory", "downloads", "settings", "subscriptions", "inventory", "wallet",
@@ -90,8 +108,8 @@ async function syncAlarm() {
   const cfg = await loadCfg();
   try {
     if (cfg.running) {
-      const atual = await chrome.alarms.get(ALARM_NAME);
-      if (!atual) chrome.alarms.create(ALARM_NAME, { periodInMinutes: 0.5 });
+      // `create` sobrescreve: garante 1 min mesmo em instalação antiga (0.5).
+      chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
     } else {
       await chrome.alarms.clear(ALARM_NAME);
     }
@@ -108,22 +126,340 @@ async function gameTabs() {
   }
 }
 
+// A engine é idempotente (guarda `window.__rsafEngine`), então reinjetar é
+// seguro. É o que salva a madrugada depois de uma atualização da extensão:
+// os content scripts antigos ficam órfãos e o `sendMessage` falha calado.
+async function reidratarAba(tabId) {
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content/engine.js"] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function acordarAbas(force = false) {
   const tabs = await gameTabs();
+  const misses = await get(TAB_MISS_KEY, {});
   let enviados = 0;
+  let reanimadas = 0;
+
   for (const tab of tabs) {
     if (!tab.id) continue;
+    const chave = String(tab.id);
     try { await chrome.tabs.update(tab.id, { autoDiscardable: false }); } catch { /* ignore */ }
+
     if (tab.discarded) {
       try { await chrome.tabs.reload(tab.id); } catch { /* ignore */ }
       continue;
     }
+
+    let ok = false;
     try {
-      await chrome.tabs.sendMessage(tab.id, { rodada: true, forcar: force });
+      const r = await chrome.tabs.sendMessage(tab.id, { rodada: true, forcar: force });
+      ok = !!r;
+    } catch { ok = false; }
+
+    if (ok) {
       enviados++;
-    } catch { /* content script ainda carregando */ }
+      if (misses[chave]) {
+        delete misses[chave];
+        await set({ [TAB_MISS_KEY]: misses });
+      }
+      continue;
+    }
+
+    // Sem resposta = content script morto. Reinjeta antes de recarregar:
+    // recarregar no meio de uma rodada custa o progresso daquela aba.
+    const faltas = num(misses[chave], 0) + 1;
+    misses[chave] = faltas;
+
+    if (faltas === 1 && (await reidratarAba(tab.id))) {
+      reanimadas++;
+      await addLog("Engine reinjetada na aba do jogo.", "warn");
+    } else if (faltas >= 2) {
+      try { await chrome.tabs.reload(tab.id); } catch { /* ignore */ }
+      await addLog("Aba do jogo não respondeu; recarreguei.", "warn");
+      delete misses[chave];
+    }
+
+    await set({ [TAB_MISS_KEY]: misses });
   }
-  return { tabs: tabs.length, enviados };
+
+  return { tabs: tabs.length, enviados, reanimadas };
+}
+
+async function ensureGameTab() {
+  const tabs = await gameTabs();
+  if (tabs.length) return tabs[0].id;
+  if (Date.now() - lastGameOpen < GAME_OPEN_GAP) return null;
+  lastGameOpen = Date.now();
+  try {
+    const created = await chrome.tabs.create({ url: `${SITE_URL}/character`, active: false });
+    await addLog("Nenhuma aba do jogo aberta; reabri o RiftStream.", "warn");
+    return created.id;
+  } catch {
+    return null;
+  }
+}
+
+/* -------------------------------- chat/AFK ------------------------------- */
+
+function chatCfg(cfg) {
+  const c = cfg?.settings?.chatKeep || {};
+  return {
+    ligado: c.ligado !== false,
+    minutos: Math.max(0, Math.min(55, Math.round(num(c.minutos, 0)))),
+    texto: String(c.texto || CHAT_DEFAULTS.texto).trim().slice(0, 200) || CHAT_DEFAULTS.texto
+  };
+}
+
+async function loadChat() {
+  return await get(CHAT_KEY, {
+    lastAt: 0, fails: 0, lastError: null, retryAt: 0,
+    sentAt: 0, sentText: null, verifyAt: 0, bad: [], chainIdx: 0
+  });
+}
+
+async function loadClock() {
+  return await get(CHAT_CLOCK_KEY, {
+    ok: false, at: 0, reason: null, janela: null, restanteMin: null, afk: null, canal: null
+  });
+}
+
+function findField(obj, key, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 4) return undefined;
+  if (Object.prototype.hasOwnProperty.call(obj, key)) return obj[key];
+  for (const value of Object.values(obj)) {
+    if (!value || typeof value !== "object") continue;
+    const hit = findField(value, key, depth + 1);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+
+/*
+ * Fonte da verdade do AFK: o site calcula
+ *   agora - lastActiveAt > afkMinutes * 60000
+ * e mostra "fale no chat para voltar ao jogo". `lastActiveAt` só anda com
+ * comando no chat, então relógio local nenhum substitui essa leitura.
+ */
+async function afkClock(force = false) {
+  const cache = await loadClock();
+  const restante = cache.restanteMin;
+  const ttl = restante !== null && restante <= 8 ? 45000 : 4 * 60000;
+  if (!force && cache.ok && Date.now() - num(cache.at, 0) < ttl) return cache;
+
+  const token = await get(TOKEN_KEY, null);
+  if (!token) return { ...cache, ok: false, at: Date.now(), reason: "sem token" };
+
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 12000);
+  try {
+    const res = await fetch(`${API_BASE}/api/me`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: ctl.signal
+    });
+    if (!res.ok) return { ...cache, ok: false, at: Date.now(), status: res.status, reason: `HTTP ${res.status}` };
+
+    const me = await res.json();
+    const last = Date.parse(String(findField(me, "lastActiveAt") || ""));
+    const janela = Math.max(5, Math.round(num(findField(me, "afkMinutes"), 30)));
+    const canal = findField(me, "currentChannel");
+    const restanteMin = Number.isFinite(last)
+      ? Math.round((last + janela * 60000 - Date.now()) / 60000)
+      : null;
+
+    return {
+      ok: true,
+      at: Date.now(),
+      lastActiveAt: Number.isFinite(last) ? last : null,
+      janela,
+      restanteMin,
+      afk: restanteMin !== null ? restanteMin <= 0 : null,
+      canal: canal?.login ? String(canal.login).replace(/^kick:/i, "").toLowerCase() : null
+    };
+  } catch (e) {
+    return { ...cache, ok: false, at: Date.now(), reason: e?.name === "AbortError" ? "timeout" : (e?.message || "erro") };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function twitchTabs() {
+  try { return await chrome.tabs.query({ url: TWITCH_URLS }); } catch { return []; }
+}
+
+function twitchLoginFromTab(url) {
+  try {
+    const u = new URL(String(url || ""));
+    const parts = u.pathname.split("/").filter(Boolean).map((p) => decodeURIComponent(p).toLowerCase());
+    if (parts[0] === "popout") return parts[1] || "";
+    return parts[0] || "";
+  } catch {
+    return "";
+  }
+}
+
+function waitTabComplete(tabId, timeout = 20000) {
+  return new Promise((resolve) => {
+    const fim = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(fn);
+      resolve(false);
+    }, timeout);
+    function fn(id, info) {
+      if (id !== tabId || info.status !== "complete") return;
+      clearTimeout(fim);
+      chrome.tabs.onUpdated.removeListener(fn);
+      resolve(true);
+    }
+    chrome.tabs.onUpdated.addListener(fn);
+  });
+}
+
+async function ensureKeeper(tabId) {
+  try {
+    const r = await chrome.tabs.sendMessage(tabId, { type: "RSAF_CHAT_STATE" });
+    if (r?.ok) return true;
+  } catch { /* content script ausente */ }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content/chatkeeper.js"] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureChatTab(login) {
+  const querido = String(login || "").replace(/^kick:/i, "").toLowerCase();
+  const lives = await loadLives();
+  const tabs = await twitchTabs();
+
+  const conhecida = tabs.find((t) => t.id === lives.current?.tabId);
+  const mesmaLive = querido ? tabs.find((t) => twitchLoginFromTab(t.url) === querido) : null;
+  const escolhida = mesmaLive || conhecida || tabs[0];
+
+  if (escolhida?.id) {
+    try { await chrome.tabs.update(escolhida.id, { autoDiscardable: false }); } catch { /* ignore */ }
+    if (escolhida.discarded) {
+      try { await chrome.tabs.reload(escolhida.id); } catch { /* ignore */ }
+      await waitTabComplete(escolhida.id);
+    }
+    return escolhida.id;
+  }
+
+  if (!querido) return null;
+  try {
+    const created = await chrome.tabs.create({
+      url: `https://www.twitch.tv/popout/${encodeURIComponent(querido)}/chat?popout=`,
+      active: false
+    });
+    try { await chrome.tabs.update(created.id, { muted: true }); } catch { /* ignore */ }
+    try { await chrome.tabs.update(created.id, { autoDiscardable: false }); } catch { /* ignore */ }
+    await waitTabComplete(created.id);
+    return created.id;
+  } catch {
+    return null;
+  }
+}
+
+async function chatTick({ force = false } = {}) {
+  const cfg = await loadCfg();
+  if (!cfg.running) return { sent: false, reason: "parado" };
+
+  const c = chatCfg(cfg);
+  if (!c.ligado && !force) return { sent: false, reason: "desligado" };
+
+  const agora = Date.now();
+  const chat = await loadChat();
+  const humano = num(await get(CHAT_HUMAN_KEY, 0), 0);
+  const clock = await afkClock(force);
+  await set({ [CHAT_CLOCK_KEY]: clock });
+
+  // Confere se o comando anterior renovou `lastActiveAt` de verdade. Se o bot
+  // ignorar o comando, o relógio não anda e a fila troca para o próximo — em
+  // vez de repetir um ping morto a noite inteira.
+  if (chat.verifyAt && agora >= num(chat.verifyAt, 0) && chat.sentAt) {
+    const novo = await afkClock(true);
+    const andou = novo.ok && novo.lastActiveAt && novo.lastActiveAt >= num(chat.sentAt, 0) - 120000;
+    if (novo.ok && !andou) {
+      const falhou = String(chat.sentText || c.texto);
+      const bad = [...new Set([...(chat.bad || []), falhou])];
+      const proximo = CHAT_FALLBACK.find((t) => !bad.includes(t)) || CHAT_FALLBACK[CHAT_FALLBACK.length - 1];
+      Object.assign(chat, {
+        verifyAt: 0, bad, sentAt: 0, lastError: `sem efeito: ${falhou}`, retryAt: 0
+      });
+      await set({ [CHAT_KEY]: chat });
+      await addLog(`Chat: "${falhou}" não renovou o relógio do jogo; troco para "${proximo}".`, "warn");
+      force = true;
+    } else if (novo.ok) {
+      Object.assign(chat, { verifyAt: 0, bad: [], lastError: null });
+      await set({ [CHAT_KEY]: chat });
+    }
+  }
+
+  const janela = clock.ok ? clock.janela : Math.max(5, c.minutos || 20);
+  const margem = Math.max(CHAT_MARGEM_MIN, Math.round(janela * 0.3));
+  const ultimo = Math.max(num(chat.lastAt, 0), humano);
+
+  let due;
+  if (force) due = true;
+  else if (clock.ok && clock.restanteMin !== null) due = clock.restanteMin <= margem;
+  else due = agora - ultimo >= (c.minutos || 20) * 60000;
+
+  if (!due) {
+    return { sent: false, reason: "aguardando", restanteMin: clock.restanteMin ?? null, janela };
+  }
+  if (!force && agora < num(chat.retryAt, 0)) {
+    return { sent: false, reason: "backoff", restanteMin: clock.restanteMin ?? null, janela };
+  }
+
+  const fila = [...new Set([c.texto, ...CHAT_FALLBACK])].filter((t) => !(chat.bad || []).includes(t));
+  const texto = fila[0] || c.texto;
+
+  const lives = await loadLives();
+  const login = lives.current?.login || clock.canal || "";
+  const tabId = await ensureChatTab(login);
+  if (!tabId) {
+    await addLog("Keepalive do chat sem aba da Twitch disponível.", "warn");
+    return { sent: false, reason: "sem aba da Twitch", restanteMin: clock.restanteMin ?? null };
+  }
+
+  if (!(await ensureKeeper(tabId))) {
+    await set({
+      [CHAT_KEY]: { ...chat, lastAt: num(chat.lastAt, 0), fails: num(chat.fails, 0) + 1, lastError: "sem content script", retryAt: agora + CHAT_RETRY_MS }
+    });
+    return { sent: false, reason: "sem content script" };
+  }
+
+  let r = null;
+  try {
+    r = await chrome.tabs.sendMessage(tabId, { type: "RSAF_CHAT_SEND", text: texto, force });
+  } catch {
+    r = null;
+  }
+
+  if (!r?.ok) {
+    const motivo = r?.reason || "sem resposta";
+    await set({
+      [CHAT_KEY]: { ...chat, lastAt: num(chat.lastAt, 0), fails: num(chat.fails, 0) + 1, lastError: motivo, retryAt: agora + CHAT_RETRY_MS }
+    });
+    await addLog(`Chat: "${texto}" não saiu (${motivo}); tento em 2 min.`, "warn");
+    return { sent: false, reason: motivo, retryIn: CHAT_RETRY_MS, restanteMin: clock.restanteMin ?? null };
+  }
+
+  // 60 s depois o próximo tick lê /api/me e confirma se lastActiveAt avançou.
+  await set({
+    [CHAT_KEY]: {
+      ...chat, lastAt: agora, fails: 0, lastError: null, retryAt: 0,
+      sentAt: agora, sentText: texto, verifyAt: agora + 60000
+    }
+  });
+  const falta = clock.restanteMin ?? "?";
+  const estava = clock.afk ? " (estava AFK, voltando)" : "";
+  await addLog(`Chat: "${texto}" enviado em ${login || "canal atual"} (faltavam ${falta} min de AFK)${estava}.`, "ok");
+  return { sent: true, at: agora, texto, restanteMin: clock.restanteMin ?? null };
 }
 
 /* ------------------------------ ranking/lives ---------------------------- */
@@ -344,18 +680,22 @@ async function openChannel(login) {
 /* ------------------------------- mensagens ------------------------------- */
 
 async function publicState() {
-  const [cfg, lives, status, log, token] = await Promise.all([
+  const [cfg, lives, status, log, token, chat, clock] = await Promise.all([
     loadCfg(),
     loadLives(),
     get(STATUS_KEY, {}),
     get(LOG_KEY, []),
-    get(TOKEN_KEY, null)
+    get(TOKEN_KEY, null),
+    loadChat(),
+    loadClock()
   ]);
   return {
     running: cfg.running,
     hasToken: !!token,
     settings: cfg.settings,
     current: lives.current,
+    chat,
+    chatClock: clock,
     runtime: {
       status: cfg.running ? "ativo" : "parado",
       scanAt: lives.scanAt,
@@ -415,6 +755,16 @@ async function handleMessage(msg, sender) {
         ? "Rodada enviada para a aba do jogo."
         : "Abra riftstream.com.br numa aba para a rodada acontecer.", r.enviados ? "ok" : "warn");
       return { ...(await publicState()), dispatched: r.enviados };
+    }
+
+    case "RSAF_CHAT_NOW": {
+      const r = await chatTick({ force: true });
+      if (!r.sent) await addLog(`Envio manual do chat não saiu: ${r.reason}.`, "warn");
+      return { ...(await publicState()), chatResult: r };
+    }
+
+    case "RSAF_CHAT_STATE": {
+      return { ...(await publicState()), chatResult: { sent: false, reason: "consulta" } };
     }
 
     case "RSAF_OPEN_SITE": {
@@ -497,7 +847,19 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== ALARM_NAME) return;
   const cfg = await loadCfg();
   if (!cfg.running) return;
+
+  const agora = Date.now();
+  const marca = num(await get("rsafLastTick", 0), 0);
+  const dormiu = marca > 0 && agora - marca > 3 * 60 * 1000;
+  await set({ rsafLastTick: agora });
+
   await acordarAbas();
+  await ensureGameTab();
+  await chatTick();
+
+  if (dormiu) {
+    await addLog(`Voltei de suspensão (${Math.round((agora - marca) / 60000)} min parado); abas e AFK conferidos.`, "info");
+  }
   await syncBadge();
 });
 
@@ -508,10 +870,31 @@ chrome.storage.onChanged.addListener((m) => {
   }
 });
 
+// Depois de instalar/atualizar, os content scripts das abas antigas ficam
+// órfãos. Reinjeta em todas para o farm não morrer esperando um F5.
+async function reidratarTudo() {
+  let total = 0;
+  for (const tab of await gameTabs()) {
+    if (!tab.id || tab.discarded) continue;
+    if (await reidratarAba(tab.id)) total++;
+  }
+  for (const tab of await twitchTabs()) {
+    if (!tab.id || tab.discarded) continue;
+    if (await ensureKeeper(tab.id)) total++;
+  }
+  return total;
+}
+
 async function boot() {
   await syncBadge();
   await syncAlarm();
-  await addLog("Extensão atualizada. Abra o site e use o painel ◆ no canto.", "info");
+  const total = await reidratarTudo();
+  await addLog(
+    total
+      ? `Extensão atualizada. Scripts reinjetados em ${plural(total, "aba", "abas")}.`
+      : "Extensão atualizada. Abra o site e use o painel ◆ no canto.",
+    "info"
+  );
 }
 
 chrome.runtime.onInstalled.addListener(boot);
