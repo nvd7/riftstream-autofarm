@@ -39,7 +39,8 @@ function defaults() {
     goldReserve: 50000,
     theme: "farmline",
     font: 12,
-    chatKeep: { ligado: true, minutos: 0, texto: "$jump" }
+    chatKeep: { ligado: true, minutos: 0, texto: "$jump" },
+    autoPlay: { ligado: true, classe: "auto", autoLive: true, raid: false }
   };
 }
 
@@ -311,6 +312,22 @@ function renderSettings() {
   setVal("chatMinutes", st.chatKeep?.minutos ?? 0);
   setVal("chatText", st.chatKeep?.texto || "$jump");
 
+  const play = st.autoPlay || {};
+  setCheck("playOn", play.ligado !== false);
+  setCheck("playAutoLive", play.autoLive !== false);
+  setCheck("playRaid", play.raid === true);
+  setVal("playClass", play.classe || "auto");
+
+  const p = state?.play || {};
+  const partesPlay = [];
+  if (p.verifyAt) partesPlay.push(`entrando em ${p.sentChannel || "..."}`);
+  else if (p.jogando && p.canal) partesPlay.push(`no jogo: ${p.canal}`);
+  else if (p.canal) partesPlay.push(`canal: ${p.canal}`);
+  else partesPlay.push("fora do jogo");
+  if (p.fails) partesPlay.push(`${p.fails} falha(s)`);
+  if (p.lastError) partesPlay.push(p.lastError);
+  $("playAt").textContent = partesPlay.join(" · ");
+
   const ch = state?.chat || {};
   const clock = state?.chatClock || {};
   const partes = [];
@@ -402,6 +419,12 @@ function gatherSettings() {
     minutos: Math.max(0, Math.min(55, Math.round(Number($("chatMinutes").value) || 0))),
     texto: ($("chatText").value || "$jump").trim().slice(0, 200)
   };
+  st.autoPlay = {
+    ligado: $("playOn").checked,
+    classe: $("playClass").value,
+    autoLive: $("playAutoLive").checked,
+    raid: $("playRaid").checked
+  };
   return st;
 }
 
@@ -484,11 +507,27 @@ function wire() {
     }
   });
 
+  $("playNow").addEventListener("click", async () => {
+    busy = true;
+    render();
+    try {
+      state = await send("RSAF_PLAY_NOW");
+      const r = state?.playResult;
+      if (!r?.sent) setError(`Jogo não entrou: ${r?.reason || "sem resposta"}`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      busy = false;
+      render();
+    }
+  });
+
   $("clearLog").addEventListener("click", async () => {
     try { state = await send("RSAF_CLEAR_LOG"); render(); } catch (e) { setError(e.message); }
   });
 
-  for (const id of ["strategy", "minPlayers", "theme", "font", "goldReserve", "chatMode", "muteTab", "chatKeep", "chatMinutes", "chatText"]) {
+  for (const id of ["strategy", "minPlayers", "theme", "font", "goldReserve", "chatMode", "muteTab", "chatKeep", "chatMinutes", "chatText",
+    "playOn", "playAutoLive", "playRaid", "playClass"]) {
     const el = $(id);
     el.addEventListener("change", () => {
       gatherSettings();

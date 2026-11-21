@@ -55,6 +55,27 @@
     archer: ["topaz", "ruby", "sapphire", "amethyst", "emerald"]
   };
 
+  // Modelo de combate do próprio jogo (bundle): usado só quando /api/me/character
+  // não trouxer os valores finais. Base e crescimento por classe.
+  const CLASSE_BASE = {
+    warrior: { hp: 120, atk: 9, def: 4, aspd: 1.0, hpN: 19, atkN: 1.6, defN: 1.1 },
+    cleric: { hp: 85, atk: 6, def: 2, aspd: 0.8, hpN: 9, atkN: 1.1, defN: 0.5 },
+    archer: { hp: 70, atk: 11, def: 1.5, aspd: 1.1, hpN: 8, atkN: 1.9, defN: 0.4 }
+  };
+  // Pesos do modo ótimo: [dano, sobrevivência]. O equilíbrio usa média
+  // geométrica — 1% de dano vale o mesmo que 1% de vida efetiva.
+  const FOCO_PESOS = {
+    equilibrado: [0.5, 0.5],
+    dano: [0.72, 0.28],
+    tanque: [0.28, 0.72]
+  };
+  // O bundle converte velocidade acima de 4,6 ataques/s em dano extra: metade
+  // do valor por ataque, para não superestimar Agilidade no late game.
+  const ASPD_UTIL = 4.6;
+  // Dano sofrido = bruto * 100 / (100 + 4 * defesa).
+  const DEF_K = 4;
+  const CRIT_BASE_MULT = 1.75;
+
   const DEFAULT_SETTINGS = {
     // Modo automático: um botão só. Quando ligado, a engine se configura sozinha
     // (faixa de nível da forja e reserva de ouro saem do próprio inventário).
@@ -72,6 +93,7 @@
     stats: {
       ligado: true,
       modo: "igual",
+      foco: "equilibrado",
       sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
       metas: {}
     },
@@ -155,6 +177,8 @@
     out.lote.level = Math.max(0, Math.min(9999, Math.round(num(out.lote.level, 40))));
     out.alchemy.slotAlvo = ["arma","elmo","armadura","anel"].includes(out.alchemy.slotAlvo) ? out.alchemy.slotAlvo : "arma";
     out.alchemy.raridadeAlvo = Math.max(0, Math.min(2, Math.round(num(out.alchemy.raridadeAlvo, 0))));
+    if (!["igual", "nivel", "otimo"].includes(out.stats.modo)) out.stats.modo = "igual";
+    if (!["equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "equilibrado";
     out.transmog.alvoSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.alvoSlot) ? out.transmog.alvoSlot : "arma";
     out.transmog.fonteSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.fonteSlot) ? out.transmog.fonteSlot : "arma";
     // O autosell do site roda fora da extensão e não conhece a reserva da
@@ -792,6 +816,85 @@
     })).filter((a) => Number.isFinite(num(a.nivel, NaN)) && Number.isFinite(num(a.custo, NaN)));
   }
 
+  // ---------------------------- modo ótimo --------------------------------
+  //
+  // O jogo descreve cada ponto assim (texto do próprio bundle):
+  //   Força  +1,5 de ataque e +1,5% do ataque total
+  //   Vital. +10 de vida e +1,5% da vida total
+  //   Defesa +0,8 de defesa e +1,5% da defesa total
+  //   Agi.   +2% de velocidade de ataque
+  //   Sorte  +0,4% de crítico (até o teto); acima de 60% vira dano crítico
+  //
+  // Como os bônus percentuais incidem sobre o total (itens inclusos), o valor de
+  // cada ponto muda a cada compra. Em vez de dividir o ouro no chute, o modo
+  // ótimo mede a variação de dano e de vida efetiva de cada atributo e compra o
+  // que entrega mais por ouro.
+  function combateDe(ch) {
+    const st = ch?.stats || {};
+    const cls = String(ch?.class || ch?.cls || "warrior").toLowerCase();
+    const base = CLASSE_BASE[cls] || CLASSE_BASE.warrior;
+    const nivel = Math.max(1, num(ch?.level, 1));
+    const r = nivel - 1;
+    const nv = ch?.statLevels || {};
+    const forca = num(nv.str, 0);
+    const vit = num(nv.vit, 0);
+    const def = num(nv.def, 0);
+    const agi = num(nv.agi, 0);
+    const luk = num(nv.luk, 0);
+    const aspdBase = base.aspd;
+    return {
+      atk: num(st.atk, base.atk + base.atkN * r + forca * 1.5),
+      maxHp: num(st.maxHp, base.hp + base.hpN * r + vit * 10),
+      def: num(st.def, base.def + base.defN * r + def * 0.8),
+      aspd: num(st.aspd, aspdBase * (1 + agi * 0.02)),
+      // A ficha do jogo mostra crítico em %. O dano crítico vem em fração
+      // (0,03 = +3%), do mesmo jeito que o bundle soma em 1,75.
+      crit: num(st.crit, Math.min(60, 5 + luk * 0.4)),
+      critDmg: num(st.critDmg, 0)
+    };
+  }
+
+  function utilidade(c, foco) {
+    const pesos = FOCO_PESOS[foco] || FOCO_PESOS.equilibrado;
+    const aspd = c.aspd <= ASPD_UTIL ? c.aspd : ASPD_UTIL + (c.aspd - ASPD_UTIL) * 0.5;
+    const crit = Math.min(60, Math.max(0, c.crit)) / 100;
+    const critMult = 1 + crit * (CRIT_BASE_MULT - 1 + Math.max(0, c.critDmg));
+    const dps = Math.max(1e-6, c.atk * aspd * critMult);
+    const ehp = Math.max(1e-6, c.maxHp * (100 + DEF_K * Math.max(0, c.def)) / 100);
+    return Math.pow(dps, pesos[0]) * Math.pow(ehp, pesos[1]);
+  }
+
+  function comUmPonto(c, id) {
+    const n = { ...c };
+    if (id === "forca") n.atk = c.atk + 1.5 + 0.015 * c.atk;
+    else if (id === "vitalidade") n.maxHp = c.maxHp + 10 + 0.015 * c.maxHp;
+    else if (id === "defesa") n.def = c.def + 0.8 + 0.015 * c.def;
+    else if (id === "agilidade") n.aspd = c.aspd * 1.02;
+    else if (id === "sorte") {
+      if (c.crit < 60) n.crit = Math.min(60, c.crit + 0.4);
+      else n.critDmg = c.critDmg + 0.03;
+    }
+    return n;
+  }
+
+  // Devolve o atributo com maior ganho por ouro. `null` quando nada vale a pena.
+  function melhorAtributo(ch, foco) {
+    const combate = combateDe(ch);
+    const base = utilidade(combate, foco);
+    const luk = num(ch?.statLevels?.luk, 0);
+    const lukCap = num(ch?.lukCap, 100);
+    let melhor = null;
+    for (const a of atributosDe(ch)) {
+      if (pausado(a.id)) continue;
+      if (a.id === "sorte" && luk >= lukCap) continue;
+      const ganho = utilidade(comUmPonto(combate, a.id), foco) - base;
+      if (!(ganho > 0) || !(a.custo > 0)) continue;
+      const porOuro = ganho / a.custo;
+      if (!melhor || porOuro > melhor.porOuro) melhor = { ...a, ganho, porOuro };
+    }
+    return melhor ? { ...melhor, combate } : null;
+  }
+
   // Mantém os níveis reais no storage para o painel mostrar "nv X" mesmo antes
   // de qualquer compra (e corrige o valor otimista depois de upar).
   function salvarNiveis(ch) {
@@ -824,6 +927,31 @@
     const u = s().stats;
     const livre = num(ch.gold) - reserva(ch);
     const atributos = atributosDe(ch).filter((a) => !pausado(a.id));
+
+    if (u.modo === "otimo") {
+      const alvo = melhorAtributo(ch, u.foco);
+      if (!alvo) {
+        setStatus("up", "Ótimo: nenhum ponto rende ganho agora");
+        return false;
+      }
+      if (livre < alvo.custo) {
+        setStatus("up", `Juntando ouro para ${alvo.nome} (${alvo.custo.toLocaleString("pt-BR")})`);
+        return false;
+      }
+      if (SIMULAR) {
+        window.__plano?.push(
+          `ótimo: ${alvo.nome} +1 (nv ${alvo.nivel}, custa ${alvo.custo}, ` +
+          `dano ${Math.round(num(alvo.combate.atk) * 10) / 10}, vida ${Math.round(num(alvo.combate.maxHp))})`
+        );
+      }
+      if (!(await comprar(alvo, 1))) return false;
+      stats.upGasto[alvo.id] = (stats.upGasto[alvo.id] || 0) + alvo.custo;
+      stats.upNiveis[alvo.id] = alvo.nivel + 1;
+      salvarStats({ upGasto: { ...stats.upGasto }, upNiveis: { ...stats.upNiveis } });
+      setStatus("up", `Ótimo: ${alvo.nome} para o nível ${alvo.nivel + 1}`);
+      status.lastAction = `${alvo.nome} nv ${alvo.nivel + 1} (ótimo)`;
+      return true;
+    }
 
     if (u.modo === "igual") {
       const opcoes = atributos.filter((a) => u.sel[a.id]);

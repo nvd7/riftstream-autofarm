@@ -43,6 +43,15 @@ const CHAT_CLOCK_ERR_MS = 5 * 60 * 1000;
 const CHAT_CLOCK_401_MS = 15 * 60 * 1000;
 const GAME_OPEN_GAP = 10 * 60 * 1000;
 const REIDRATA_GAP = 5 * 60 * 1000;
+const PLAY_KEY = "rsafPlay";
+const RAID_KEY = "rsafRaid";
+// O jogo só aceita um personagem por canal, e `$jogar` é o comando que entra.
+const PLAY_DEFAULTS = { ligado: true, classe: "auto", autoLive: true, raid: false };
+const PLAY_VERIFY_MS = 75 * 1000;      // tempo para o servidor refletir o `$jogar`
+const PLAY_RETRY_MS = 5 * 60 * 1000;   // tentativa após falha (sem efeito)
+const PLAY_MORTO_MS = 20 * 60 * 1000;  // três falhas seguidas: espera mais
+const PLAY_BAD_LIVE_MS = 25 * 60 * 1000; // live que ignorou o $jogar fica de fora
+const PLAY_RAID_GAP_MS = 6 * 60 * 60 * 1000; // mesma live não repete raid cedo
 
 let lastGameOpen = 0;
 let lastReidrata = 0;
@@ -543,6 +552,180 @@ async function chatTick({ force = false } = {}) {
   return { sent: true, at: agora, texto, restanteMin, janela };
 }
 
+/* ------------------------------- jogar sozinho --------------------------- */
+
+// O jogo só mantém o herói em UM canal e o AFK é por relógio do servidor. O
+// keepalive resolve o AFK; este módulo resolve o outro lado: entrar (ou voltar)
+// no jogo sozinho — inclusive quando o navegador ficou fechado a noite inteira,
+// quando o token expirou e quando a live escolhida saiu do ar.
+function playCfg(cfg) {
+  const p = { ...PLAY_DEFAULTS, ...(cfg?.settings?.autoPlay || {}) };
+  const classe = ["auto", "guerreiro", "clerigo", "arqueiro"].includes(p.classe) ? p.classe : "auto";
+  return {
+    ligado: p.ligado !== false,
+    classe,
+    autoLive: p.autoLive !== false,
+    raid: p.raid === true
+  };
+}
+
+async function loadPlay() {
+  return await get(PLAY_KEY, {
+    jogando: false, canal: null, alvo: null, lastAt: 0, sentAt: 0, sentText: null,
+    sentChannel: "", verifyAt: 0, fails: 0, lastError: null, retryAt: 0, bad: {}
+  });
+}
+
+// Live alvo: a escolhida pelo jogador; sem ela, a melhor do ranking (estratégia
+// configurada). Nunca abre aba só para consultar — o `ensureChatTab` é quem abre.
+async function liveDoJogo(lives, autoLive, bad = {}) {
+  // Escolha manual do jogador manda. A escolha automática é reavaliada a cada
+  // tentativa: se a live caiu do ar, a próxima do ranking assume.
+  if (lives.current?.login && !lives.current.auto) return String(lives.current.login).toLowerCase();
+  if (!autoLive) return lives.current?.login ? String(lives.current.login).toLowerCase() : null;
+  let lista = lives.candidates || [];
+  if (!lista.length) {
+    try { lista = await scanChannels({ force: true }); } catch { lista = []; }
+  }
+  // Live que acabou de recusar o comando fica de fora por um tempo: insistir
+  // nela a noite toda quando o bot dela está fora do ar é desperdício.
+  const agora = Date.now();
+  const sadias = lista.filter((c) => !(num(bad[c.login], 0) > agora));
+  const escolhida = (sadias.find((c) => c.open) || sadias[0] || lista.find((c) => c.open) || lista[0])?.login;
+  if (!escolhida) return null;
+  const atual = await loadLives();
+  await saveLives({
+    ...atual,
+    current: { login: String(escolhida).toLowerCase(), tabId: atual.current?.tabId || null, openedAt: Date.now(), auto: true }
+  });
+  return String(escolhida).toLowerCase();
+}
+
+async function playTick({ force = false } = {}) {
+  const cfg = await loadCfg();
+  if (!cfg.running) return { sent: false, reason: "parado" };
+
+  const p = playCfg(cfg);
+  if (!p.ligado && !force) return { sent: false, reason: "desligado" };
+
+  const agora = Date.now();
+  const play = await loadPlay();
+
+  // Confirma o `$jogar` anterior. O servidor move o personagem para o canal do
+  // comando; se `currentChannel` não apareceu em 75 s, o comando não pegou.
+  if (play.verifyAt && agora >= num(play.verifyAt, 0) && play.sentAt) {
+    const novo = await afkClock(true);
+    if (novo.ok && novo.canal) {
+      Object.assign(play, {
+        jogando: true, canal: novo.canal, alvo: novo.canal,
+        verifyAt: 0, sentAt: 0, fails: 0, lastError: null, retryAt: 0
+      });
+      await set({ [PLAY_KEY]: play });
+      await addLog(`Jogo: herói está em ${novo.canal}.`, "ok");
+      return { sent: false, reason: "em jogo", canal: novo.canal };
+    }
+    if (novo.ok) {
+      play.fails = num(play.fails, 0) + 1;
+      play.verifyAt = 0;
+      play.sentAt = 0;
+      play.lastError = `sem efeito: ${play.sentText || "$jogar"}`;
+      play.retryAt = agora + (play.fails >= 3 ? PLAY_MORTO_MS : PLAY_RETRY_MS);
+      // A live que ignorou o `$jogar` fica em quarentena; a próxima tentativa
+      // pode usar outra do ranking (só no modo automático — escolha manual é
+      // do jogador e continua valendo).
+      if (play.sentChannel) {
+        const bad = { ...(play.bad || {}) };
+        for (const [k, v] of Object.entries(bad)) if (num(v, 0) <= agora) delete bad[k];
+        bad[play.sentChannel] = agora + PLAY_BAD_LIVE_MS;
+        play.bad = bad;
+      }
+      await set({ [PLAY_KEY]: play });
+      await addLog(
+        `Jogo: "${play.sentText}" não colocou o herói em jogo ` +
+        `(${play.fails}ª falha); tento de novo em ${play.fails >= 3 ? 20 : 5} min.`,
+        "warn"
+      );
+      return { sent: false, reason: "sem efeito", retryAt: play.retryAt };
+    }
+    if (agora - num(play.sentAt, 0) > 5 * 60000) {
+      play.verifyAt = 0;
+      play.sentAt = 0;
+      play.lastError = novo.reason || "relógio indisponível";
+      await set({ [PLAY_KEY]: play });
+    }
+    return { sent: false, reason: "relógio indisponível" };
+  }
+
+  const clock = await afkClock(force);
+  if (!clock.ok) return { sent: false, reason: clock.reason || "sem relógio" };
+
+  if (clock.canal) {
+    if (!play.jogando || play.canal !== clock.canal) {
+      play.jogando = true;
+      play.canal = clock.canal;
+      play.alvo = clock.canal;
+    }
+    if (play.lastError || play.fails) {
+      Object.assign(play, { fails: 0, lastError: null, retryAt: 0 });
+    }
+    await set({ [PLAY_KEY]: play });
+    return { sent: false, reason: "em jogo", canal: clock.canal };
+  }
+
+  // `$jogar` anterior ainda dentro da janela de confirmação: esperar é
+  // obrigatório, senão cada minuto manda outro comando no chat.
+  if (play.verifyAt && agora < num(play.verifyAt, 0)) {
+    return { sent: false, reason: "aguardando confirmação" };
+  }
+
+  if (!force && agora < num(play.retryAt, 0)) {
+    return { sent: false, reason: "backoff", retryAt: play.retryAt };
+  }
+
+  const lives = await loadLives();
+  const alvo = await liveDoJogo(lives, p.autoLive, play.bad || {});
+  if (play.jogando || play.canal) Object.assign(play, { jogando: false, canal: null });
+  if (!alvo) {
+    play.lastError = "sem live online para entrar";
+    play.retryAt = agora + PLAY_RETRY_MS;
+    await set({ [PLAY_KEY]: play });
+    return { sent: false, reason: "sem live" };
+  }
+
+  // Se o URL atual já é da live certa, reaproveita. Fora isso abre o popout em
+  // segundo plano, silenciado e não descartável — nunca rouba o foco.
+  const tabId = await ensureChatTab(alvo);
+  if (!tabId) {
+    play.lastError = "sem aba da Twitch";
+    play.retryAt = agora + PLAY_RETRY_MS;
+    await set({ [PLAY_KEY]: play });
+    return { sent: false, reason: "sem aba" };
+  }
+
+  const texto = p.classe === "auto" ? "$jogar" : `$jogar ${p.classe}`;
+  let r = null;
+  try {
+    r = await chrome.tabs.sendMessage(tabId, { type: "RSAF_CHAT_SEND", text: texto, force: true });
+  } catch {
+    r = null;
+  }
+  if (!r?.ok) {
+    const motivo = r?.reason || "sem resposta";
+    Object.assign(play, { lastError: motivo, retryAt: agora + CHAT_RETRY_MS, jogando: false });
+    await set({ [PLAY_KEY]: play });
+    await addLog(`Jogo: "${texto}" não saiu (${motivo}); tento em 2 min.`, "warn");
+    return { sent: false, reason: motivo };
+  }
+
+  Object.assign(play, {
+    jogando: false, canal: null, alvo, lastAt: agora, sentAt: agora, sentText: texto,
+    sentChannel: alvo, verifyAt: agora + PLAY_VERIFY_MS, lastError: null, retryAt: 0
+  });
+  await set({ [PLAY_KEY]: play });
+  await addLog(`Jogo: "${texto}" enviado em ${alvo}; confiro o herói em 75 s.`, "ok");
+  return { sent: true, texto, canal: alvo };
+}
+
 /* ------------------------------ ranking/lives ---------------------------- */
 
 function publicApi(path) {
@@ -761,14 +944,15 @@ async function openChannel(login) {
 /* ------------------------------- mensagens ------------------------------- */
 
 async function publicState() {
-  const [cfg, lives, status, log, token, chat, clock] = await Promise.all([
+  const [cfg, lives, status, log, token, chat, clock, play] = await Promise.all([
     loadCfg(),
     loadLives(),
     get(STATUS_KEY, {}),
     get(LOG_KEY, []),
     get(TOKEN_KEY, null),
     loadChat(),
-    loadClock()
+    loadClock(),
+    loadPlay()
   ]);
   return {
     running: cfg.running,
@@ -777,6 +961,7 @@ async function publicState() {
     current: lives.current,
     chat,
     chatClock: clock,
+    play,
     runtime: {
       status: cfg.running ? "ativo" : "parado",
       scanAt: lives.scanAt,
@@ -842,6 +1027,39 @@ async function handleMessage(msg, sender) {
       const r = await chatTick({ force: true });
       if (!r.sent) await addLog(`Envio manual do chat não saiu: ${r.reason}.`, "warn");
       return { ...(await publicState()), chatResult: r };
+    }
+
+    case "RSAF_PLAY_NOW": {
+      const r = await playTick({ force: true });
+      if (!r.sent) await addLog(`Entrada manual no jogo não saiu: ${r.reason}.`, "warn");
+      return { ...(await publicState()), playResult: r };
+    }
+
+    case "RSAF_RAID_CODE": {
+      const code = String(msg.code || "").replace(/\D/g, "").slice(0, 8);
+      if (code.length < 4) return { ok: false, reason: "código inválido" };
+      const cfg = await loadCfg();
+      const p = playCfg(cfg);
+      if (!cfg.running || !p.raid) return { ok: false, reason: "raid desligada" };
+
+      const ultimo = await get(RAID_KEY, { code: null, canal: null, at: 0 });
+      if (ultimo.code === code && Date.now() - num(ultimo.at, 0) < PLAY_RAID_GAP_MS) {
+        return { ok: false, reason: "já entrei nesse código" };
+      }
+
+      const lives = await loadLives();
+      const canal = String(msg.login || ultimo.canal || lives.current?.login || "").toLowerCase();
+      const tabId = await ensureChatTab(canal);
+      if (!tabId) return { ok: false, reason: "sem aba da Twitch" };
+
+      const texto = `$raid ${code}`;
+      let r = null;
+      try { r = await chrome.tabs.sendMessage(tabId, { type: "RSAF_CHAT_SEND", text: texto, force: true }); } catch { r = null; }
+      if (!r?.ok) return { ok: false, reason: r?.reason || "sem resposta" };
+
+      await set({ [RAID_KEY]: { code, canal, at: Date.now() } });
+      await addLog(`Raid: "${texto}" enviado em ${canal || "canal atual"}.`, "ok");
+      return { ok: true, texto };
     }
 
     case "RSAF_CHAT_STATE": {
@@ -936,7 +1154,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   await acordarAbas();
   await ensureGameTab();
-  await chatTick();
+  // Entrar/voltar ao jogo vem antes do keepalive: `$jump` não coloca o herói
+  // em jogo, e mandar os dois no mesmo minuto só faria barulho no chat.
+  const jogo = await playTick();
+  if (!jogo.sent) await chatTick();
 
   if (dormiu) {
     await addLog(`Voltei de suspensão (${Math.round((agora - marca) / 60000)} min parado); abas e AFK conferidos.`, "info");

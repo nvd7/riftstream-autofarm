@@ -4,6 +4,40 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.0.0] - 2026-11-20
+
+### Adicionado
+
+- **Jogar sozinho (entrar no jogo automaticamente).** O herói só conta como
+  ativo dentro de um canal, e o servidor perde o vínculo quando o navegador
+  fica fechado a noite inteira ou a aba é descartada. Agora, quando
+  `/api/me` não tem `currentChannel`, o service worker escolhe a live, abre o
+  popout silenciado em segundo plano e manda `$jogar` sozinho. Sem live
+  escolhida, usa a melhor do ranking (a mesma estratégia de zona/onda do
+  resto do app).
+- **Confirmação de entrada em 75 s:** o `$jogar` só é dado como certo quando
+  `currentChannel` aparece em `/api/me`. Se o comando não pegar, a extensão
+  espera 5 min (20 min depois de três falhas) em vez de repetir no chat.
+- **Classe automática ou fixa:** `$jogar` sem argumento (a classe menos cheia)
+  ou guerreiro/clérigo/arqueiro escolhido no popup.
+- **Raid autônoma (opt-in):** com a opção ligada, o script do chat observa
+  apenas mensagens que contenham "raid" e um código numérico e manda
+  `$raid CÓDIGO` uma vez por código. Desligada por padrão; não lê nem guarda
+  o restante do chat.
+
+### Mudado
+
+- **Upar sozinho ganhou o modo Ótimo.** Em vez de dividir o ouro no chute, a
+  engine mede o ganho real de cada ponto com os números da sua ficha — ataque,
+  vida efetiva (`vida × (100 + 4×defesa) / 100`), crítico e velocidade — e
+  compra o atributo que rende mais por ouro. Força, Vitalidade e Defesa têm
+  bônus percentual sobre o total, então o valor muda a cada compra; a escolha
+  é refeita a cada ponto. Há três focos: equilibrado, dano e tanque. O botão
+  **Automático** do painel agora usa esse modo.
+- **Card "Jogar sozinho" no popup:** liga/desliga a entrada automática, define
+  a classe, permite escolher a melhor live quando não houver nenhuma e mostra
+  `no jogo: canal` / `fora do jogo` com a última falha.
+
 ## [2.9.0] - 2026-11-20
 
 ### Corrigido

@@ -55,7 +55,7 @@
           useScroll: false
         },
         stats: {
-          ligado: true, modo: "igual",
+          ligado: true, modo: "igual", foco: "equilibrado",
           sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
           metas: {}
         },
@@ -710,8 +710,22 @@
                 <button class="sw" id="swUp"></button>
               </div>
               <div class="seg" id="segModo">
+                <button data-modo="otimo">Ótimo</button>
                 <button data-modo="igual">Dividir ouro</button>
                 <button data-modo="nivel">Até o nível</button>
+              </div>
+              <div id="boxOtimo">
+                <h3>Foco do modo ótimo</h3>
+                <div class="chips" id="chipsFoco">
+                  <button data-foco="equilibrado">Equilibrado</button>
+                  <button data-foco="dano">Dano</button>
+                  <button data-foco="tanque">Tanque</button>
+                </div>
+                <p class="hint">
+                  Mede o ganho real de cada ponto (ataque, vida efetiva e crítico)
+                  com os seus itens e compra o que rende mais por ouro. O valor de
+                  cada atributo muda a cada compra — por isso não é uma divisão fixa.
+                </p>
               </div>
               <div id="boxIgual">
                 <h3>Atributos para focar</h3>
@@ -1200,7 +1214,8 @@
     st.forge.tipos = { arma: true, elmo: true, armadura: true, anel: true };
 
     st.stats.ligado = true;
-    st.stats.modo = "igual";
+    st.stats.modo = "otimo";
+    st.stats.foco = "equilibrado";
     for (const k of Object.keys(st.stats.sel)) st.stats.sel[k] = true;
 
     st.gems.ligado = true;
@@ -1331,6 +1346,11 @@
 
   raiz.querySelectorAll("#segModo button").forEach((b) => b.addEventListener("click", () => {
     cfg.settings.stats.modo = b.dataset.modo;
+    salvarCfg();
+  }));
+
+  raiz.querySelectorAll("#chipsFoco button").forEach((b) => b.addEventListener("click", () => {
+    cfg.settings.stats.foco = b.dataset.foco;
     salvarCfg();
   }));
 
@@ -1676,6 +1696,8 @@
     raiz.querySelectorAll("#segModo button").forEach((b) => b.classList.toggle("on", b.dataset.modo === st.stats.modo));
     q("boxIgual").hidden = st.stats.modo !== "igual";
     q("boxNivel").hidden = st.stats.modo !== "nivel";
+    q("boxOtimo").hidden = st.stats.modo !== "otimo";
+    raiz.querySelectorAll("#chipsFoco button").forEach((b) => b.classList.toggle("on", b.dataset.foco === (st.stats.foco || "equilibrado")));
     chipsAttr.forEach(([id, b]) => b.classList.toggle("on", !!st.stats.sel[id]));
     linhasMeta.forEach(({ id, input, nv }) => {
       const nivel = stats.upNiveis?.[id];

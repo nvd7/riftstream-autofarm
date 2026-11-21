@@ -52,8 +52,11 @@ service worker atua apenas como coordenador.
 - Lê `lastActiveAt`/`afkMinutes` em `GET /api/me` e, no último terço da janela,
   manda o keepalive no chat da live atual via `content/chatkeeper.js`. A janela
   da última leitura continua valendo quando o relógio fica indisponível.
+- Quando `/api/me` não tem `currentChannel`, escolhe a live, abre o popout e
+  manda `$jogar` (`playTick`), confirmando em 75 s. Falha isolada espera 5 min;
+  três seguidas, 20 min; a live que ignorou o comando fica 25 min de fora.
 - Responde ao popup (`RSAF_GET_STATE`, `RSAF_SCAN`, `RSAF_SET_RUNNING`,
-  `RSAF_OPEN_PANEL`, `RSAF_MAINTENANCE`, `RSAF_CHAT_NOW`…).
+  `RSAF_OPEN_PANEL`, `RSAF_MAINTENANCE`, `RSAF_CHAT_NOW`, `RSAF_PLAY_NOW`…).
 
 ### `content/chatkeeper.js`
 
@@ -61,6 +64,9 @@ Injetado na Twitch junto com `content/twitch.js`. Recebe `RSAF_CHAT_SEND`,
 preenche a caixa com o setter nativo do React, tenta o botão de enviar, cai no
 Enter e confirma que a caixa esvaziou. Aborta quando há texto do usuário na
 caixa e registra a atividade humana para o background não atropelar ninguém.
+Com `autoPlay.raid` ligado, um `MutationObserver` lê apenas mensagens que
+contenham “raid” e um código numérico e pede `$raid CÓDIGO` ao background; sem
+a opção, o observador nem é criado.
 
 ### `content/engine.js`
 
@@ -89,9 +95,11 @@ Regras importantes:
   modo manual e, no automático, calcula uma faixa de 40 níveis por grupo.
   Estima o custo com reserva de ouro e usa `/compare?simGems=true` para não
   destruir item melhor que o equipado.
-- **Atributos** têm dois modos: `igual` (dividir ouro, escolhendo quem recebeu
-  menos) e `nivel` (metas por atributo). `stats.sel` funciona como foco; a
-  reserva (`goldReserve`) nunca é gasta.
+- **Atributos** têm três modos: `otimo` (mede o ganho de dano e vida efetiva
+  de cada ponto com os números da ficha e compra o melhor por ouro, refeito a
+  cada compra; `stats.foco` = equilibrado/dano/tanque), `igual` (dividir ouro,
+  escolhendo quem recebeu menos) e `nivel` (metas por atributo). `stats.sel`
+  funciona como foco; a reserva (`goldReserve`) nunca é gasta.
 - **Gemas** combina 3 em 3 pelo endpoint do site e, se marcado, faz Suprema.
 - **Engaste** escolhe a melhor gema por classe e tier.
 - **Aprimorar** pede a prévia de custo e só usa doadores mais fracos que não

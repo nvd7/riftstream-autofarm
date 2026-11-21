@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-2.9.0-f5c451" alt="Versão 2.8.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.0.0-f5c451" alt="Versão 3.0.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -42,9 +42,10 @@
 </p>
 
 > [!IMPORTANT]
-> **A extensão envia um comando curto no chat** — o keepalive anti-AFK
-> (`$jump`, cosmético) — e mantém o inventário pela API oficial do site. O
-> `$jogar` e os comandos de progressão continuam sendo digitados **por você**.
+> **A extensão fala no chat por você.** Ela manda o keepalive anti-AFK
+> (`$jump`), o `$jogar` quando o herói está fora de jogo e, se você ligar,
+> o `$raid CÓDIGO` anunciado na live. O resto (`$jogar <classe>` manual,
+> `$up`, progressão) continua sendo digitado **por você**.
 
 > [!WARNING]
 > **Automatizar o inventário viola os Termos do RiftStream.** A seção 5 proíbe
@@ -122,9 +123,25 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **API descoberta na página:** o endereço do servidor é lido do código do jogo;
   se mudar, a engine procura de novo sozinha.
 
+### Jogar sozinho
+
+- **Entra no jogo por você:** sem canal ativo em `/api/me`, manda `$jogar` no
+  chat da live e confirma em 75 s que o herói apareceu em `currentChannel`.
+  Se o comando não pegar, espera 5 min (20 min após três falhas) em vez de
+  repetir.
+- **Classe fixa ou automática:** `$jogar` sem argumento escolhe a classe menos
+  cheia da live; dá para fixar guerreiro, clérigo ou arqueiro.
+- **Live quando não há nenhuma:** opcionalmente escolhe a melhor do ranking
+  pela mesma estratégia de zona/onda e abre o popout silenciado, sem roubar o
+  foco.
+- **Raid (opt-in):** lê só mensagens com "raid" + código numérico e manda
+  `$raid CÓDIGO` uma vez por código.
+
 ### Lives (popup)
 
-- **Procurar lives (manual):** nada é escolhido sozinho.
+- **Procurar lives (manual):** o botão **Procurar lives** é sempre seu; com
+  "jogar sozinho" ligado, a escolha automática só acontece quando não existe
+  nenhuma live selecionada.
 - **Ordenação configurável:** maior zona, mais jogadores ou equilibrado.
 - **Suas abas contam:** lives já abertas na Twitch aparecem no topo, marcadas
   como **aberta**, mesmo se o ranking falhar.
@@ -153,9 +170,12 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
 - **Pergaminho na forja (opcional):** gasta um Pergaminho de Sorte por tentativa
   para aumentar a chance de sucesso. Se o estoque acabar, a forja segue sem ele.
 - **Atributos do jeito que você quiser:**
+  - **Ótimo:** compra o atributo com maior ganho real por ouro, medindo dano
+    (`atq × vel × crítico`) e vida efetiva (`vida × (100 + 4×defesa) / 100`)
+    com os seus itens. O valor de cada ponto muda a cada compra, então a
+    escolha é refeita ponto a ponto. Focos: equilibrado, dano e tanque;
   - **Dividir ouro:** o mesmo tanto para cada atributo marcado;
   - **Até o nível:** metas por atributo;
-  - **Foco:** marque só Força, Vitalidade, Defesa, Agilidade ou Sorte.
   - A **reserva de ouro** nunca é gasta.
 - **Gemas:** combina 3 em 3 pelo mesmo endpoint do site e, opcionalmente, faz a
   **Suprema** (aviso de risco na tela).
@@ -273,10 +293,11 @@ popup.
 | `$jogar arqueiro` | Idem, arqueiro |
 | `$me` | Mostra o personagem; também renova o relógio de atividade |
 | `$jump` | O herói pula — cosmético, sem resposta do bot |
+| `$raid CÓDIGO` | Entra na raid do Covil de Vexxaris (opt-in) |
 
-> O `$jogar` e os comandos de progressão são seus. A extensão só manda o
-> keepalive (`$jump` por padrão) quando o relógio do servidor está perto do
-> AFK.
+> O que a extensão manda sozinha: `$jogar` quando não há canal ativo,
+> `$jump` (keepalive) perto do AFK e, se você ligar, `$raid CÓDIGO`. O resto é
+> seu.
 
 > [!TIP]
 > Sem argumento, `$jogar` deixa o jogo escolher a classe **menos populosa**, o
@@ -313,7 +334,8 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Forja | `forge.auto` | `false` | Faixa de nível calculada pelo inventário (modo automático) |
 | Forja | `forge.useScroll` | `false` | Usa Pergaminho de Sorte em cada forja |
 | Atributos | `stats.ligado` | `true` | Gasta ouro em atributos |
-| Atributos | `stats.modo` | `igual` | `igual` (dividir) ou `nivel` (metas) |
+| Atributos | `stats.modo` | `igual` | `otimo` (ganho por ouro), `igual` (dividir) ou `nivel` (metas) |
+| Atributos | `stats.foco` | `equilibrado` | No modo `otimo`: `equilibrado`, `dano` ou `tanque` |
 | Atributos | `stats.sel` | Todos | Atributos marcados (foco) |
 | Atributos | `stats.metas` | — | Nível-alvo por atributo no modo `nivel` |
 | Gemas | `gems.ligado` | `true` | Combina gemas |

@@ -180,6 +180,73 @@
     } catch { /* extensão recarregada */ }
   }, true);
 
+  /* ------------------------------ raid (opt-in) ---------------------------- */
+  //
+  // A raid do Covil de Vexxaris é anunciada no chat com o código. Este observador
+  // só existe quando o jogador liga "entrar em raids sozinho" nas opções; ele lê
+  // exclusivamente mensagens do chat em busca de "raid" + um código numérico e
+  // não guarda, não envia nem interpreta nenhum outro texto.
+  const RAID_RE = /\braid\b[^\d]{0,24}(\d{4,8})|c[óo]digo[^\d]{0,24}(\d{4,8})/i;
+  const vistos = new Map();
+  let raidOn = false;
+  let observer = null;
+
+  function loginDaPagina() {
+    const parts = location.pathname.split("/").filter(Boolean).map((p) => p.toLowerCase());
+    if (parts[0] === "popout" && parts[1]) return parts[1];
+    if (parts.length === 1) return parts[0];
+    return null;
+  }
+
+  function olharMensagem(el) {
+    if (!raidOn || !el) return;
+    const alvo = el.closest?.('[data-test-selector="chat-line-message"], .chat-line__message') || el;
+    const texto = String(alvo.innerText || "").slice(0, 400);
+    if (!texto || !/raid/i.test(texto)) return;
+    const m = RAID_RE.exec(texto.replace(/\s+/g, " "));
+    if (!m) return;
+    const code = m[1] || m[2];
+    if (!code) return;
+    const agora = Date.now();
+    for (const [k, t] of vistos) if (agora - t > 10 * 60000) vistos.delete(k);
+    if (vistos.has(code)) return;
+    vistos.set(code, agora);
+    if (vistos.size > 5) vistos.delete(vistos.keys().next().value);
+    try {
+      chrome.runtime.sendMessage({ type: "RSAF_RAID_CODE", code, login: loginDaPagina() }).catch(() => {});
+    } catch { /* extensão recarregada */ }
+  }
+
+  function ligarObservador() {
+    if (observer || !raidOn) return;
+    observer = new MutationObserver((listas) => {
+      for (const lista of listas) {
+        for (const no of lista.addedNodes) {
+          if (no.nodeType !== 1) continue;
+          if (no.matches?.('[data-test-selector="chat-line-message"], .chat-line__message')) olharMensagem(no);
+          else no.querySelectorAll?.('[data-test-selector="chat-line-message"], .chat-line__message')
+            .forEach(olharMensagem);
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function aplicarRaid(valor) {
+    raidOn = !!valor;
+    if (raidOn) ligarObservador();
+  }
+
+  try {
+    chrome.storage.local.get("rsaf").then((r) => {
+      aplicarRaid(r?.rsaf?.settings?.autoPlay?.raid === true);
+    }).catch(() => {});
+    chrome.storage.onChanged.addListener((mudancas, area) => {
+      if (area !== "local" || !mudancas.rsaf) return;
+      aplicarRaid(mudancas.rsaf.newValue?.settings?.autoPlay?.raid === true);
+    });
+  } catch { /* extensão recarregada */ }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type === "RSAF_CHAT_SEND") {
       sendChat(msg.text, { force: msg.force === true })

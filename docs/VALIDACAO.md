@@ -94,7 +94,23 @@ Ligue **Farm automático** e marque os módulos desejados.
       usando a janela da última leitura (sem tempestade de requisições).
 - [ ] Trocar de live não herda o comando bloqueado na live anterior.
 
-## 8. Resiliência
+## 8. Jogar sozinho (entrada automática)
+
+- [ ] Com o card ligado e o herói **fora de jogo**, a extensão manda `$jogar`
+      na live selecionada e o log mostra “enviado; confiro o herói em 75 s”.
+- [ ] Em até 75 s, `/api/me` traz `currentChannel` e o card muda para
+      `no jogo: canal`.
+- [ ] Sem nenhuma live escolhida, a opção “escolher a melhor live” abre o
+      popout silenciado e usa a primeira da estratégia configurada.
+- [ ] Classe fixa: `$jogar arqueiro`, por exemplo; automática: `$jogar` puro.
+- [ ] Quando o comando não pega, o log registra a falha e a próxima tentativa é
+      em 5 min (20 min depois de três).
+- [ ] A live que ignorou o comando fica de fora por 25 min no modo automático.
+- [ ] Desligar o card não impede o farm; o keepalive do chat continua normal.
+- [ ] Com “raid” ligada, uma mensagem com `raid` + código gera `$raid CÓDIGO`
+      uma vez por código; com a opção desligada, nada é observado.
+
+## 9. Resiliência
 
 - [ ] Desligar o farm interrompe o ciclo e limpa o badge.
 - [ ] Fechar e reabrir o navegador mantém a configuração.
@@ -104,7 +120,7 @@ Ligue **Farm automático** e marque os módulos desejados.
 - [ ] Em `503`, o grupo afetado é pausado e tentado de novo depois.
 - [ ] Fechar a aba do jogo não recria a aba sozinho.
 
-## 9. Regressão antes de release
+## 10. Regressão antes de release
 
 - [ ] `node tools/validate.mjs`.
 - [ ] `node --check` em todos os JS (o validador já faz).
