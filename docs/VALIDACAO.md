@@ -105,6 +105,8 @@ Ligue **Farm automático** e marque os módulos desejados.
       o switch desliga só o ping e **Enviar agora** manda na hora.
 - [ ] O número de forjas prontas no painel é o **mesmo** que a aba **Forja**
       do jogo mostra; se o jogo diz 2, o painel diz 2 e a rodada forja.
+- [ ] O resumo da aba Auto mostra `mochila X/50`; acima de 85% aparece
+      **soltando sobras para a alquimia** e a mochila para de crescer.
 - [ ] Em até 75 s, `/api/me` traz `currentChannel` e o card muda para
       `no jogo: canal`.
 - [ ] Sem nenhuma live escolhida, a opção “escolher a melhor live” abre o

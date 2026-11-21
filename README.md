@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.2.0-f5c451" alt="Versão 3.2.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.2.1-f5c451" alt="Versão 3.2.1"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -166,9 +166,10 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   antes de forjar, compara cada candidato com o item equipado — itens melhores
   ficam de fora. Lendário vira **Imortal** e Imortal vira **Arcano**: a partir de
   Lendário o resultado passa pela **roleta**, com a animação e a chance na tela.
-  Enquanto a forja está ligada, o grupo da vez (os 3 ou 4 itens mais fortes
-  de cada raridade/slot) fica **reservado para ela**; o resto volta a ser
-  vendável, então a mochila não entope de sobras.
+  Enquanto a forja está ligada, os grupos completos da vez ficam **reservados**
+  para ela; o resto volta a ser vendável. Com a mochila em 85% ou mais, só os
+  grupos completos ficam presos — as sobras vão para a alquimia e a venda, então
+  o inventário não entope.
 - **Grupo igual ao do jogo:** a forja junta por **raridade + tipo**, sem faixa
   de nível — exatamente a regra do site (3 itens; 4 quando o resultado é Épico
   ou melhor). O nível do resultado acompanha a média dos itens usados, por isso

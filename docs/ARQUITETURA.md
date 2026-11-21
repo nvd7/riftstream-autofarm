@@ -86,9 +86,10 @@ Roda em todas as páginas do RiftStream. Uma rodada é:
 Regras importantes:
 
 - **Reserva da forja:** com `forge.ligado`, `idsDaForja` separa os itens por
-  raridade/slot e reserva o grupo da vez (os `precisa` mais fortes). Venda,
-  aprimoramento, alquimia e transmog só usam o que não está reservado. É isso
-  que impede os módulos de competirem pelo mesmo item sem entupir a mochila.
+  raridade/slot e reserva os grupos completos (as fatias de `precisa`). Com a
+  mochila em 85% da capacidade, os grupos incompletos deixam de ser reservados
+  e viram material de alquimia/venda — é o que impede o inventário de encher.
+  Venda, aprimoramento, alquimia e transmog só usam o que não está reservado.
 - **Equipar** usa `/compare`; só equipa se `newPower > power`. O cache de
   comparações é limpo quando o conjunto equipado muda.
 - **Forja** agrupa por `slot + raridade`, sem janela de nível no automático —

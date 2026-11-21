@@ -4,6 +4,30 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.2.1] - 2026-11-20
+
+### Corrigido
+
+- **A mochila enchia de sobras.** Cada raridade/tipo guardava até `precisa`
+  itens mesmo com o grupo incompleto (um Épico sozinho ficava reservado para
+  sempre). Agora, com a mochila em 85% ou mais, só os grupos **completos**
+  ficam presos: as sobras voltam para a alquimia e a venda, e o espaço respira.
+- **A contagem de forjas agora é a do jogo.** A engine devolvia um grupo por
+  raridade/tipo, mas o badge da aba **Forja** conta fusões: 8 raros são 2
+  grupos de 4. O painel mostra o mesmo número do site e forja os dois, um por
+  rodada.
+- **Contadores do painel mais confiáveis.** `forjados`/`vendidos` entram no
+  poll de 2,5 s, então não ficam presos no valor do momento em que o painel
+  abriu.
+- **Resumo da aba Auto mostra a mochila** (`mochila 31/50`) e avisa quando está
+  soltando sobras para a alquimia.
+
+### Testes
+
+- Três testes novos em `tools/test-auto.mjs`: dois grupos do mesmo tipo,
+  mochila em pressão soltando os incompletos e mochila folgada guardando o
+  grupo incompleto.
+
 ## [3.2.0] - 2026-11-20
 
 ### Corrigido

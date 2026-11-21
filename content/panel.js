@@ -1721,10 +1721,16 @@
       ? "Farmando"
       : (st.auto ? "Automático pausado (motor desligado)" : "Pronto para começar");
     const modulosLigados = MODULOS.filter(([, , ligado]) => ligado(st));
+    const pc = status.character;
+    const mochila = pc ? `mochila ${fmt(pc.items)}/${fmt(pc.capacity)}` : "";
+    const cheia = pc && Number(pc.capacity) > 0 &&
+      Number(pc.items) >= Math.ceil(Number(pc.capacity) * 0.85);
     q("ctAuto").textContent = `${modulosLigados.length} módulo(s) ativo(s) · ` +
       `${st.auto ? "reserva automática (10% do ouro)" : `reserva ${fmt(st.goldReserve)}g`} · ` +
+      (mochila ? `${mochila} · ` : "") +
       `forjados ${fmt(stats.forjaTotal)} · vendidos ${fmt(stats.vendidos)}` +
-      (Number(status.counts?.forja) > 0 ? ` · ${status.counts.forja} forja(s) pronta(s)` : "");
+      (Number(status.counts?.forja) > 0 ? ` · ${status.counts.forja} forja(s) pronta(s)` : "") +
+      (cheia ? " · soltando sobras para a alquimia" : "");
 
     // Entrar no jogo sozinho — quem manda no chat é o service worker; aqui só
     // mostramos o que ele registrou e oferecemos o gatilho manual.
@@ -1981,7 +1987,8 @@
 
   lerTudo().catch(() => desenhar());
   setInterval(async () => {
-    const r = await store.get([STATUS_KEY, PLAY_KEY, CHAT_KEY, CHAT_CLOCK_KEY]);
+    const r = await store.get([STATS_KEY, STATUS_KEY, PLAY_KEY, CHAT_KEY, CHAT_CLOCK_KEY]);
+    if (r[STATS_KEY]) stats = { ...stats, ...r[STATS_KEY] };
     if (r[STATUS_KEY]) status = { ...status, ...r[STATUS_KEY] };
     if (r[PLAY_KEY]) play = { ...play, ...r[PLAY_KEY] };
     if (r[CHAT_KEY]) chat = { ...chat, ...r[CHAT_KEY] };

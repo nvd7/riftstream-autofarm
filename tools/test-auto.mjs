@@ -208,13 +208,64 @@ teste("raro precisa de 4 itens e forja os mais altos", () => {
   assert.equal(grupos[0].precisa, 4, "raro -> épico exige 4 itens, como zl(t) no jogo");
   assert.equal(
     grupos[0].itens.map((i) => i.itemLevel).join(","),
-    "210,150,120,90,60",
-    "os itens vêm do mais alto para o mais baixo"
+    "210,150,120,90",
+    "os 4 mais altos vão para a forja"
   );
   // A reserva é o grupo da vez: 4 dos 5, nunca a mochila inteira.
   const reservados = api.idsDaForja({ items: itens, cls: "warrior" });
   assert.equal(reservados.size, 4, "só os 4 mais altos ficam presos na forja");
   assert.ok(!reservados.has(itens[4].id), "o item de nv 60 volta a ser vendável");
+});
+
+teste("8 raros do mesmo tipo contam 2 forjas, como o badge do jogo", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  const itens = Array.from({ length: 8 }, (_, n) => item({ itemLevel: 100 + n }));
+  const grupos = api.gruposForja({ items: itens, cls: "warrior" });
+  assert.equal(grupos.length, 2, "o jogo mostra 2 no badge da aba Forja");
+  assert.equal(grupos[0].itens.length, 4);
+  assert.equal(grupos[1].itens.length, 4);
+  assert.equal(api.idsDaForja({ items: itens, cls: "warrior" }).size, 8,
+    "os 8 estão presos: saem nas próximas rodadas");
+});
+
+teste("mochila cheia solta os grupos incompletos para a alquimia", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  // 3 raros (grupo incompleto, precisa 4) + 4 azuis... no jogo raro também
+  // precisa de 4; o grupo completo é de elmos para não se misturar.
+  const incompletos = [
+    item({ itemLevel: 100, name: "Arma 1" }),
+    item({ itemLevel: 101, name: "Arma 2" }),
+    item({ itemLevel: 102, name: "Arma 3" })
+  ];
+  const completo = [
+    item({ itemLevel: 110, slot: "helmet", name: "Elmo 1" }),
+    item({ itemLevel: 111, slot: "helmet", name: "Elmo 2" }),
+    item({ itemLevel: 112, slot: "helmet", name: "Elmo 3" }),
+    item({ itemLevel: 113, slot: "helmet", name: "Elmo 4" })
+  ];
+  const cheio = { items: [...incompletos, ...completo], cls: "warrior", capacity: 8 };
+
+  assert.equal(api.mochilaEmPressao(cheio), true, "7/8 já é pressão (85%)");
+  const protegidos = api.idsDaForja(cheio);
+  assert.equal(protegidos.size, 4, "só o grupo completo fica reservado");
+  for (const i of incompletos) {
+    assert.ok(!protegidos.has(i.id), `${i.name} precisa voltar para a alquimia`);
+  }
+});
+
+teste("mochila folgada ainda guarda o grupo incompleto", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  const itens = [
+    item({ itemLevel: 100 }),
+    item({ itemLevel: 101 }),
+    item({ itemLevel: 102 })
+  ];
+  const ch = { items: itens, cls: "warrior", capacity: 50 };
+  assert.equal(api.mochilaEmPressao(ch), false);
+  assert.equal(api.idsDaForja(ch).size, 3, "os 3 ficam guardados até o 4º chegar");
 });
 
 teste("aprimoramento não usa doador reservado pela forja", () => {

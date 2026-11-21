@@ -346,6 +346,7 @@
       power: num(ch.power, 0),
       gold: num(ch.gold, 0),
       items: Array.isArray(ch.items) ? ch.items.length : 0,
+      capacity: num(ch.capacity, 50),
       gems: Array.isArray(ch.gems) ? ch.gems.reduce((a, g) => a + num(g.count, 0), 0) : 0,
       statLevels: ch.statLevels || null,
       at: Date.now()
@@ -589,21 +590,46 @@
       if (itens.length < precisa) continue;
       // Do mais alto para o mais baixo: o nível do resultado acompanha a média.
       const ordenados = [...itens].sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0));
-      grupos.push({ chave, r, slot: itens[0].slot, itens: ordenados, precisa });
+      // O jogo mostra no badge da aba Forja o número de fusões possíveis, não o
+      // número de raridade/tipo: 8 raros viram 2 grupos de 4. Repetir aqui é o
+      // que faz o painel dizer "2 forja(s)" igual ao site.
+      for (let k = 0; k + precisa <= ordenados.length; k += precisa) {
+        grupos.push({ chave, r, slot: itens[0].slot, itens: ordenados.slice(k, k + precisa), precisa });
+      }
     }
     return grupos.sort((a, b) => a.r - b.r || num(a.itens[0].itemLevel, 0) - num(b.itens[0].itemLevel, 0));
   }
 
-  // Só um grupo por raridade/tipo fica reservado para a forja: os `precisa`
-  // itens mais fortes. O resto volta a ser vendável, senão a mochila enche de
-  // sobras que nunca completam grupo.
+  // Mochila perto do limite: libera as sobras (grupos incompletos) para a
+  // alquimia e a venda. Sem isso, um item de cada raridade/tipo fica eternamente
+  // reservado esperando um grupo que pode nunca fechar, e a mochila enche.
+  const MOCHILA_LIMITE = 0.85;
+  function capacidadeMochila(ch) {
+    return Math.max(1, num(ch?.capacity, 50));
+  }
+  function mochilaEmPressao(ch) {
+    const total = (ch?.items || []).length;
+    return total >= Math.ceil(capacidadeMochila(ch) * MOCHILA_LIMITE);
+  }
+
+  // Reserva o que a forja usa agora: os grupos completos da vez. Com a mochila
+  // folgada, os grupos incompletos também ficam presos para não perder o
+  // progresso entre drops; com a mochila cheia, só os completos ficam, e as
+  // sobras viram fragmento.
   function idsDaForja(ch) {
     const ids = new Set();
     if (!s().forge.ligado) return ids;
+    const pressao = mochilaEmPressao(ch);
     for (const itens of agruparPorRaridadeSlot(itensForjaveis(ch)).values()) {
       const precisa = precisaDe(destinoDe(nivelRaridade(itens[0])));
       const ordenados = [...itens].sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0));
-      for (const i of ordenados.slice(0, precisa)) ids.add(i.id);
+      if (itens.length < precisa) {
+        if (pressao) continue;
+        for (const i of ordenados.slice(0, precisa)) ids.add(i.id);
+        continue;
+      }
+      const fatias = Math.floor(ordenados.length / precisa);
+      for (const i of ordenados.slice(0, fatias * precisa)) ids.add(i.id);
     }
     return ids;
   }
@@ -1742,6 +1768,8 @@
         normalizar: normalizedSettings,
         gruposForja,
         idsDaForja,
+        mochilaEmPressao,
+        capacidadeMochila,
         elegivelVenda,
         vaiParaAlquimia,
         planoAprimorar,
