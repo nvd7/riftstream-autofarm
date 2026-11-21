@@ -17,6 +17,7 @@
   const STATS_KEY = "rsafStats";
   const STATUS_KEY = "rsafStatus";
   const UI_KEY = "rsafPanel";
+  const PLAY_KEY = "rsafPlay";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
   let VERSION = "2.7.2";
@@ -81,7 +82,8 @@
           ligado: false,
           alvoSlot: "arma",
           fonteSlot: "arma"
-        }
+        },
+        autoPlay: { ligado: true, classe: "auto", autoLive: true, raid: false }
       }
     };
   }
@@ -115,6 +117,8 @@
     character: null, lastAction: "", updatedAt: 0, counts: { forja: 0, venda: 0, alchemy: 0, transmog: 0 }, roundAt: 0
   };
   let ui = { aberto: true, aba: "inicio", x: null, y: null, minimizado: false };
+  // Estado do "entrar no jogo sozinho", escrito pelo service worker.
+  let play = { jogando: false, canal: null, verifyAt: 0, fails: 0, lastError: null };
 
   const host = document.createElement("div");
   host.id = "rsaf-panel";
@@ -521,6 +525,13 @@
       font:600 10px var(--mono); letter-spacing:.6px; text-transform:uppercase;
     }
     .autoStop:hover{ color:var(--text); border-color:var(--red); }
+    .playBtn{
+      width:100%; margin-top:8px; padding:9px; border-radius:8px; cursor:pointer;
+      border:1px solid var(--line2); background:transparent; color:var(--text);
+      font:600 10px var(--mono); letter-spacing:.6px; text-transform:uppercase;
+    }
+    .playBtn:hover{ border-color:var(--green, #4de3b0); color:var(--green, #4de3b0); }
+    .playBtn:disabled{ opacity:.6; cursor:default; }
     @media (prefers-reduced-motion: reduce){ .autoBtn.on .ai{ animation:none; } }
 
     .ticker{
@@ -625,12 +636,18 @@
               <button class="autoBtn" id="autoTudo">
                 <span class="ai">▶</span>
                 <span class="at">
-                  <b>JOGAR SOZINHO</b>
+                  <b>FARMAR SOZINHO</b>
                   <small id="autoSub">Liga todos os módulos e começa a cuidar do inventário</small>
                 </span>
               </button>
-              <button class="autoStop" id="autoParar" hidden>Parar de jogar sozinho</button>
+              <button class="autoStop" id="autoParar" hidden>Parar o farm</button>
               <div class="statusbox"><span id="stAuto">Pronto para começar</span><small id="ctAuto"></small></div>
+
+              <div class="row" id="rowPlay">
+                <span class="grow">Entrar no jogo sozinho<small id="playSub">Verificando…</small></span>
+                <button class="sw" id="swPlay" title="Entrar/voltar ao jogo com $jogar"></button>
+              </div>
+              <button class="playBtn" id="playEntrar" type="button">Entrar agora</button>
               <div class="list" id="autoList"></div>
               <p class="warn">
                 O modo automático liga a forja (que pode perder itens e ouro) e a
@@ -1257,6 +1274,29 @@
 
   q("autoTudo").addEventListener("click", aplicarAuto);
   q("autoParar").addEventListener("click", pararAuto);
+
+  // Entrar no jogo sozinho. O switch salva a preferência (o service worker lê
+  // daqui); o botão força uma tentativa agora, sem esperar o alarme.
+  q("swPlay").addEventListener("click", () => {
+    cfg.settings.autoPlay = cfg.settings.autoPlay || { classe: "auto", autoLive: true, raid: false };
+    cfg.settings.autoPlay.ligado = !(cfg.settings.autoPlay.ligado !== false);
+    salvarCfg();
+  });
+  q("playEntrar").addEventListener("click", async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "RSAF_PLAY_NOW" });
+      if (res?.play) play = { ...play, ...res.play };
+      if (!res?.playResult?.sent) {
+        const motivo = res?.playResult?.reason || res?.error || "sem resposta";
+        status.lastAction = motivo === "em jogo"
+          ? `Jogo: herói já está em ${play.canal || "canal"}`
+          : `Jogo: ${motivo}`;
+      }
+    } catch {
+      status.lastAction = "Jogo: serviço da extensão indisponível";
+    }
+    desenhar();
+  });
   q("swForge").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.forge.ligado = !cfg.settings.forge.ligado;
   }));
@@ -1640,21 +1680,42 @@
     q("autoSub").textContent = autoAtivo
       ? (parado
         ? `Sem rodada há ${idadeRodada(marcaRodada)} — toque em ▶ no rodapé`
-        : (status.lastAction ? `Fazendo agora: ${status.lastAction}` : "Trabalhando no inventário..."))
+        : (Number(status.quietSince) > 0 && Date.now() - Number(status.quietSince) > 60000
+          ? "Nada a fazer agora — monitorando o inventário"
+          : (status.lastAction ? `Fazendo agora: ${status.lastAction}` : "Trabalhando no inventário...")))
       : "Liga todos os módulos e começa a cuidar do inventário";
     q("stAuto").textContent = autoAtivo
-      ? "Jogando sozinho"
+      ? "Farmando"
       : (st.auto ? "Automático pausado (motor desligado)" : "Pronto para começar");
     const modulosLigados = MODULOS.filter(([, , ligado]) => ligado(st));
     q("ctAuto").textContent = `${modulosLigados.length} módulo(s) ativo(s) · ` +
       `${st.auto ? "reserva automática (10% do ouro)" : `reserva ${fmt(st.goldReserve)}g`} · ` +
       `forjados ${fmt(stats.forjaTotal)} · vendidos ${fmt(stats.vendidos)}`;
+
+    // Entrar no jogo sozinho — quem manda no chat é o service worker; aqui só
+    // mostramos o que ele registrou e oferecemos o gatilho manual.
+    const playOn = st.autoPlay?.ligado !== false;
+    q("swPlay").classList.toggle("on", playOn);
+    const p = play || {};
+    const entrando = Number(p.verifyAt) > Date.now();
+    q("playSub").textContent = !playOn
+      ? "Desligado — só o keepalive do chat continua"
+      : entrando
+        ? `Entrando em ${p.sentChannel || "..."} — confirmo em até 75 s`
+        : (p.jogando && p.canal)
+          ? `No jogo: ${p.canal}`
+          : (p.lastError
+            ? `Fora do jogo — ${p.lastError}`
+            : "Fora do jogo — entro sozinho no próximo tick");
+    const entrar = q("playEntrar");
+    entrar.textContent = entrando ? "Confirmando entrada…" : "Entrar agora";
+    entrar.disabled = entrando;
     const listaAuto = q("autoList");
     listaAuto.textContent = "";
     if (!modulosLigados.length) {
       const vazio = document.createElement("div");
       vazio.className = "item";
-      vazio.innerHTML = '<span class="s"></span><div class="t"><b>Nada ligado</b><small>Toque em “Jogar sozinho”</small></div>';
+      vazio.innerHTML = '<span class="s"></span><div class="t"><b>Nada ligado</b><small>Toque em “Farmar sozinho”</small></div>';
       listaAuto.append(vazio);
     } else {
       for (const [, nome, , chave] of modulosLigados) {
@@ -1782,7 +1843,7 @@
   /* ------------------------------- sincronia ------------------------------ */
 
   async function lerTudo() {
-    const r = await store.get([KEY, STATS_KEY, STATUS_KEY, UI_KEY]);
+    const r = await store.get([KEY, STATS_KEY, STATUS_KEY, UI_KEY, PLAY_KEY]);
     if (r[KEY]) {
       cfg.running = r[KEY].running === true;
       cfg.settings = merge(defaults().settings, r[KEY].settings);
@@ -1798,6 +1859,7 @@
       };
     }
     if (r[STATUS_KEY]) status = { ...status, ...r[STATUS_KEY] };
+    if (r[PLAY_KEY]) play = { ...play, ...r[PLAY_KEY] };
     if (r[UI_KEY]) ui = { ...ui, ...r[UI_KEY] };
     desenhar();
   }
@@ -1815,6 +1877,10 @@
     }
     if (m[STATUS_KEY]?.newValue) {
       status = { ...status, ...m[STATUS_KEY].newValue };
+      desenhar();
+    }
+    if (m[PLAY_KEY]?.newValue) {
+      play = { ...play, ...m[PLAY_KEY].newValue };
       desenhar();
     }
   });
@@ -1840,8 +1906,10 @@
 
   lerTudo().catch(() => desenhar());
   setInterval(async () => {
-    const r = await store.get(STATUS_KEY);
-    if (r[STATUS_KEY]) { status = { ...status, ...r[STATUS_KEY] }; desenhar(); }
+    const r = await store.get([STATUS_KEY, PLAY_KEY]);
+    if (r[STATUS_KEY]) status = { ...status, ...r[STATUS_KEY] };
+    if (r[PLAY_KEY]) play = { ...play, ...r[PLAY_KEY] };
+    desenhar();
   }, 2500);
   setInterval(() => {
     q("roundAge").textContent = status.roundAt ? `rodada há ${idadeRodada()}` : "aguardando";

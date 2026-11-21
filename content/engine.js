@@ -1680,6 +1680,10 @@
       }
     }
     status.roundAt = Date.now();
+    // Início do período sem nenhuma ação: o painel usa isso para não fingir
+    // que está trabalhando quando a rodada só olhou e não mudou nada.
+    if (agiu) status.quietSince = 0;
+    else if (!status.quietSince) status.quietSince = status.roundAt;
     agendarStatus();
 
     await organizarBaus();

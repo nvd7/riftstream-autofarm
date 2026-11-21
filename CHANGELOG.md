@@ -4,6 +4,24 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.0.1] - 2026-11-20
+
+### Corrigido
+
+- **O botão grande do painel “JOGAR SOZINHO” era o farm, não a entrada no
+  jogo.** O nome colidia com o recurso novo e dava a impressão de que clicar ali
+  entrava no jogo. Agora ele se chama **FARMAR SOZINHO** e o status diz
+  **Farmando**; “Parar de jogar sozinho” virou **Parar o farm**.
+- **Entrar no jogo agora tem lugar no painel.** A aba **Auto** mostra o estado
+  real (`No jogo: canal`, `Entrando em …`, `Fora do jogo`) e um botão **Entrar
+  agora** que força a tentativa sem esperar o tick. O switch liga/desliga a
+  entrada automática.
+- **“Trabalhando no inventário…” não mente mais.** Quando a rodada passa sem
+  nenhuma ação por mais de um minuto, o painel mostra “Nada a fazer agora —
+  monitorando o inventário” em vez de simular atividade.
+- **“Entrar agora” não acusa erro quando o herói já está em jogo.** No popup,
+  `em jogo` e `aguardando confirmação` deixaram de aparecer como falha.
+
 ## [3.0.0] - 2026-11-20
 
 ### Adicionado

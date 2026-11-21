@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.0.0-f5c451" alt="Versão 3.0.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.0.1-f5c451" alt="Versão 3.0.1"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -129,6 +129,9 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   chat da live e confirma em 75 s que o herói apareceu em `currentChannel`.
   Se o comando não pegar, espera 5 min (20 min após três falhas) em vez de
   repetir.
+- **No painel ◆ (aba Auto):** o estado real do herói (`No jogo: canal`,
+  `Entrando em …`, `Fora do jogo`), um switch para ligar/desligar e o botão
+  **Entrar agora**. O botão grande da mesma aba é **Farmar sozinho** — inventário.
 - **Classe fixa ou automática:** `$jogar` sem argumento escolhe a classe menos
   cheia da live; dá para fixar guerreiro, clérigo ou arqueiro.
 - **Live quando não há nenhuma:** opcionalmente escolhe a melhor do ranking

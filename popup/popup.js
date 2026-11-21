@@ -513,7 +513,9 @@ function wire() {
     try {
       state = await send("RSAF_PLAY_NOW");
       const r = state?.playResult;
-      if (!r?.sent) setError(`Jogo não entrou: ${r?.reason || "sem resposta"}`);
+      // "em jogo" não é falha: o botão só confirma que não há nada a fazer.
+      const tranquilo = r?.sent || r?.reason === "em jogo" || r?.reason === "aguardando confirmação";
+      if (!tranquilo) setError(`Jogo não entrou: ${r?.reason || "sem resposta"}`);
     } catch (e) {
       setError(e.message);
     } finally {
