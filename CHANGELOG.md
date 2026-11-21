@@ -4,6 +4,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.1.0] - 2026-11-20
+
+### Adicionado
+
+- **O painel ◆ mostra o relógio do AFK, não só o do inventário.** Na aba
+  **Auto**, abaixo do “Entrar no jogo sozinho”, a linha **Chat anti-AFK** diz
+  quantos minutos faltam para o servidor considerar o herói AFK
+  (`12 min para o AFK (janela 30 min) · último ping há 9 min`), quando a
+  mensagem está em confirmação e quando o comando não teve efeito.
+- **Switch e “Enviar agora” do chat no painel.** Desligar o switch para só o
+  ping (o “entrar no jogo” continua); o botão força um envio imediato e mostra
+  o motivo quando não sai.
+
 ## [3.0.1] - 2026-11-20
 
 ### Corrigido

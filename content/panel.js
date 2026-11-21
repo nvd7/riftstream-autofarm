@@ -18,6 +18,8 @@
   const STATUS_KEY = "rsafStatus";
   const UI_KEY = "rsafPanel";
   const PLAY_KEY = "rsafPlay";
+  const CHAT_KEY = "rsafChat";
+  const CHAT_CLOCK_KEY = "rsafChatClock";
 
   // Lê a versão direto do manifest para nunca ficar defasada no rodapé.
   let VERSION = "2.7.2";
@@ -83,7 +85,8 @@
           alvoSlot: "arma",
           fonteSlot: "arma"
         },
-        autoPlay: { ligado: true, classe: "auto", autoLive: true, raid: false }
+        autoPlay: { ligado: true, classe: "auto", autoLive: true, raid: false },
+        chatKeep: { ligado: true, minutos: 0, texto: "$jump" }
       }
     };
   }
@@ -119,6 +122,9 @@
   let ui = { aberto: true, aba: "inicio", x: null, y: null, minimizado: false };
   // Estado do "entrar no jogo sozinho", escrito pelo service worker.
   let play = { jogando: false, canal: null, verifyAt: 0, fails: 0, lastError: null };
+  // Estado do keepalive do chat e da última leitura de `/api/me`.
+  let chat = { lastAt: 0, sentAt: 0, sentText: null, sentChannel: "", verifyAt: 0, lastError: null, retryAt: 0 };
+  let clock = { ok: false, readAt: 0, restanteMin: null, janela: null, afk: null, canal: null, reason: null };
 
   const host = document.createElement("div");
   host.id = "rsaf-panel";
@@ -648,6 +654,11 @@
                 <button class="sw" id="swPlay" title="Entrar/voltar ao jogo com $jogar"></button>
               </div>
               <button class="playBtn" id="playEntrar" type="button">Entrar agora</button>
+              <div class="row" id="rowChat">
+                <span class="grow">Chat anti-AFK<small id="chatSub">Verificando…</small></span>
+                <button class="sw" id="swChat" title="Manda uma mensagem no chat antes do AFK do servidor"></button>
+              </div>
+              <button class="playBtn" id="chatEnviar" type="button">Enviar agora</button>
               <div class="list" id="autoList"></div>
               <p class="warn">
                 O modo automático liga a forja (que pode perder itens e ouro) e a
@@ -1297,6 +1308,28 @@
     }
     desenhar();
   });
+  // Chat anti-AFK. O switch desliga só o ping (o "entrar no jogo" continua);
+  // o botão pede um envio imediato e mostra o motivo quando não sai.
+  q("swChat").addEventListener("click", () => {
+    cfg.settings.chatKeep = cfg.settings.chatKeep || { minutos: 0, texto: "$jump" };
+    cfg.settings.chatKeep.ligado = !(cfg.settings.chatKeep.ligado !== false);
+    salvarCfg();
+  });
+  q("chatEnviar").addEventListener("click", async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "RSAF_CHAT_NOW" });
+      if (res?.chat) chat = { ...chat, ...res.chat };
+      if (res?.chatClock) clock = { ...clock, ...res.chatClock };
+      if (!res?.chatResult?.sent) {
+        status.lastAction = `Chat: ${res?.chatResult?.reason || res?.error || "sem resposta"}`;
+      } else {
+        status.lastAction = `Chat: "${res.chatResult.texto}" enviado`;
+      }
+    } catch {
+      status.lastAction = "Chat: serviço da extensão indisponível";
+    }
+    desenhar();
+  });
   q("swForge").addEventListener("click", () => mexerModulo(() => {
     cfg.settings.forge.ligado = !cfg.settings.forge.ligado;
   }));
@@ -1710,6 +1743,37 @@
     const entrar = q("playEntrar");
     entrar.textContent = entrando ? "Confirmando entrada…" : "Entrar agora";
     entrar.disabled = entrando;
+
+    // Chat anti-AFK — a mesma leitura de `/api/me` que o service worker usa.
+    // Mostrar o relógio do servidor aqui evita a dúvida "está pingando mesmo?".
+    const chatOn = st.chatKeep?.ligado !== false;
+    q("swChat").classList.toggle("on", chatOn);
+    const agoraMs = Date.now();
+    const ultimoPing = Number(chat.lastAt) || 0;
+    const confirmando = (Number(chat.verifyAt) || 0) > agoraMs;
+    const esperaMs = (Number(chat.retryAt) || 0) - agoraMs;
+    const janela = Math.max(5, Math.round(Number(clock.janela) || 30));
+    const restante = clock.restanteMin === null || clock.restanteMin === undefined
+      ? null
+      : Math.max(0, Math.round(Number(clock.restanteMin)) || 0);
+    const haMin = (ms) => (ms >= 60000 ? `${Math.round(ms / 60000)} min` : "menos de 1 min");
+    q("chatSub").textContent = !chatOn
+      ? "Desligado — o herói cai no AFK do servidor"
+      : !clock.ok
+        ? (clock.reason ? `Sem leitura do servidor (${clock.reason})` : "Sem leitura do servidor ainda")
+        : clock.afk
+          ? "AFK agora — mando o comando no próximo tick"
+          : confirmando
+            ? `Confirmando “${chat.sentText || "$jump"}” no servidor…`
+            : esperaMs > 0
+              ? `Sem efeito — tento de novo em ${haMin(esperaMs)}`
+              : restante !== null
+                ? `${restante} min para o AFK (janela ${janela} min)` +
+                  (ultimoPing ? ` · último ping há ${haMin(agoraMs - ultimoPing)}` : "")
+                : `Janela de ${janela} min — ainda sem leitura`;
+    const enviar = q("chatEnviar");
+    enviar.disabled = !chatOn || confirmando;
+    enviar.textContent = confirmando ? "Confirmando…" : "Enviar agora";
     const listaAuto = q("autoList");
     listaAuto.textContent = "";
     if (!modulosLigados.length) {
@@ -1843,7 +1907,7 @@
   /* ------------------------------- sincronia ------------------------------ */
 
   async function lerTudo() {
-    const r = await store.get([KEY, STATS_KEY, STATUS_KEY, UI_KEY, PLAY_KEY]);
+    const r = await store.get([KEY, STATS_KEY, STATUS_KEY, UI_KEY, PLAY_KEY, CHAT_KEY, CHAT_CLOCK_KEY]);
     if (r[KEY]) {
       cfg.running = r[KEY].running === true;
       cfg.settings = merge(defaults().settings, r[KEY].settings);
@@ -1860,6 +1924,8 @@
     }
     if (r[STATUS_KEY]) status = { ...status, ...r[STATUS_KEY] };
     if (r[PLAY_KEY]) play = { ...play, ...r[PLAY_KEY] };
+    if (r[CHAT_KEY]) chat = { ...chat, ...r[CHAT_KEY] };
+    if (r[CHAT_CLOCK_KEY]) clock = { ...clock, ...r[CHAT_CLOCK_KEY] };
     if (r[UI_KEY]) ui = { ...ui, ...r[UI_KEY] };
     desenhar();
   }
@@ -1881,6 +1947,14 @@
     }
     if (m[PLAY_KEY]?.newValue) {
       play = { ...play, ...m[PLAY_KEY].newValue };
+      desenhar();
+    }
+    if (m[CHAT_KEY]?.newValue) {
+      chat = { ...chat, ...m[CHAT_KEY].newValue };
+      desenhar();
+    }
+    if (m[CHAT_CLOCK_KEY]?.newValue) {
+      clock = { ...clock, ...m[CHAT_CLOCK_KEY].newValue };
       desenhar();
     }
   });
@@ -1906,9 +1980,11 @@
 
   lerTudo().catch(() => desenhar());
   setInterval(async () => {
-    const r = await store.get([STATUS_KEY, PLAY_KEY]);
+    const r = await store.get([STATUS_KEY, PLAY_KEY, CHAT_KEY, CHAT_CLOCK_KEY]);
     if (r[STATUS_KEY]) status = { ...status, ...r[STATUS_KEY] };
     if (r[PLAY_KEY]) play = { ...play, ...r[PLAY_KEY] };
+    if (r[CHAT_KEY]) chat = { ...chat, ...r[CHAT_KEY] };
+    if (r[CHAT_CLOCK_KEY]) clock = { ...clock, ...r[CHAT_CLOCK_KEY] };
     desenhar();
   }, 2500);
   setInterval(() => {

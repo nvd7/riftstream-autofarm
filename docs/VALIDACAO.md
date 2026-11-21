@@ -98,9 +98,11 @@ Ligue **Farm automático** e marque os módulos desejados.
 
 - [ ] Com o card ligado e o herói **fora de jogo**, a extensão manda `$jogar`
       na live selecionada e o log mostra “enviado; confiro o herói em 75 s”.
-- [ ] No painel ◆, aba **Auto**, o switch “Entrar no jogo sozinho” reflete a
+- [ ] No painel ◆, aba **Auto**, o switch "Entrar no jogo sozinho" reflete a
       configuração e o botão **Entrar agora** dispara na hora; o botão grande
       diz **FARMAR SOZINHO** e não entra no jogo.
+- [ ] A linha **Chat anti-AFK** mostra os minutos restantes e o último ping;
+      o switch desliga só o ping e **Enviar agora** manda na hora.
 - [ ] Em até 75 s, `/api/me` traz `currentChannel` e o card muda para
       `no jogo: canal`.
 - [ ] Sem nenhuma live escolhida, a opção “escolher a melhor live” abre o
