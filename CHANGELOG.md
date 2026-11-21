@@ -4,6 +4,29 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.2.0] - 2026-11-20
+
+### Corrigido
+
+- **A forja não forjava os grupos que o próprio jogo mostrava como prontos.**
+  A engine agrupava por raridade, tipo **e** uma faixa de 40 níveis. O site
+  agrupa só por `${raridade}|${slot}` (3 itens, ou 4 a partir de Épico) e
+  aceita qualquer nível. O resultado era o pior possível: o painel do jogo
+  dizia “Forja 2”, a extensão dizia “Aguardando itens suficientes” e a mochila
+  enchia. Agora a regra é a mesma do jogo.
+- **A mochila não entope mais de sobras.** A reserva da forja ficou restrita
+  ao grupo da vez (os 3 ou 4 itens mais fortes de cada raridade/tipo); o resto
+  volta a ser vendável, reciclável e aprimorável.
+- **A forja usa os itens mais fortes do grupo.** O nível do resultado acompanha
+  a média dos itens usados, então forjar os mais altos rende mais.
+- **O painel mostra quantas forjas estão prontas** no resumo da aba Auto
+  (`3 forja(s) pronta(s)`), com o mesmo número do jogo.
+
+### Testes
+
+- Dois testes novos em `tools/test-auto.mjs` (grupo por raridade/tipo com
+  níveis distantes e reserva de exatamente `precisa` itens).
+
 ## [3.1.0] - 2026-11-20
 
 ### Adicionado

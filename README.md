@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.1.0-f5c451" alt="Versão 3.1.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.2.0-f5c451" alt="Versão 3.2.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -103,10 +103,9 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   ele vira uma bolinha no canto para reabrir.
 - **Nove abas:** Auto, Início, Forja, Atributos, Gemas, Venda, Alquimia, Transmog
   e Ajustes.
-- **Auto (um botão só):** toque em **Jogar sozinho** e pronto. A extensão liga
+- **Auto (um botão só):** toque em **Farmar sozinho** e pronto. A extensão liga
   todos os módulos com os ajustes recomendados, calcula a reserva de ouro a
-  partir do seu saldo e deixa a forja escolher a faixa de nível pelo próprio
-  inventário. Nada de configurar. A **forja tem prioridade**: ela reserva os
+  partir do seu saldo e deixa a forja agrupar pelo próprio inventário. Nada de configurar. A **forja tem prioridade**: ela reserva os
   grupos (inclusive os quase completos) e os outros módulos só usam o que sobra.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
@@ -167,13 +166,14 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   antes de forjar, compara cada candidato com o item equipado — itens melhores
   ficam de fora. Lendário vira **Imortal** e Imortal vira **Arcano**: a partir de
   Lendário o resultado passa pela **roleta**, com a animação e a chance na tela.
-  Enquanto a forja está ligada, tudo o que pode entrar em um grupo fica
-  **reservado para ela**, inclusive os grupos incompletos; venda, aprimoramento,
-  alquimia e transmog só usam o que sobra.
-- **Filtro de nível da forja (importante):** mínimo e máximo por item. Evita
-  juntar um Nv. 80 com um Nv. 140 e gerar um resultado pior. No modo automático
-  a extensão calcula uma faixa de 40 níveis **por raridade/slot**, então uma
-  raridade desligada não esconde os grupos de nível baixo.
+  Enquanto a forja está ligada, o grupo da vez (os 3 ou 4 itens mais fortes
+  de cada raridade/slot) fica **reservado para ela**; o resto volta a ser
+  vendável, então a mochila não entope de sobras.
+- **Grupo igual ao do jogo:** a forja junta por **raridade + tipo**, sem faixa
+  de nível — exatamente a regra do site (3 itens; 4 quando o resultado é Épico
+  ou melhor). O nível do resultado acompanha a média dos itens usados, por isso
+  a extensão escolhe os mais fortes disponíveis. O filtro mínimo/máximo de nível
+  continua valendo no modo manual.
 - **Pergaminho na forja (opcional):** gasta um Pergaminho de Sorte por tentativa
   para aumentar a chance de sucesso. Se o estoque acabar, a forja segue sem ele.
 - **Atributos do jeito que você quiser:**
@@ -338,7 +338,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Forja | `forge.tipos` | Todos | Arma, elmo, armadura e anel |
 | Forja | `forge.minLevel` | `0` | Nível mínimo dos itens forjados |
 | Forja | `forge.maxLevel` | `9999` | Nível máximo dos itens forjados |
-| Forja | `forge.auto` | `false` | Faixa de nível calculada pelo inventário (modo automático) |
+| Forja | `forge.auto` | `false` | Agrupa por raridade/tipo como o site, sem faixa de nível (modo automático) |
 | Forja | `forge.useScroll` | `false` | Usa Pergaminho de Sorte em cada forja |
 | Atributos | `stats.ligado` | `true` | Gasta ouro em atributos |
 | Atributos | `stats.modo` | `igual` | `otimo` (ganho por ouro), `igual` (dividir) ou `nivel` (metas) |
@@ -402,7 +402,7 @@ página do jogo (engine) ──► API oficial ──► inventário
 | Ação | Endpoint | Regra |
 |---|---|---|
 | Equipar | `POST /api/me/items/{id}/equip` | Só se `newPower > power` no `compare` |
-| Forjar | `POST /api/me/items/fuse` | 3–4 itens do mesmo slot/raridade, na faixa de nível, protegidos por `compare`; a partir de Lendário o resultado vem da roleta |
+| Forjar | `POST /api/me/items/fuse` | 3-4 itens do mesmo slot/raridade (`${raridade}|${slot}`, sem faixa de nível), protegidos por `compare`; a partir de Lendário o resultado vem da roleta |
 | Atributos | `POST /api/me/character/stats/{atributo}` | `{ amount }`; foco, metas e reserva |
 | Combinar gemas | `POST /api/me/gems/combine-all` | Respeita `merges`, `cost` e `canAfford` |
 | Suprema | `POST /api/me/gems/supreme` | 4 Perfeitas; roleta |
@@ -483,7 +483,7 @@ Documentação adicional:
 | “Nenhuma live online agora” | Nenhuma live com bot no ar | Tente em alguns minutos; sua live atual aparece como **aberta** |
 | “Não consegui consultar o ranking” | API fora do ar ou bloqueio | Verifique a internet/bloqueador e tente de novo |
 | Personagem não aparece | Bot ausente ou `$jogar` processando | Confirme o comando no chat e aguarde |
-| Forja não roda | Sem grupos de 3–4 itens ou fora da faixa de nível | Ajuste a faixa e confira itens iguais |
+| Forja não roda | Sem grupos de 3-4 itens do mesmo tipo e raridade | Confira se a raridade e o tipo estão ligados na aba Forja |
 | Venda não roda | Nenhum item abaixo dos filtros | Aumente raridade/nível ou desligue a proteção de equipados |
 | Roleta não acelera | Opção desligada ou nenhuma roleta na tela | Ligue em Ajustes; a animação só acelera durante a roleta |
 | Aba da Twitch descartada | Economia de memória | Desative a economia para a aba |

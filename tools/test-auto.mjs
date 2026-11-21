@@ -179,16 +179,42 @@ teste("raridade desligada não esconde o grupo de nível baixo", () => {
   assert.ok(grupos.some((g) => g.r === 6), "o grupo imortal também é válido");
 });
 
-teste("não mistura níveis distantes no automático", () => {
+teste("agrupa por raridade e tipo, como a forja do jogo", () => {
   const api = carregarEngine();
   api.definirSettings(configAuto());
   const itens = [
     item({ itemLevel: 5 }),
     item({ itemLevel: 100 }),
-    item({ itemLevel: 300 })
+    item({ itemLevel: 300 }),
+    item({ itemLevel: 77 })
   ];
-  assert.equal(api.gruposForja({ items: itens, cls: "warrior" }).length, 0,
-    "5, 100 e 300 não cabem na mesma faixa de 40 níveis");
+  // O site agrupa só por `${raridade}|${slot}`: níveis distantes formam grupo.
+  assert.equal(api.gruposForja({ items: itens, cls: "warrior" }).length, 1,
+    "5, 77, 100 e 300 são o mesmo grupo (raro/arma) e o jogo aceita forjar");
+});
+
+teste("raro precisa de 4 itens e forja os mais altos", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  const itens = [
+    item({ itemLevel: 90 }),
+    item({ itemLevel: 150 }),
+    item({ itemLevel: 210 }),
+    item({ itemLevel: 120 }),
+    item({ itemLevel: 60 })
+  ];
+  const grupos = api.gruposForja({ items: itens, cls: "warrior" });
+  assert.equal(grupos.length, 1);
+  assert.equal(grupos[0].precisa, 4, "raro -> épico exige 4 itens, como zl(t) no jogo");
+  assert.equal(
+    grupos[0].itens.map((i) => i.itemLevel).join(","),
+    "210,150,120,90,60",
+    "os itens vêm do mais alto para o mais baixo"
+  );
+  // A reserva é o grupo da vez: 4 dos 5, nunca a mochila inteira.
+  const reservados = api.idsDaForja({ items: itens, cls: "warrior" });
+  assert.equal(reservados.size, 4, "só os 4 mais altos ficam presos na forja");
+  assert.ok(!reservados.has(itens[4].id), "o item de nv 60 volta a ser vendável");
 });
 
 teste("aprimoramento não usa doador reservado pela forja", () => {

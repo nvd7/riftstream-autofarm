@@ -1723,7 +1723,8 @@
     const modulosLigados = MODULOS.filter(([, , ligado]) => ligado(st));
     q("ctAuto").textContent = `${modulosLigados.length} módulo(s) ativo(s) · ` +
       `${st.auto ? "reserva automática (10% do ouro)" : `reserva ${fmt(st.goldReserve)}g`} · ` +
-      `forjados ${fmt(stats.forjaTotal)} · vendidos ${fmt(stats.vendidos)}`;
+      `forjados ${fmt(stats.forjaTotal)} · vendidos ${fmt(stats.vendidos)}` +
+      (Number(status.counts?.forja) > 0 ? ` · ${status.counts.forja} forja(s) pronta(s)` : "");
 
     // Entrar no jogo sozinho — quem manda no chat é o service worker; aqui só
     // mostramos o que ele registrou e oferecemos o gatilho manual.

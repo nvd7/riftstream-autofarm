@@ -86,15 +86,16 @@ Roda em todas as páginas do RiftStream. Uma rodada é:
 Regras importantes:
 
 - **Reserva da forja:** com `forge.ligado`, `idsDaForja` separa os itens por
-  raridade/slot e reserva as faixas de nível que podem virar grupo (inclusive
-  as incompletas). Venda, aprimoramento, alquimia e transmog só usam o que não
-  está reservado. É isso que impede os módulos de competirem pelo mesmo item.
+  raridade/slot e reserva o grupo da vez (os `precisa` mais fortes). Venda,
+  aprimoramento, alquimia e transmog só usam o que não está reservado. É isso
+  que impede os módulos de competirem pelo mesmo item sem entupir a mochila.
 - **Equipar** usa `/compare`; só equipa se `newPower > power`. O cache de
   comparações é limpo quando o conjunto equipado muda.
-- **Forja** agrupa por `slot + raridade`, respeita `forge.minLevel/maxLevel` no
-  modo manual e, no automático, calcula uma faixa de 40 níveis por grupo.
-  Estima o custo com reserva de ouro e usa `/compare?simGems=true` para não
-  destruir item melhor que o equipado.
+- **Forja** agrupa por `slot + raridade`, sem janela de nível no automático —
+  é a regra do bundle (`${raridade}|${slot}`, 3 itens ou 4 a partir de Épico).
+  O modo manual respeita `forge.minLevel/maxLevel`. Estima o custo com reserva
+  de ouro e usa `/compare?simGems=true` para não destruir item melhor que o
+  equipado.
 - **Atributos** têm três modos: `otimo` (mede o ganho de dano e vida efetiva
   de cada ponto com os números da ficha e compra o melhor por ouro, refeito a
   cada compra; `stats.foco` = equilibrado/dano/tanque), `igual` (dividir ouro,

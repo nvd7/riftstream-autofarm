@@ -31,7 +31,6 @@
   const ESPERA_PROTEGIDO = 30000;
   const MAX_VENDAS = 10;     // por rodada
   const MAX_RECICLAR = 20;   // itens por ação de alquimia
-  const AUTO_JANELA_NIVEL = 40; // faixa de nível da forja no modo automático
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
   const MAX_TRANSMOG_ALVOS = 80; // alvos já transmogados lembrados entre recargas
 
@@ -577,23 +576,40 @@
     return grupos;
   }
 
-  // Separa os itens de uma mesma raridade/slot em faixas que o jogo aceita
-  // juntar (até AUTO_JANELA_NIVEL de diferença). O automático usa uma faixa
-  // por vez para nunca misturar Nv. 80 com Nv. 200.
-  function faixasDeNivel(itens) {
-    const ordenados = [...itens].sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0));
-    const faixas = [];
-    for (const item of ordenados) {
-      const atual = faixas[faixas.length - 1];
-      const nivel = num(item.itemLevel, 0);
-      if (atual && nivel - num(atual[0].itemLevel, 0) <= AUTO_JANELA_NIVEL) atual.push(item);
-      else faixas.push([item]);
+  // A forja do site não separa por nível: o grupo é raridade + tipo, e o
+  // resultado sai com o nível médio dos itens usados (bundle: chave
+  // `${raridade}|${slot}`, precisa de 3 ou 4). Agrupar por faixa de 40 níveis,
+  // como era até a 3.1.0, escondia grupos que o próprio jogo mostra como
+  // prontos ("Forja 2") — a mochila enchia e nada era forjado.
+  function gruposForja(ch) {
+    const grupos = [];
+    for (const [chave, itens] of agruparPorRaridadeSlot(itensForjaveis(ch))) {
+      const r = nivelRaridade(itens[0]);
+      const precisa = precisaDe(destinoDe(r));
+      if (itens.length < precisa) continue;
+      // Do mais alto para o mais baixo: o nível do resultado acompanha a média.
+      const ordenados = [...itens].sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0));
+      grupos.push({ chave, r, slot: itens[0].slot, itens: ordenados, precisa });
     }
-    return faixas;
+    return grupos.sort((a, b) => a.r - b.r || num(a.itens[0].itemLevel, 0) - num(b.itens[0].itemLevel, 0));
+  }
+
+  // Só um grupo por raridade/tipo fica reservado para a forja: os `precisa`
+  // itens mais fortes. O resto volta a ser vendável, senão a mochila enche de
+  // sobras que nunca completam grupo.
+  function idsDaForja(ch) {
+    const ids = new Set();
+    if (!s().forge.ligado) return ids;
+    for (const itens of agruparPorRaridadeSlot(itensForjaveis(ch)).values()) {
+      const precisa = precisaDe(destinoDe(nivelRaridade(itens[0])));
+      const ordenados = [...itens].sort((a, b) => num(b.itemLevel, 0) - num(a.itemLevel, 0));
+      for (const i of ordenados.slice(0, precisa)) ids.add(i.id);
+    }
+    return ids;
   }
 
   // Itens que a forja aceita agora. No manual, vale a faixa de nível digitada;
-  // no automático, a faixa é calculada por grupo.
+  // no automático, todo item forjável entra (regra do site).
   function itensForjaveis(ch) {
     const f = s().forge;
     const minLv = num(f.minLevel, 0);
@@ -608,64 +624,6 @@
       itens.push(i);
     }
     return itens;
-  }
-
-  // Grupos prontos. No automático, cada faixa de 40 níveis é um grupo; no
-  // manual, usa os itens mais fracos da faixa escolhida (a forja consome os
-  // mais fracos primeiro e preserva o melhor).
-  function gruposForja(ch) {
-    const auto = s().forge.auto;
-    const grupos = [];
-    for (const [chave, itens] of agruparPorRaridadeSlot(itensForjaveis(ch))) {
-      const r = nivelRaridade(itens[0]);
-      const precisa = precisaDe(destinoDe(r));
-      if (auto) {
-        for (const faixa of faixasDeNivel(itens)) {
-          if (faixa.length < precisa) continue;
-          grupos.push({ chave, r, slot: itens[0].slot, itens: faixa.slice(0, precisa) });
-        }
-      } else {
-        if (itens.length < precisa) continue;
-        const ordenados = [...itens].sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0));
-        grupos.push({ chave, r, slot: itens[0].slot, itens: ordenados.slice(0, precisa) });
-      }
-    }
-    return grupos.sort((a, b) => a.r - b.r || num(a.itens[0].itemLevel, 0) - num(b.itens[0].itemLevel, 0));
-  }
-
-  // Tudo o que a forja pode usar fica reservado para ela. Venda, reciclagem,
-  // aprimoramento e transmog só podem pegar o que sobra. Faixas completas e
-  // quase completas (2+ itens no mesmo nível) ficam inteiras; dos itens
-  // soltos, guarda o mais alto de cada raridade/slot para o próximo grupo
-  // começar a se formar mesmo quando os drops chegam um de cada vez.
-  // Antes só o grupo COMPLETO era protegido: a venda/alquimia levava os 2/3
-  // ou 3/4 e a forja nunca chegava a acontecer.
-  function idsDaForja(ch) {
-    const ids = new Set();
-    if (!s().forge.ligado) return ids;
-    const auto = s().forge.auto;
-    for (const itens of agruparPorRaridadeSlot(itensForjaveis(ch)).values()) {
-      const r = nivelRaridade(itens[0]);
-      const precisa = precisaDe(destinoDe(r));
-      if (!auto) {
-        const ordenados = [...itens].sort((a, b) => num(a.itemLevel, 0) - num(b.itemLevel, 0));
-        for (const i of ordenados.slice(0, precisa)) ids.add(i.id);
-        continue;
-      }
-      let soltoMaisAlto = null;
-      for (const faixa of faixasDeNivel(itens)) {
-        if (faixa.length >= 2) {
-          for (const i of faixa) ids.add(i.id);
-        } else {
-          const atual = faixa[0];
-          if (!soltoMaisAlto || num(atual.itemLevel, 0) > num(soltoMaisAlto.itemLevel, 0)) {
-            soltoMaisAlto = atual;
-          }
-        }
-      }
-      if (soltoMaisAlto) ids.add(soltoMaisAlto.id);
-    }
-    return ids;
   }
 
   function contarGruposForja(ch) {
@@ -737,8 +695,9 @@
         continue;
       }
 
-      // Forja os mais fracos primeiro: se sobrar um item melhor, ele fica.
-      liberados = liberados.sort((a, b) => num(a.itemLevel) - num(b.itemLevel)).slice(0, precisa);
+      // Forja os mais fortes que não são melhores que o equipado: o nível do
+      // resultado acompanha a média dos itens usados.
+      liberados = liberados.sort((a, b) => num(b.itemLevel) - num(a.itemLevel)).slice(0, precisa);
       const custo = estimarCusto(liberados, destino);
       const rotulo = `${RARIDADES[g.r]} ${TIPOS[g.slot]} nv ${liberados.map((i) => i.itemLevel).join("/")}`;
       if (custo > livre) {
