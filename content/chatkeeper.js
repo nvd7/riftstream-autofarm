@@ -24,8 +24,12 @@
   if (window.__rsafChatKeeper) return;
   window.__rsafChatKeeper = true;
 
-  const INPUT = '[data-a-target="chat-input"]';
-  const SEND = '[data-a-target="chat-send-button"]';
+  // O chat da Twitch é um editor Slate: o texto aparece no DOM, mas o estado
+  // interno (que habilita o botão e alimenta o Enter) só muda com paste,
+  // beforeinput ou execCommand. Setar value/textContent "escreve" e não envia.
+  const INPUT = '[data-a-target="chat-input"], [data-slate-editor="true"], ' +
+    '.chat-wysiwyg-input__editor, div[contenteditable="true"][role="textbox"]';
+  const SEND = 'button[data-a-target="chat-send-button"]';
   const HUMAN_KEY = "rsafChatHuman";
   const COOLDOWN_OK = 90 * 1000;
   const COOLDOWN_FAIL = 15 * 1000;
@@ -34,8 +38,25 @@
   let lastOk = 0;
   let lastTry = 0;
 
+  function visivel(el) {
+    if (!el || !el.isConnected) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  function editavel(el) {
+    return !!el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" ||
+      el.isContentEditable || el.getAttribute("contenteditable") === "true" ||
+      el.getAttribute("data-slate-editor") === "true");
+  }
+
   function findInput() {
-    return document.querySelector(INPUT);
+    for (const alvo of document.querySelectorAll(INPUT)) {
+      if (visivel(alvo) && editavel(alvo)) return alvo;
+      const filho = alvo.querySelector?.('textarea, [contenteditable="true"], [data-slate-editor="true"]');
+      if (visivel(filho)) return filho;
+    }
+    return null;
   }
 
   function isLoggedOut() {
@@ -56,71 +77,152 @@
     return null;
   }
 
-  function textOf(el) {
-    if (!el) return "";
-    return String(el.value ?? el.innerText ?? el.textContent ?? "");
-  }
-
   function isTextarea(el) {
     return el && el.tagName === "TEXTAREA";
   }
 
-  function insertText(el, text) {
+  // Zero-width e NBSP ficam no editor do Slate e faziam "campo preenchido"
+  // parecer "usuário digitando" para sempre.
+  function textoDe(el) {
+    if (!el) return "";
+    const bruto = isTextarea(el)
+      ? el.value
+      : (el.innerText ?? el.textContent);
+    return String(bruto || "")
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+      .replace(/\u00A0/g, " ")
+      .trim();
+  }
+
+  async function inserir(el, texto) {
     try {
       el.focus({ preventScroll: true });
     } catch {
       try { el.focus(); } catch { /* ignore */ }
     }
 
+    // Campo nativo: o setter da prototype + input é o caminho que o React lê.
     if (isTextarea(el)) {
-      const proto = HTMLTextAreaElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-      if (setter) setter.call(el, text);
-      else el.value = text;
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    } else {
-      try {
-        document.execCommand("insertText", false, text);
-      } catch { /* ignore */ }
-      if (!textOf(el).includes(text)) {
-        el.textContent = text;
-        el.dispatchEvent(new InputEvent("input", {
-          bubbles: true, inputType: "insertText", data: text
-        }));
-      }
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (setter) setter.call(el, texto);
+      else el.value = texto;
+      el.dispatchEvent(new InputEvent("input", {
+        bubbles: true, cancelable: true, inputType: "insertText", data: texto
+      }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(120);
+      if (textoDe(el).includes(texto)) return "input";
     }
-    return textOf(el).includes(text);
+
+    // 1. Colar: o Slate trata paste e atualiza o estado interno.
+    try {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", texto);
+      el.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true, cancelable: true, clipboardData: dt
+      }));
+    } catch { /* ClipboardEvent indisponível */ }
+    await sleep(220);
+    if (textoDe(el).includes(texto)) return "paste";
+
+    // 2. beforeinput: o evento que o Slate escuta para inserir de verdade.
+    try {
+      el.dispatchEvent(new InputEvent("beforeinput", {
+        bubbles: true, cancelable: true, inputType: "insertText", data: texto
+      }));
+      el.dispatchEvent(new InputEvent("input", {
+        bubbles: true, cancelable: true, inputType: "insertText", data: texto
+      }));
+    } catch { /* InputEvent indisponível */ }
+    await sleep(180);
+    if (textoDe(el).includes(texto)) return "beforeinput";
+
+    // 3. execCommand: dispara edição nativa no elemento focado.
+    try { document.execCommand("insertText", false, texto); } catch { /* ignore */ }
+    await sleep(180);
+    if (textoDe(el).includes(texto)) return "exec";
+
+    // 4. Último recurso: DOM puro (escreve, mas pode não habilitar o envio).
+    try {
+      el.textContent = texto;
+      el.dispatchEvent(new InputEvent("input", {
+        bubbles: true, cancelable: true, inputType: "insertText", data: texto
+      }));
+    } catch { /* ignore */ }
+    await sleep(120);
+    return textoDe(el).includes(texto) ? "dom" : null;
   }
 
-  function clearText(el) {
+  function limpar(el) {
     if (!el) return;
+    try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
     if (isTextarea(el)) {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
       if (setter) setter.call(el, "");
       else el.value = "";
       el.dispatchEvent(new Event("input", { bubbles: true }));
-    } else {
-      try { document.execCommand("selectAll", false, null); } catch { /* ignore */ }
-      try { document.execCommand("delete", false, null); } catch { /* ignore */ }
+      return;
     }
-  }
-
-  function pressEnter(el) {
-    for (const type of ["keydown", "keypress", "keyup"]) {
-      el.dispatchEvent(new KeyboardEvent(type, {
-        key: "Enter", code: "Enter", keyCode: 13, which: 13,
-        bubbles: true, cancelable: true
+    try {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand("delete", false, null);
+    } catch { /* ignore */ }
+    if (textoDe(el)) {
+      el.textContent = "";
+      el.dispatchEvent(new InputEvent("input", {
+        bubbles: true, cancelable: true, inputType: "deleteContentBackward", data: null
       }));
     }
   }
 
-  function clickSend(el) {
+  function acharBotao() {
     const btn = document.querySelector(SEND);
-    if (btn && !btn.disabled && btn.getAttribute("aria-disabled") !== "true") {
-      btn.click();
-      return true;
+    if (!btn || !btn.isConnected) return null;
+    if (btn.disabled || btn.getAttribute("aria-disabled") === "true") return null;
+    return btn;
+  }
+
+  function clicar(el) {
+    for (const [Ctor, tipo] of [
+      [PointerEvent, "pointerdown"], [MouseEvent, "mousedown"],
+      [PointerEvent, "pointerup"], [MouseEvent, "mouseup"]
+    ]) {
+      try { el.dispatchEvent(new Ctor(tipo, { bubbles: true, cancelable: true, composed: true })); } catch { /* ignore */ }
     }
-    return false;
+    try { el.click(); } catch { /* ignore */ }
+  }
+
+  function teclarEnter(el) {
+    for (const tipo of ["keydown", "keypress", "keyup"]) {
+      el.dispatchEvent(new KeyboardEvent(tipo, {
+        key: "Enter", code: "Enter", keyCode: 13, which: 13, charCode: 13,
+        bubbles: true, cancelable: true, composed: true
+      }));
+    }
+  }
+
+  // Botão primeiro (é o caminho que o Twitch usa), Enter depois. Só considera
+  // enviado quando o campo esvazia de verdade — o mesmo sinal da tela.
+  async function enviar(el) {
+    const botao = await waitFor(acharBotao, 2500);
+    if (botao) {
+      clicar(botao);
+      if (await waitFor(() => (textoDe(el) ? null : true), 3000)) return "botao";
+    }
+
+    teclarEnter(el);
+    if (await waitFor(() => (textoDe(el) ? null : true), 2500)) return "enter";
+
+    const reserva = document.querySelector(SEND);
+    if (reserva) {
+      clicar(reserva);
+      if (await waitFor(() => (textoDe(el) ? null : true), 2000)) return "botao-reserva";
+    }
+    return null;
   }
 
   async function sendChat(text, { force = false } = {}) {
@@ -131,42 +233,34 @@
     if (!force && lastTry && now - lastTry < COOLDOWN_FAIL) {
       return { ok: false, reason: "cooldown", retryIn: COOLDOWN_FAIL - (now - lastTry) };
     }
-    if (isLoggedOut()) return { ok: false, reason: "logged_out" };
+    if (isLoggedOut()) return { ok: false, reason: "conta deslogada" };
 
     const el = await waitFor(findInput, 8000);
-    if (!el) return { ok: false, reason: "no_input" };
-    if (textOf(el).trim()) return { ok: false, reason: "user_typing" };
+    if (!el) return { ok: false, reason: "sem campo de chat" };
+    if (textoDe(el)) return { ok: false, reason: "você está digitando" };
 
     const clean = String(text || "$me").trim().slice(0, 200);
     if (!clean) return { ok: false, reason: "texto_vazio" };
-    if (!insertText(el, clean)) return { ok: false, reason: "insert_failed" };
 
     lastTry = Date.now();
-    await sleep(90);
+    const via = await inserir(el, clean);
+    if (!via) return { ok: false, reason: "não consegui escrever no chat" };
 
-    // Troca de texto com o usuário depois do foco: desiste sem enviar nada.
-    if (textOf(el).trim() !== clean) {
-      clearText(el);
-      return { ok: false, reason: "user_typing" };
+    await sleep(160);
+    // O usuário assumiu o campo durante a inserção: não atropela.
+    if (textoDe(el) !== clean) {
+      limpar(el);
+      return { ok: false, reason: "você assumiu o campo", via };
     }
 
-    if (!clickSend(el)) pressEnter(el);
-
-    let cleared = await waitFor(() => (textOf(findInput()).trim() ? null : true), 3000);
-    if (!cleared) {
-      // Segunda tentativa pelo outro caminho: algumas versões do chat ignoram
-      // o clique no botão quando ele está coberto por um tooltip.
-      pressEnter(el);
-      cleared = await waitFor(() => (textOf(findInput()).trim() ? null : true), 2500);
-    }
-
-    if (!cleared) {
-      clearText(el);
-      return { ok: false, reason: "not_sent" };
+    const envio = await enviar(el);
+    if (!envio) {
+      limpar(el);
+      return { ok: false, reason: "texto ficou no campo, envio não saiu", via };
     }
 
     lastOk = Date.now();
-    return { ok: true, at: lastOk, text: clean, url: location.href };
+    return { ok: true, at: lastOk, text: clean, via, send: envio, url: location.href };
   }
 
   // Qualquer tecla dentro da caixa do chat conta como atividade humana.
@@ -258,10 +352,11 @@
     if (msg?.type === "RSAF_CHAT_STATE") {
       sendResponse({
         ok: true,
+        keeper: 2,
         url: location.href,
         loggedOut: isLoggedOut(),
         hasInput: !!findInput(),
-        idle: !textOf(findInput()).trim(),
+        idle: !textoDe(findInput()),
         lastOk
       });
       return false;

@@ -232,6 +232,15 @@ else {
   fail("testes do modo automático", saida);
 }
 
+/* --------------------- envio no chat (editor Slate) ---------------------- */
+
+const keeper = exists("content/chatkeeper.js") ? read("content/chatkeeper.js") : "";
+must(keeper.includes('ClipboardEvent("paste"'), "chatkeeper cola o texto via ClipboardEvent");
+must(keeper.includes('"beforeinput"'), "chatkeeper dispara beforeinput no editor");
+must(keeper.includes('button[data-a-target="chat-send-button"]'), "chatkeeper acha o botão de enviar");
+must(keeper.includes("textoDe(el)"), "chatkeeper confere o texto no campo");
+must(keeper.includes("keeper: 2"), "chatkeeper informa a versão no handshake");
+
 /* --------------------------- versão consistente -------------------------- */
 
 if (manifest) {

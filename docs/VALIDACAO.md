@@ -107,6 +107,9 @@ Ligue **Farm automático** e marque os módulos desejados.
       do jogo mostra; se o jogo diz 2, o painel diz 2 e a rodada forja.
 - [ ] O resumo da aba Auto mostra `mochila X/50`; acima de 85% aparece
       **soltando sobras para a alquimia** e a mochila para de crescer.
+- [ ] No chat da Twitch, **Enviar agora** escreve o comando, o campo esvazia
+      e a mensagem aparece na lista. Se não sair, a linha **Chat anti-AFK**
+      diz o motivo exato (`texto ficou no campo...`, `sem campo de chat`).
 - [ ] Em até 75 s, `/api/me` traz `currentChannel` e o card muda para
       `no jogo: canal`.
 - [ ] Sem nenhuma live escolhida, a opção “escolher a melhor live” abre o

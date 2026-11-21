@@ -367,17 +367,46 @@ function waitTabComplete(tabId, timeout = 20000) {
   });
 }
 
-async function ensureKeeper(tabId) {
+// Versão do content script do chat. O service worker só aceita um keeper que
+// responda com esta versão; script antigo preso na aba (de antes de uma
+// atualização) é substituído, e se nem a injeção resolver, a aba é recarregada
+// uma vez — é o que impede o chat de continuar com o envio quebrado da 3.2.1.
+const KEEPER_VERSION = 2;
+const KEEPER_FIX_KEY = "rsafKeeperFix";
+
+async function keeperReady(tabId) {
   try {
     const r = await chrome.tabs.sendMessage(tabId, { type: "RSAF_CHAT_STATE" });
-    if (r?.ok) return true;
-  } catch { /* content script ausente */ }
-  try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content/chatkeeper.js"] });
-    return true;
+    return !!(r?.ok && num(r.keeper, 0) >= KEEPER_VERSION);
   } catch {
     return false;
   }
+}
+
+async function ensureKeeper(tabId) {
+  if (await keeperReady(tabId)) return true;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content/chatkeeper.js"] });
+  } catch { /* aba fechada ou sem permissão */ }
+  if (await keeperReady(tabId)) return true;
+
+  // Uma recarga por aba a cada 10 min: o manifest reinjeta o keeper novo.
+  const marcas = await get(KEEPER_FIX_KEY, {});
+  const agora = Date.now();
+  if (agora - num(marcas[String(tabId)], 0) < 10 * 60000) return false;
+  marcas[String(tabId)] = agora;
+  await set({ [KEEPER_FIX_KEY]: marcas });
+  try {
+    await chrome.tabs.reload(tabId);
+  } catch {
+    return false;
+  }
+  await waitTabComplete(tabId);
+  for (let i = 0; i < 12; i += 1) {
+    if (await keeperReady(tabId)) return true;
+    await delay(500);
+  }
+  return false;
 }
 
 async function ensureChatTab(login) {
@@ -531,7 +560,7 @@ async function chatTick({ force = false } = {}) {
   }
 
   if (!r?.ok) {
-    const motivo = r?.reason || "sem resposta";
+    const motivo = `${r?.reason || "sem resposta"}${r?.via ? ` (${r.via})` : ""}`;
     await set({
       [CHAT_KEY]: { ...chat, lastAt: num(chat.lastAt, 0), fails: num(chat.fails, 0) + 1, lastError: motivo, retryAt: agora + CHAT_RETRY_MS }
     });

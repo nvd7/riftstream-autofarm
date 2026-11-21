@@ -4,6 +4,35 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.2.2] - 2026-11-20
+
+### Corrigido
+
+- **O chat escrevia `$jump` e não enviava.** O editor do chat da Twitch hoje é
+  um Slate (`div[contenteditable]`): o texto entrava no DOM pelo caminho antigo
+  (`textContent` + `input`), mas o **estado interno** do editor continuava
+  vazio. Resultado: o campo mostrava o comando, o botão de enviar ficava
+  desabilitado e o Enter não fazia nada. Agora a inserção usa, nesta ordem,
+  **paste** (`ClipboardEvent` com `DataTransfer`), **beforeinput** + `input`,
+  **execCommand** e só então o DOM puro — e considera sucesso quando o texto
+  aparece no campo.
+- **Envio com botão + Enter + reserva.** O botão
+  `button[data-a-target="chat-send-button"]` é procurado esperando ficar
+  habilitado (até 2,5 s), clicado com a sequência de ponteiro/mouse completa;
+  se o campo não esvaziar, dispara Enter (`keydown`/`keypress`/`keyup` com
+  `code`, `keyCode` e `composed`); se ainda não sair, clica no botão de novo.
+  Só conta como enviado quando o campo **esvazia** — o mesmo sinal que a tela dá.
+- **O campo é limpo quando o envio falha**, em vez de deixar o comando preso e
+  travar todo envio seguinte como "você está digitando".
+- **Diagnóstico no painel:** o motivo da falha agora diz o que aconteceu
+  (`texto ficou no campo, envio não saiu (paste)`, `sem campo de chat`,
+  `conta deslogada`) em vez do genérico `not_sent`.
+
+### Testes
+
+- Validador ganhou quatro checagens estáticas do `chatkeeper.js` (paste,
+  beforeinput, botão de envio e conferência do texto).
+
 ## [3.2.1] - 2026-11-20
 
 ### Corrigido

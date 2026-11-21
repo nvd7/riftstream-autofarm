@@ -1773,7 +1773,7 @@
           : confirmando
             ? `Confirmando “${chat.sentText || "$jump"}” no servidor…`
             : esperaMs > 0
-              ? `Sem efeito — tento de novo em ${haMin(esperaMs)}`
+              ? `${chat.lastError ? `Chat: ${chat.lastError}` : "Sem efeito"} — tento de novo em ${haMin(esperaMs)}`
               : restante !== null
                 ? `${restante} min para o AFK (janela ${janela} min)` +
                   (ultimoPing ? ` · último ping há ${haMin(agoraMs - ultimoPing)}` : "")
