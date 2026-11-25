@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.3.0-f5c451" alt="Versão 3.3.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.3.1-f5c451" alt="Versão 3.3.1"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -358,7 +358,7 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Forja | `forge.auto` | `false` | Agrupa por raridade/tipo como o site, sem faixa de nível (modo automático) |
 | Forja | `forge.useScroll` | `false` | Usa Pergaminho de Sorte em cada forja |
 | Forja | `forge.estrategia` | `agressivo` | `conservador` (só com pergaminho e chance alta), `agressivo` ou `bruto` |
-| Forja | `forge.chanceMinima` | `30` | Chance mínima (%) para arriscar a roleta |
+| Forja | `forge.chanceMinima` | `25` | Chance mínima (%) para arriscar a roleta |
 | Forja | `forge.arcano` | `true` | Libera Imortal → Arcano e acompanha o set |
 | Atributos | `stats.ligado` | `true` | Gasta ouro em atributos |
 | Atributos | `stats.modo` | `igual` | `otimo` (ganho por ouro), `igual` (dividir) ou `nivel` (metas) |

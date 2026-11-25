@@ -4,6 +4,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.3.1] - 2026-11-25
+
+### Corrigido
+
+- **Mínimo da roleta não travava mais a caça ao Arcano.** O padrão era 30% e a
+  chance base do Arcano é 25%: sem pergaminho, a forja esperava um gelo que
+  nunca subiria (gelo só sobe tentando). O padrão agora é **25%** — tenta na
+  base e melhora com as falhas — e dá para subir quando quiser.
+- **Aviso honesto quando o mínimo é inalcançável:** se nem com gelo máximo e
+  pergaminho a chance chega ao mínimo, o painel diz
+  `no máximo chega a X% — baixe o mínimo ou use um pergaminho` em vez de pedir
+  para esperar.
+
 ## [3.3.0] - 2026-11-25
 
 ### Adicionado

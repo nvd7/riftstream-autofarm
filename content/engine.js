@@ -106,7 +106,7 @@
       // "agressivo" respeita a chance mínima e usa o pergaminho na hora certa;
       // "bruto" forja tudo que fecha grupo, sem olhar a roleta.
       estrategia: "agressivo",
-      chanceMinima: 30,
+      chanceMinima: 25,
       // Caçar o set arcano: libera a fusão de Imortal (4 → Arcano) e mantém o
       // melhor item de cada tipo protegido, em vez de virar material.
       arcano: true
@@ -202,7 +202,7 @@
     if (!["igual", "nivel", "otimo"].includes(out.stats.modo)) out.stats.modo = "igual";
     if (!["equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "equilibrado";
     if (!ESTRATEGIAS.includes(out.forge.estrategia)) out.forge.estrategia = "agressivo";
-    out.forge.chanceMinima = Math.max(0, Math.min(100, Math.round(num(out.forge.chanceMinima, 30))));
+    out.forge.chanceMinima = Math.max(0, Math.min(100, Math.round(num(out.forge.chanceMinima, 25))));
     // Sem a chave (config antiga) o padrão é caçar arcano: é o que o modo
     // automático espera e o que dá o maior salto de força.
     out.forge.arcano = out.forge.arcano !== false;
@@ -918,9 +918,12 @@
 
       if (destino >= ROLETA_MIN && estrategia !== "bruto" && chance < chanceMinima) {
         const gelo = Math.min(GELO_MAX, geloDe(destino, g.slot));
-        bloquear(g.chave,
-          `Roleta ${pct(chance)} abaixo de ${pct(chanceMinima)}: espero o gelo subir (nível ${gelo})`,
-          5 * 60000, "forja");
+        const teto = chanceBase(destino) + GELO_MAX * num(roleta.step, 0.02) +
+          (pergaminho ? pergaminho.bonus : 0);
+        const aviso = teto >= chanceMinima
+          ? `Roleta ${pct(chance)}: espero o gelo subir (nível ${gelo}/5) até ${pct(chanceMinima)}`
+          : `Roleta ${pct(chance)}: no máximo chega a ${pct(Math.min(1, teto))} — baixe o mínimo ou use um pergaminho`;
+        bloquear(g.chave, aviso, 5 * 60000, "forja");
         continue;
       }
       if (estrategia === "conservador" && destino >= ROLETA_MIN && !pergaminho) {

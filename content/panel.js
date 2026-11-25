@@ -1271,7 +1271,7 @@
     // e +50% com o Supremo). Sem essa fusão o set arcano nunca chega.
     st.forge.arcano = true;
     st.forge.estrategia = "agressivo";
-    st.forge.chanceMinima = 30;
+    st.forge.chanceMinima = 25;
 
     st.stats.ligado = true;
     st.stats.modo = "otimo";
@@ -1376,7 +1376,7 @@
   });
   q("forgeChance").addEventListener("input", () => {
     const v = parseInt(q("forgeChance").value.replace(/\D/g, ""), 10);
-    cfg.settings.forge.chanceMinima = Number.isNaN(v) ? 30 : Math.max(0, Math.min(100, v));
+    cfg.settings.forge.chanceMinima = Number.isNaN(v) ? 25 : Math.max(0, Math.min(100, v));
     salvarCfg();
   });
   q("swEquip").addEventListener("click", () => mexerModulo(() => {
@@ -1858,7 +1858,7 @@
     chipsRarity.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.raridades[id]));
     chipsType.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.tipos[id]));
     chipsEstrategia.forEach(([id, b]) => b.classList.toggle("on", id === (st.forge.estrategia || "agressivo")));
-    if (!ativo(q("forgeChance"))) q("forgeChance").value = st.forge.chanceMinima ?? 30;
+    if (!ativo(q("forgeChance"))) q("forgeChance").value = st.forge.chanceMinima ?? 25;
     q("forgeRisk").hidden = st.forge.arcano === false &&
       !["epico", "lendario", "imortal"].some((id) => st.forge.raridades[id]);
     const arco = status.counts?.arcano;
