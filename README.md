@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.2.2-f5c451" alt="Versão 3.2.2"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.3.0-f5c451" alt="Versão 3.3.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -175,6 +175,22 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   ou melhor). O nível do resultado acompanha a média dos itens usados, por isso
   a extensão escolhe os mais fortes disponíveis. O filtro mínimo/máximo de nível
   continua valendo no modo manual.
+- **Roleta com conta na mão:** antes de arriscar, a extensão lê a chance
+  real em `/api/wiki` e o gelo em `/api/me/items/fuse-streaks`.
+  A conta é a do jogo: base + 2% por falha seguida (até +10%) + o bônus do
+  pergaminho, no máximo 100%. Abaixo do mínimo configurado ela **espera o gelo
+  subir** em vez de queimar o material. O `chance` que o servidor devolve em
+  cada fusão fica guardado e vira a base aprendida quando a wiki não responde.
+- **Pergaminho certo para cada roleta:** `luckscroll` (qualquer),
+  `bigscroll` (Imortal para cima) e `arcanescroll` (só Arcano). Usa o de maior
+  bônus e **não gasta** pergaminho quando a chance já está em 100% sem ele.
+- **Piso do nível do resultado:** a fusão que gera Imortal tem piso **Nv. 100**
+  e a que gera Arcano tem piso **Nv. 130** (mesma função `cH` do site). Quatro
+  Lendários fracos já devolvem um Imortal 100+, e quatro Imortais Nv. 100
+  devolvem um Arcano 130+. É o caminho mais barato para desbloquear o set.
+- **Caçar set arcano:** liga a fusão Imortal → Arcano mesmo com o chip Imortal
+  desligado e mostra no painel o progresso por tipo (`✓ arma · 2/4 elmo`) e
+  quantas tentativas de Arcano a mochila já rende.
 - **Pergaminho na forja (opcional):** gasta um Pergaminho de Sorte por tentativa
   para aumentar a chance de sucesso. Se o estoque acabar, a forja segue sem ele.
 - **Atributos do jeito que você quiser:**
@@ -341,6 +357,9 @@ o mesmo objeto; não há dois lugares com valores diferentes.
 | Forja | `forge.maxLevel` | `9999` | Nível máximo dos itens forjados |
 | Forja | `forge.auto` | `false` | Agrupa por raridade/tipo como o site, sem faixa de nível (modo automático) |
 | Forja | `forge.useScroll` | `false` | Usa Pergaminho de Sorte em cada forja |
+| Forja | `forge.estrategia` | `agressivo` | `conservador` (só com pergaminho e chance alta), `agressivo` ou `bruto` |
+| Forja | `forge.chanceMinima` | `30` | Chance mínima (%) para arriscar a roleta |
+| Forja | `forge.arcano` | `true` | Libera Imortal → Arcano e acompanha o set |
 | Atributos | `stats.ligado` | `true` | Gasta ouro em atributos |
 | Atributos | `stats.modo` | `igual` | `otimo` (ganho por ouro), `igual` (dividir) ou `nivel` (metas) |
 | Atributos | `stats.foco` | `equilibrado` | No modo `otimo`: `equilibrado`, `dano` ou `tanque` |

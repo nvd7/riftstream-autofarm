@@ -391,6 +391,103 @@ teste("rodada completa: forja acontece com venda, alquimia, aprimoramento e tran
     "a venda não pode levar o grupo que a forja vai usar");
 });
 
+teste("piso do resultado: Imortal sai 100+ e Arcano 130+ com material fraco", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  const fracos = Array.from({ length: 4 }, () => item({ itemLevel: 10 }));
+  const [loImortal, hiImortal] = api.resultadoFaixa(fracos, 6);
+  assert.equal(loImortal, 100, "bundle: cH recebe piso 100 na fusão de Imortal");
+  assert.equal(hiImortal, 100);
+  const [loArcano, hiArcano] = api.resultadoFaixa(fracos, 7);
+  assert.equal(loArcano, 130, "bundle: cH recebe piso 130 na fusão de Arcano");
+  assert.equal(hiArcano, 130);
+  const fortes = Array.from({ length: 4 }, () => item({ itemLevel: 400 }));
+  assert.deepEqual([...api.resultadoFaixa(fortes, 7)], [459, 520],
+    "com material alto o piso não morde");
+});
+
+teste("custo da forja bate com o jogo (sem folga de 15%)", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  // 4 itens nv 100 -> faixa 115..130, meio 122: (5+244)*7*2 = 3486.
+  // No Arcano o piso 130 domina a faixa: (5+260)*11*2 = 5830.
+  const itens = Array.from({ length: 4 }, () => item({ itemLevel: 100 }));
+  assert.equal(api.estimarCusto(itens, 6), 3486);
+  assert.equal(api.estimarCusto(itens, 7), 5830);
+});
+
+
+teste("chance da roleta = base + gelo (até 5) + pergaminho", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  api.roleta.chances[7] = 0.25;
+  api.roleta.step = 0.02;
+  api.roleta.gelo.set("7|weapon", 3);
+  assert.ok(Math.abs(api.chanceDeForja(7, "weapon") - 0.31) < 1e-9, "25% + 3 falhas = 31%");
+  assert.ok(Math.abs(api.chanceDeForja(7, "weapon", 0.5) - 0.81) < 1e-9, "Supremo (+50%) = 81%");
+  api.roleta.gelo.set("7|weapon", 99);
+  assert.ok(Math.abs(api.chanceDeForja(7, "weapon") - 0.35) < 1e-9, "gelo para no nível 5 (+10%)");
+  api.roleta.chances[7] = 0.9;
+  assert.equal(api.chanceDeForja(7, "weapon", 0.5), 1, "chance nunca passa de 100%");
+  assert.equal(api.chanceDeForja(3, "weapon"), 1, "abaixo de Lendário não tem roleta");
+});
+
+teste("meta arcano conta por tipo o que falta para o set", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto());
+  const itens = [
+    ...Array.from({ length: 4 }, () => item({ slot: "weapon", rarity: 6, itemLevel: 120 })),
+    item({ slot: "helmet", rarity: 7, itemLevel: 300, equipped: true }),
+    item({ slot: "helmet", rarity: 6, itemLevel: 200 }),
+    item({ slot: "armor", rarity: 6, itemLevel: 150 })
+  ];
+  const meta = api.metaArcano({ items: itens, cls: "warrior" });
+  assert.equal(meta.total, 4);
+  assert.equal(meta.prontos, 1, "só o elmo arcano equipado conta");
+  assert.equal(meta.slots.weapon.tentativas, 1, "4 imortais = 1 tentativa de Arcano");
+  assert.equal(meta.tentativas, 1);
+});
+
+teste("modo arcano libera a fusão de Imortal mesmo com o chip desligado", () => {
+  const api = carregarEngine();
+  api.definirSettings(configAuto({
+    forge: {
+      ligado: true, auto: true, arcano: true,
+      raridades: { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: false },
+      tipos: { arma: true, elmo: true, armadura: true, anel: true }
+    }
+  }));
+  const imortais = Array.from({ length: 4 }, () => item({ slot: "weapon", rarity: 6, itemLevel: 150 }));
+  const grupos = api.gruposForja({ items: imortais, cls: "warrior" });
+  assert.equal(grupos.length, 1, "4 imortais formam 1 grupo de Arcano");
+  assert.equal(grupos[0].r, 6, "a raridade do material é Imortal");
+  assert.equal(grupos[0].precisa, 4);
+});
+
+teste("rodada: imortal só vira arcano acima da chance mínima", async () => {
+  const itens = Array.from({ length: 4 }, () => item({ rarity: 6, itemLevel: 150 }));
+  const ch = { name: "T", cls: "warrior", level: 100, power: 1000, gold: 1e6,
+    items: itens, gems: [], statLevels: {}, statCosts: {} };
+  const ok = (b) => ({ ok: true, status: 200, json: async () => b });
+  const montar = () => carregarEngine({
+    fetch: async (u) => u.includes("/compare") ? ok({ power: 100, newPower: 90 })
+      : u.includes("/api/me/character") ? ok(ch) : ok({})
+  });
+  const cfg = (min) => configAuto({ forge: { ligado: true, auto: true, arcano: true,
+    estrategia: "agressivo", chanceMinima: min,
+    raridades: { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: true },
+    tipos: { arma: true, elmo: true, armadura: true, anel: true } } });
+  const duro = montar();
+  duro.definirSettings(cfg(90));
+  await duro.rodar();
+  assert.ok(!duro.plano().some((l) => l.startsWith("forja")), "25% < 90%: não arrisca");
+  const solto = montar();
+  solto.definirSettings(cfg(10));
+  await solto.rodar();
+  assert.ok(solto.plano().some((l) => l.startsWith("forja imortal arma") && l.includes("chance 25%")),
+    `deveria forjar; plano: ${solto.plano().join(" | ")}`);
+});
+
 let falhas = 0;
 for (const t of testes) {
   try {

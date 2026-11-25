@@ -4,6 +4,43 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.3.0] - 2026-11-25
+
+### Adicionado
+
+- **Forja com a roleta na conta.** Antes de arriscar Lendário ou melhor, a
+  extensão lê `fuseEpicChance`/`fuseImmortalChance`/`fuseArcaneChance` em
+  `/api/wiki` e o gelo em `/api/me/items/fuse-streaks`. A conta é a do jogo:
+  base + 2% por falha seguida (até 5 = +10%) + bônus do pergaminho, teto 100%.
+  Abaixo da **chance mínima** configurada, a forja espera o gelo subir em vez de
+  queimar o material. O `chance` devolvido pelo servidor fica guardado e vira a
+  base quando a wiki não responde.
+- **Três estratégias:** `conservador` (só com pergaminho e chance alta),
+  `agressivo` (padrão, respeita a chance mínima) e `bruto` (forja tudo).
+- **Pergaminho certo por raridade:** `luckscroll`, `bigscroll` (Imortal+) e
+  `arcanescroll` (Arcano). Usa o de maior bônus e não gasta quando a chance já
+  está em 100% sem ele.
+- **Caçar set arcano:** libera Imortal → Arcano mesmo com o chip Imortal
+  desligado e mostra no painel o progresso por tipo e quantas tentativas de
+  Arcano a mochila rende.
+- **Piso do resultado exposto:** a fusão de Imortal tem piso Nv. 100 e a de
+  Arcano Nv. 130 (função `cH` do site). Quatro Lendários fracos já geram um
+  Imortal 100+; quatro Imortais Nv. 100 geram um Arcano 130+.
+
+### Corrigido
+
+- **Custo da forja exato:** sai o fudge de 15% e entra a fórmula do bundle
+  (`iH`), com o nível do meio da faixa real. Forjas que o ouro cobria deixam de
+  ser pausadas.
+- **Modo automático mais agressivo:** liga Imortal, `estrategia: agressivo`,
+  `arcano: true` e o foco de atributos em **dano** — mais onda por hora é mais
+  XP por hora.
+
+### Testes
+
+- +5 testes: piso 100/130, custo exato, fórmula da chance com gelo e teto,
+  progresso do set arcano e liberação da fusão de Imortal.
+
 ## [3.2.2] - 2026-11-20
 
 ### Corrigido

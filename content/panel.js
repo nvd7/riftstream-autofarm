@@ -708,8 +708,18 @@
                 <span class="grow">Usar pergaminho<small>Aumenta a chance de sucesso da forja</small></span>
                 <button class="sw" id="swForgeScroll"></button>
               </div>
+              <div class="row">
+                <span class="grow">Caçar set Arcano<small>4 Imortais viram Arcano; o melhor de cada tipo fica protegido</small></span>
+                <button class="sw" id="swArcano"></button>
+              </div>
               <h3>Forjar para</h3>
               <div class="chips" id="chipsRarity"></div>
+              <h3>Roleta (Lendário para cima)</h3>
+              <div class="chips" id="chipsEstrategia"></div>
+              <label class="field">Chance mínima para arriscar (%)
+                <input id="forgeChance" type="number" min="0" max="100" step="5" inputmode="numeric" />
+              </label>
+              <div class="statusbox"><span id="stArcano">—</span><small id="ctArcano"></small></div>
               <h3>Tipos de item</h3>
               <div class="chips" id="chipsType"></div>
               <h3>Faixa de nível (importante)</h3>
@@ -1124,8 +1134,7 @@
     return [id, b];
   });
 
-  const chipsType = TIPOS.map(([id, nome]) => {
-    const b = document.createElement("button");
+  const chipsType = TIPOS.map(([id, nome]) => {    const b = document.createElement("button");
     b.className = "chip";
     b.textContent = nome;
     b.addEventListener("click", () => {
@@ -1133,6 +1142,24 @@
       salvarCfg();
     });
     q("chipsType").append(b);
+    return [id, b];
+  });
+
+  const ESTRATEGIAS_UI = [
+    ["conservador", "Conservador", "Só arrisca com pergaminho e chance alta"],
+    ["agressivo", "Agressivo", "Respeita a chance mínima e usa o gelo"],
+    ["bruto", "Bruto", "Forja tudo que fecha grupo"]
+  ];
+  const chipsEstrategia = ESTRATEGIAS_UI.map(([id, nome, dica]) => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = nome;
+    b.title = dica;
+    b.addEventListener("click", () => {
+      cfg.settings.forge.estrategia = id;
+      salvarCfg();
+    });
+    q("chipsEstrategia").append(b);
     return [id, b];
   });
 
@@ -1238,12 +1265,18 @@
     st.forge.ligado = true;
     st.forge.auto = true;
     st.forge.useScroll = true;
-    st.forge.raridades = { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: false };
+    st.forge.raridades = { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: true };
     st.forge.tipos = { arma: true, elmo: true, armadura: true, anel: true };
+    // Caçar arcano: 4 Imortais viram Arcano (25% base, +2% por falha até +10%
+    // e +50% com o Supremo). Sem essa fusão o set arcano nunca chega.
+    st.forge.arcano = true;
+    st.forge.estrategia = "agressivo";
+    st.forge.chanceMinima = 30;
 
     st.stats.ligado = true;
     st.stats.modo = "otimo";
-    st.stats.foco = "equilibrado";
+    // Dano pesa mais que vida: mais onda por hora é mais XP por hora.
+    st.stats.foco = "dano";
     for (const k of Object.keys(st.stats.sel)) st.stats.sel[k] = true;
 
     st.gems.ligado = true;
@@ -1335,6 +1368,15 @@
   }));
   q("swForgeScroll").addEventListener("click", () => {
     cfg.settings.forge.useScroll = !cfg.settings.forge.useScroll;
+    salvarCfg();
+  });
+  q("swArcano").addEventListener("click", () => {
+    cfg.settings.forge.arcano = !(cfg.settings.forge.arcano !== false);
+    salvarCfg();
+  });
+  q("forgeChance").addEventListener("input", () => {
+    const v = parseInt(q("forgeChance").value.replace(/\D/g, ""), 10);
+    cfg.settings.forge.chanceMinima = Number.isNaN(v) ? 30 : Math.max(0, Math.min(100, v));
     salvarCfg();
   });
   q("swEquip").addEventListener("click", () => mexerModulo(() => {
@@ -1812,9 +1854,27 @@
     q("enhanceRisk").hidden = !st.enhance.ligado;
     q("swForge").classList.toggle("on", !!st.forge.ligado);
     q("swForgeScroll").classList.toggle("on", !!st.forge.useScroll);
+    q("swArcano").classList.toggle("on", st.forge.arcano !== false);
     chipsRarity.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.raridades[id]));
     chipsType.forEach(([id, b]) => b.classList.toggle("on", !!st.forge.tipos[id]));
-    q("forgeRisk").hidden = !["epico", "lendario", "imortal"].some((id) => st.forge.raridades[id]);
+    chipsEstrategia.forEach(([id, b]) => b.classList.toggle("on", id === (st.forge.estrategia || "agressivo")));
+    if (!ativo(q("forgeChance"))) q("forgeChance").value = st.forge.chanceMinima ?? 30;
+    q("forgeRisk").hidden = st.forge.arcano === false &&
+      !["epico", "lendario", "imortal"].some((id) => st.forge.raridades[id]);
+    const arco = status.counts?.arcano;
+    if (arco) {
+      const nomes = { weapon: "arma", helmet: "elmo", armor: "armadura", ring: "anel" };
+      q("stArcano").textContent = `Set arcano ${arco.prontos}/${arco.total}` +
+        (arco.tentativas ? ` · ${arco.tentativas} tentativa(s) pronta(s)` : "");
+      q("ctArcano").textContent = Object.entries(arco.slots)
+        .map(([slot, x]) => `${x.arcano ? "✓" : x.tentativas ? `${x.imortais}/4` : "—"} ${nomes[slot]}`)
+        .join(" · ");
+    } else {
+      q("stArcano").textContent = "Set arcano —";
+      q("ctArcano").textContent = st.forge.arcano === false
+        ? "Desligado: nunca tenta Arcano"
+        : "Ligado: forja 4 Imortais quando o grupo fecha";
+    }
     if (!ativo(q("forgeMin"))) q("forgeMin").value = st.forge.minLevel ?? 0;
     if (!ativo(q("forgeMax"))) q("forgeMax").value = st.forge.maxLevel ?? 9999;
     q("stForja").textContent = st.forge.ligado ? (status.forja || "Procurando itens...") : "Desligada";

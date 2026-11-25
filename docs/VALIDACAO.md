@@ -107,6 +107,12 @@ Ligue **Farm automático** e marque os módulos desejados.
       do jogo mostra; se o jogo diz 2, o painel diz 2 e a rodada forja.
 - [ ] O resumo da aba Auto mostra `mochila X/50`; acima de 85% aparece
       **soltando sobras para a alquimia** e a mochila para de crescer.
+- [ ] Na aba **Forja**, o bloco **Set arcano** mostra ✓ por tipo equipado e
+      `N/4` nos tipos com Imortais guardados; com 4 Imortais o destino é Arcano.
+- [ ] Com `chanceMinima` alto (ex.: 90%) e sem pergaminho, a forja **não**
+      arrisca a roleta: mostra a chance e o gelo no lugar de forjar.
+- [ ] Com `arcanescroll` no inventário e 4 Imortais, o painel mostra a chance
+      com o bônus do pergaminho e a fusão sai depois do clique.
 - [ ] No chat da Twitch, **Enviar agora** escreve o comando, o campo esvazia
       e a mensagem aparece na lista. Se não sair, a linha **Chat anti-AFK**
       diz o motivo exato (`texto ficou no campo...`, `sem campo de chat`).

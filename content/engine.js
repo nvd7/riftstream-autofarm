@@ -47,6 +47,20 @@
   const NOMES = { forca: "Força", vitalidade: "Vitalidade", defesa: "Defesa", agilidade: "Agilidade", sorte: "Sorte" };
   const RARIDADE_NOME = ["Comum", "Incomum", "Raro", "Épico", "Lendário", "Evento", "Imortal", "Arcano"];
   const FORGE_COST_FACTOR = [1, 1.35, 1.8, 2.5, 4, 3, 7, 11];
+  // Alvo Lendário+ passa pela roleta; abaixo disso a forja é garantida.
+  const ROLETA_MIN = 4;
+  // Piso do nível do resultado (bundle, função `cH`): a fusão que gera Imortal
+  // recebe piso 100 e a que gera Arcano recebe piso 130. Na prática, quatro
+  // Lendários de nível baixo já devolvem um Imortal Nv. 100+, e quatro
+  // Imortais Nv. 100 devolvem um Arcano Nv. 130+. É o atalho para o set.
+  const PISO_RESULTADO = { 6: 100, 7: 130 };
+  // Bundle: cada falha seguida na mesma raridade/tipo soma um passo de chance,
+  // no máximo cinco vezes (gelo nível 5 = +10% com o passo padrão de 2%).
+  const GELO_MAX = 5;
+  // Valores de partida, substituídos pela wiki e, depois, pelo `chance` que o
+  // próprio servidor devolve em cada fusão.
+  const CHANCE_PADRAO = { 4: 0.6, 5: 0.6, 6: 0.35, 7: 0.25 };
+  const ESTRATEGIAS = ["conservador", "agressivo", "bruto"];
   const GEM_TYPES = ["ruby", "sapphire", "topaz", "emerald", "amethyst"];
   const GEM_PRIO = {
     warrior: ["ruby", "topaz", "amethyst", "sapphire", "emerald"],
@@ -87,7 +101,15 @@
       tipos: { arma: true, elmo: true, armadura: true, anel: true },
       minLevel: 0,
       maxLevel: 9999,
-      useScroll: false
+      useScroll: false,
+      // "conservador" só arrisca a roleta com pergaminho e chance alta;
+      // "agressivo" respeita a chance mínima e usa o pergaminho na hora certa;
+      // "bruto" forja tudo que fecha grupo, sem olhar a roleta.
+      estrategia: "agressivo",
+      chanceMinima: 30,
+      // Caçar o set arcano: libera a fusão de Imortal (4 → Arcano) e mantém o
+      // melhor item de cada tipo protegido, em vez de virar material.
+      arcano: true
     },
     stats: {
       ligado: true,
@@ -126,6 +148,7 @@
   let stats = {
     forjaTotal: 0, forjaPerdidos: 0, equipTotal: 0, vendidos: 0, aprimorados: 0,
     gemTotais: { juntadas: 0, supremas: 0, perdidas: 0 }, upNiveis: {}, upGasto: {},
+    chances: {},
     alchemyCriados: 0, alchemyReciclados: 0, alchemyUpados: 0, transmogFeitos: 0, transmogAlvos: {}
   };
   let status = {
@@ -178,6 +201,11 @@
     out.alchemy.raridadeAlvo = Math.max(0, Math.min(2, Math.round(num(out.alchemy.raridadeAlvo, 0))));
     if (!["igual", "nivel", "otimo"].includes(out.stats.modo)) out.stats.modo = "igual";
     if (!["equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "equilibrado";
+    if (!ESTRATEGIAS.includes(out.forge.estrategia)) out.forge.estrategia = "agressivo";
+    out.forge.chanceMinima = Math.max(0, Math.min(100, Math.round(num(out.forge.chanceMinima, 30))));
+    // Sem a chave (config antiga) o padrão é caçar arcano: é o que o modo
+    // automático espera e o que dá o maior salto de força.
+    out.forge.arcano = out.forge.arcano !== false;
     out.transmog.alvoSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.alvoSlot) ? out.transmog.alvoSlot : "arma";
     out.transmog.fonteSlot = ["arma","elmo","armadura","anel"].includes(out.transmog.fonteSlot) ? out.transmog.fonteSlot : "arma";
     // O autosell do site roda fora da extensão e não conhece a reserva da
@@ -549,12 +577,32 @@
     return comparacoes.get(item.id);
   }
 
-  function estimarCusto(itens, destino) {
+  // Faixa de nível do resultado, igual ao bundle (`cH`): média ×1,15 até
+  // média ×1,3, com piso de 100/130 quando o destino é Imortal/Arcano.
+  function resultadoFaixa(itens, destino) {
     const nivel = itens.map((i) => num(i.itemLevel, 0));
     const media = nivel.reduce((a, b) => a + b, 0) / Math.max(1, nivel.length);
-    const meio = Math.floor((Math.floor(media * 1.15) + Math.floor(media * 1.3)) / 2);
-    return Math.round((5 + meio * 2) * (FORGE_COST_FACTOR[destino] ?? 1) * 2 * 1.15);
+    let lo = Math.floor(media * 1.15);
+    let hi = Math.floor(media * 1.3);
+    const piso = num(PISO_RESULTADO[destino], 0);
+    if (piso > 0) {
+      lo = Math.max(lo, piso);
+      hi = Math.max(hi, piso);
+    }
+    lo = Math.max(1, lo);
+    return [lo, Math.max(lo, hi)];
   }
+
+  // Custo exato do bundle (`iH`): nível do meio da faixa, fator da raridade de
+  // destino e ×2. A versão antiga somava 15% de folga e pausava forjas que o
+  // ouro cobria.
+  function estimarCusto(itens, destino) {
+    const [lo, hi] = resultadoFaixa(itens, destino);
+    const meio = Math.floor((lo + hi) / 2);
+    return Math.round((5 + meio * 2) * (FORGE_COST_FACTOR[destino] ?? 1) * 2);
+  }
+
+  const pct = (v) => `${Math.round(num(v, 0) * 100)}%`;
 
   // Item que a forja pode usar de verdade: além de ser forjável, precisa da
   // raridade e do tipo marcados no painel. A checagem vem antes da faixa de
@@ -564,7 +612,10 @@
     if (!podeForjar(i) || recemCriadosAlq.has(i.id)) return false;
     const f = s().forge;
     const r = nivelRaridade(i);
-    return !!(f.raridades[RARIDADES[r]] && f.tipos[TIPOS[i.slot]]);
+    // `arcano` libera Imortal mesmo com o chip desligado: sem essa fusão o set
+    // arcano é inalcançável (Arcano não pode ser forjado de novo).
+    const permitida = f.raridades[RARIDADES[r]] || (f.arcano && r === 6);
+    return !!(permitida && f.tipos[TIPOS[i.slot]]);
   }
 
   function agruparPorRaridadeSlot(itens) {
@@ -657,19 +708,142 @@
     return gruposForja(ch).length;
   }
 
-  // Procura um pergaminho de forja no inventário (item consumível com nome relacionado).
-  function encontrarPergaminho(ch) {
+  /* ------------------------------- roleta --------------------------------- */
+
+  // Chances reais: `/api/wiki` publica `fuseEpicChance` (alvo Lendário),
+  // `fuseImmortalChance` e `fuseArcaneChance` (padrão 0,25 no bundle). O
+  // servidor também devolve `chance` em cada fusão — o valor aprendido fica no
+  // storage e vale quando a wiki não responde.
+  const ROLETA_TTL = 10 * 60 * 1000;
+  const roleta = {
+    at: 0,
+    chances: {},
+    step: 0.02,
+    bonusPergaminho: 0.1,
+    gelo: new Map()
+  };
+
+  function chanceBase(destino) {
+    const wiki = num(roleta.chances[destino], NaN);
+    if (Number.isFinite(wiki) && wiki >= 0) return Math.min(1, wiki);
+    const aprendida = num(stats.chances?.[destino], NaN);
+    if (Number.isFinite(aprendida) && aprendida >= 0) return Math.min(1, aprendida);
+    return num(CHANCE_PADRAO[destino], 0.25);
+  }
+
+  function geloDe(destino, slot) {
+    return num(roleta.gelo.get(`${destino}|${slot}`), 0);
+  }
+
+  // Chance da tentativa = base + passo por falha seguida (até 5) + pergaminho.
+  function chanceDeForja(destino, slot, bonus = 0) {
+    if (destino < ROLETA_MIN) return 1;
+    const gelo = Math.min(GELO_MAX, geloDe(destino, slot)) * num(roleta.step, 0.02);
+    return Math.min(1, chanceBase(destino) + gelo + Math.max(0, num(bonus, 0)));
+  }
+
+  async function carregarRoleta(force = false) {
+    const agora = Date.now();
+    if (!force && agora - num(roleta.at, 0) < ROLETA_TTL) return roleta;
+    roleta.at = agora;
+
+    try {
+      const w = await api("/api/wiki");
+      const pares = {
+        4: w?.fuseEpicChance,
+        6: w?.fuseImmortalChance,
+        7: w?.fuseArcaneChance
+      };
+      for (const [destino, valor] of Object.entries(pares)) {
+        const n = num(valor, NaN);
+        if (Number.isFinite(n)) roleta.chances[destino] = Math.max(0, Math.min(1, n));
+      }
+      const bonus = num(w?.luckScrollBonus, NaN);
+      if (Number.isFinite(bonus) && bonus > 0) roleta.bonusPergaminho = bonus;
+    } catch { /* sem wiki: vale a chance aprendida */ }
+
+    try {
+      const s = await api("/api/me/items/fuse-streaks");
+      const passo = num(s?.step, NaN);
+      if (Number.isFinite(passo) && passo > 0) roleta.step = passo;
+      roleta.gelo.clear();
+      for (const it of s?.items || []) {
+        roleta.gelo.set(`${num(it.target)}|${it.slot}`, num(it.fails, 0));
+      }
+    } catch { /* sem gelo: chance base */ }
+
+    return roleta;
+  }
+
+  /* ---------------------------- pergaminhos ------------------------------- */
+
+  // O jogo tem três pergaminhos e cada um serve numa faixa: o geral
+  // (`luckscroll`), o Grande (`bigscroll`, Imortal+) e o Supremo
+  // (`arcanescroll`, só Arcano). Escolher o maior bônus disponível é o caminho
+  // mais barato para a roleta passar.
+  const SCROLL_KINDS = {
+    luckscroll: { destinos: [4, 5, 6, 7], bonus: 0.1 },
+    bigscroll: { destinos: [6, 7], bonus: 0.25 },
+    arcanescroll: { destinos: [7], bonus: 0.5 }
+  };
+
+  function estoqueDe(i) {
+    return num(i?.count ?? i?.quantity ?? i?.amount, 1);
+  }
+
+  function pergaminhoCompativel(i, destino) {
+    if (!i || i.slot !== "consumable" || i.equipped || i.favorite) return false;
+    if (estoqueDe(i) <= 0) return false;
+    const kind = String(i.kind || "").toLowerCase();
+    const regra = SCROLL_KINDS[kind];
+    if (regra) return regra.destinos.includes(destino);
+    const nome = String(i.name || "").toLowerCase();
+    if (!nome.includes("pergaminho") && !nome.includes("scroll")) return false;
+    // Item antigo sem `kind`: só dá para arriscar nas roletas baixas.
+    return destino <= 5;
+  }
+
+  function bonusDoPergaminho(i) {
+    const doItem = num(i?.bonus, NaN);
+    if (Number.isFinite(doItem) && doItem > 0) return doItem;
+    const regra = SCROLL_KINDS[String(i?.kind || "").toLowerCase()];
+    if (regra) return regra.bonus;
+    return num(roleta.bonusPergaminho, 0.1);
+  }
+
+  function melhorPergaminho(ch, destino) {
+    let melhor = null;
     for (const i of ch.items || []) {
-      if (!i || i.equipped || i.favorite) continue;
-      if (i.slot !== "consumable") continue;
-      const nome = (i.name || "").toLowerCase();
-      if (!nome.includes("pergaminho") && !nome.includes("scroll") && !nome.includes("forge scroll")) continue;
-      // Estoque zerado não conta: usar um pergaminho que já acabou fazia a
-      // forja falhar e ficar pausada de 60 em 60 segundos a noite inteira.
-      if (num(i.count ?? i.quantity ?? i.amount, 1) <= 0) continue;
-      return i;
+      if (!pergaminhoCompativel(i, destino)) continue;
+      const bonus = bonusDoPergaminho(i);
+      if (!melhor || bonus > melhor.bonus) melhor = { item: i, bonus };
     }
-    return null;
+    return melhor;
+  }
+
+  /* ----------------------------- meta arcano ------------------------------ */
+
+  const SLOTS_EQUIP = ["weapon", "helmet", "armor", "ring"];
+
+  // Progresso do set arcano: por tipo, o que está equipado, quantos Imortais
+  // forjáveis existem e quantas tentativas de Arcano isso rende.
+  function metaArcano(ch) {
+    const itens = ch?.items || [];
+    const slots = {};
+    let prontos = 0;
+    let tentativas = 0;
+    for (const slot of SLOTS_EQUIP) {
+      const doSlot = itens.filter((i) => i.slot === slot);
+      const equipado = doSlot.find((i) => i.equipped);
+      const equipadoR = equipado ? nivelRaridade(equipado) : -1;
+      const arcano = equipadoR === 7;
+      if (arcano) prontos += 1;
+      const imortais = doSlot.filter((i) => nivelRaridade(i) === 6 && podeForjar(i)).length;
+      const grupos = Math.floor(imortais / precisaDe(7));
+      tentativas += grupos;
+      slots[slot] = { equipado: equipadoR, arcano, imortais, tentativas: grupos };
+    }
+    return { slots, prontos, total: SLOTS_EQUIP.length, tentativas };
   }
 
   // Até 3 grupos por rodada: a forja não fica esperando o próximo ciclo para
@@ -693,11 +867,11 @@
       return false;
     }
 
-    // Pergaminho de forja: é gasto na tentativa (dando certo ou não), então o
-    // estoque é controlado dentro da própria rodada para não usar um que já acabou.
-    const pergaminho = s().forge.useScroll ? encontrarPergaminho(ch) : null;
-    let pergaminhos = pergaminho ? Math.max(1, num(pergaminho.count ?? pergaminho.quantity ?? pergaminho.amount, 1)) : 0;
-    let avisouSemPergaminho = false;
+    const f = s().forge;
+    const estrategia = ESTRATEGIAS.includes(f.estrategia) ? f.estrategia : "agressivo";
+    const chanceMinima = Math.max(0, Math.min(100, num(f.chanceMinima, 30))) / 100;
+    // Wiki e gelo só são lidos quando existe roleta para rodar.
+    if (grupos.some((g) => destinoDe(g.r) >= ROLETA_MIN)) await carregarRoleta();
 
     let forjou = 0;
     let livre = num(ch.gold) - reserva(ch);
@@ -721,60 +895,89 @@
         continue;
       }
 
-      // Forja os mais fortes que não são melhores que o equipado: o nível do
-      // resultado acompanha a média dos itens usados.
-      liberados = liberados.sort((a, b) => num(b.itemLevel) - num(a.itemLevel)).slice(0, precisa);
-      const custo = estimarCusto(liberados, destino);
-      const rotulo = `${RARIDADES[g.r]} ${TIPOS[g.slot]} nv ${liberados.map((i) => i.itemLevel).join("/")}`;
+      // Os mais fortes do grupo: o nível do resultado acompanha a média. Os
+      // grupos vêm do mais fraco para o mais forte, então as primeiras roletas
+      // (mais baratas de perder) gastam o material pior e o melhor fica para
+      // quando o gelo já subiu a chance.
+      const usa = liberados.sort((a, b) => num(b.itemLevel) - num(a.itemLevel)).slice(0, precisa);
+      const [lo, hi] = resultadoFaixa(usa, destino);
+      const custo = estimarCusto(usa, destino);
+      const rotulo = `${RARIDADES[g.r]} ${TIPOS[g.slot]} nv ${usa.map((i) => i.itemLevel).join("/")}`;
+
+      // Pergaminho certo para o destino. Se a chance já está em 100% sem ele,
+      // guarda o pergaminho para a próxima tentativa.
+      let pergaminho = null;
+      let chance = chanceDeForja(destino, g.slot, 0);
+      if (f.useScroll && destino >= ROLETA_MIN && chance < 1) {
+        const achado = melhorPergaminho(ch, destino);
+        if (achado) {
+          pergaminho = achado;
+          chance = chanceDeForja(destino, g.slot, achado.bonus);
+        }
+      }
+
+      if (destino >= ROLETA_MIN && estrategia !== "bruto" && chance < chanceMinima) {
+        const gelo = Math.min(GELO_MAX, geloDe(destino, g.slot));
+        bloquear(g.chave,
+          `Roleta ${pct(chance)} abaixo de ${pct(chanceMinima)}: espero o gelo subir (nível ${gelo})`,
+          5 * 60000, "forja");
+        continue;
+      }
+      if (estrategia === "conservador" && destino >= ROLETA_MIN && !pergaminho) {
+        bloquear(g.chave, `Roleta ${pct(chance)} sem pergaminho: não arrisco (conservador)`, 5 * 60000, "forja");
+        continue;
+      }
+
       if (custo > livre) {
         setStatus("forja", `Forja pausada: ~${custo.toLocaleString("pt-BR")}g por forja, ${Math.max(0, livre).toLocaleString("pt-BR")}g livre`);
         break;
       }
-      setStatus("forja", `Forjando ${rotulo}...`);
-      // Pergaminho aumenta a chance de sucesso na forja.
-      let scrollId = null;
-      if (s().forge.useScroll) {
-        if (pergaminho && pergaminhos > 0) {
-          scrollId = pergaminho.id;
-        } else if (!avisouSemPergaminho) {
-          avisouSemPergaminho = true;
-          setStatus("forja", pergaminho
-            ? "Pergaminhos esgotados — forjando sem eles"
-            : "Sem pergaminho no inventário — forjando sem ele");
-        }
-      }
+
+      const temRoleta = destino >= ROLETA_MIN;
+      setStatus("forja", temRoleta
+        ? `Roleta ${pct(chance)}${pergaminho ? ` + ${pergaminho.item.name}` : ""} — ${rotulo} ➜ nv ${lo}-${hi}`
+        : `Forjando ${rotulo}...`);
+
       if (SIMULAR) {
-        window.__plano?.push(`forja ${rotulo}${scrollId ? " + pergaminho" : ""}`);
+        window.__plano?.push(`forja ${rotulo} ➜ nv ${lo}-${hi}${pergaminho ? " + pergaminho" : ""} (chance ${pct(chance)})`);
         pausados.set(g.chave, Infinity);
         return true;
       }
-      // Resultado Lendário+ (inclusive Imortal e Arcano) passa pela roleta.
-      const temRoleta = destino >= 4;
+
       if (temRoleta) {
-        avisarForja({ tipo: "start", rotulo, destino, raridade: RARIDADES[destino] });
+        avisarForja({ tipo: "start", rotulo, destino, raridade: RARIDADES[destino], chance });
       }
       try {
-        const res = await api("/api/me/items/fuse", { itemIds: liberados.map((i) => i.id), scrollItemId: scrollId });
-        // O pergaminho é consumido na tentativa, mesmo se a roleta falhar.
-        if (scrollId) pergaminhos = Math.max(0, pergaminhos - 1);
+        const res = await api("/api/me/items/fuse", {
+          itemIds: usa.map((i) => i.id),
+          scrollItemId: pergaminho ? pergaminho.item.id : null
+        });
+        // A chance devolvida pelo servidor é a verdade daquela tentativa.
+        const devolvida = num(res?.chance, NaN);
+        if (Number.isFinite(devolvida) && devolvida >= 0 && devolvida <= 1) {
+          salvarStats({ chances: { ...(stats.chances || {}), [destino]: devolvida } });
+        }
         const sucesso = res.success !== false;
         const itemNome = res.result?.name || "";
         if (temRoleta) {
           avisarForja({
             tipo: "fim", rotulo, destino, raridade: RARIDADES[destino],
-            sucesso, item: itemNome, chance: num(res.chance, NaN)
+            sucesso, item: itemNome,
+            chance: Number.isFinite(devolvida) ? devolvida : chance
           });
         }
         if (!sucesso) {
           salvarStats({ forjaPerdidos: num(stats.forjaPerdidos) + 1 });
-          setStatus("forja", `Roleta falhou: ${rotulo}`);
+          setStatus("forja", `Roleta falhou (${pct(chance)}): ${rotulo} — ${precisa} itens perdidos`);
         } else {
           salvarStats({ forjaTotal: num(stats.forjaTotal) + 1 });
-          setStatus("forja", `Forjado: ${itemNome || rotulo}`);
+          setStatus("forja", `Forjado: ${itemNome || rotulo} (nv ${num(res.result?.itemLevel, lo)}-${hi})`);
           status.lastAction = `Forjou ${itemNome || rotulo}`;
         }
         livre -= custo;
         forjou += 1;
+        // Gelo/fogo mudou: a próxima rodada precisa reler as sequências.
+        roleta.at = 0;
       } catch (e) {
         console.warn("[Forja]", e);
         if (temRoleta) {
@@ -1655,7 +1858,8 @@
         venda: contarVendaveis(ch),
         alchemy: s().alchemy.ligado ? 1 : 0,
         transmog: s().transmog.ligado ? 1 : 0,
-        reservados: idsDaForja(ch).size
+        reservados: idsDaForja(ch).size,
+        arcano: metaArcano(ch)
       };
       const resumo = resumoPersonagem(ch);
       const comparavel = { ...resumo, at: 0 };
@@ -1770,6 +1974,12 @@
         idsDaForja,
         mochilaEmPressao,
         capacidadeMochila,
+        resultadoFaixa,
+        estimarCusto,
+        chanceDeForja,
+        chanceBase,
+        metaArcano,
+        roleta,
         elegivelVenda,
         vaiParaAlquimia,
         planoAprimorar,
