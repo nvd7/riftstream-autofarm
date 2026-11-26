@@ -770,6 +770,22 @@ function publicApi(path) {
   }).finally(() => { if (timer) clearTimeout(timer); });
 }
 
+let rankCache = { at: 0, data: null };
+
+// Topo do ranking de JOGADORES (por FC). Cache de 60 s: o popup atualiza a
+// cada 2,5 s e não deve repetir a chamada pública a cada render.
+async function topCharacter() {
+  const agora = Date.now();
+  if (rankCache.data && agora - rankCache.at < 60000) return rankCache.data;
+  try {
+    const r = await publicApi("/api/ranking/characters?page=1&size=1&sort=power");
+    rankCache = { at: agora, data: r?.items?.[0] || null };
+  } catch {
+    if (rankCache.data) rankCache.at = agora - 50000;
+  }
+  return rankCache.data;
+}
+
 function scoreChannel(c, strategy) {
   const z = Math.max(0, num(c.zone, 0));
   const w = Math.max(0, num(c.wave, 0));
@@ -1023,6 +1039,7 @@ async function publicState() {
       scanError: lives.scanError,
       candidates: lives.candidates || [],
       lider: lives.lider || null,
+      topCharacter: await topCharacter(),
       character: status.character || null
     },
     status,

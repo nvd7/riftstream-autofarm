@@ -26,7 +26,7 @@ function defaults() {
       estrategia: "bruto", chanceMinima: 0, arcano: true
     },
     stats: {
-      ligado: true, modo: "otimo", foco: "dano",
+      ligado: true, modo: "otimo", foco: "fc",
       sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
       metas: {}
     },
@@ -190,20 +190,37 @@ function renderCharacter() {
 
 function renderLeader() {
   const box = $("leaderGap");
+  if (!box) return;
+  const topo = state?.runtime?.topCharacter;
   const lider = state?.runtime?.lider;
-  if (!box || !lider) { box?.classList.add("hidden"); return; }
+  const eu = state?.status?.character;
+  if (!topo && !lider) { box.classList.add("hidden"); return; }
   box.classList.remove("hidden");
   box.textContent = "";
-  const titulo = document.createElement("b");
-  titulo.textContent = `#1 ${lider.name || lider.login} · Z${lider.bestZone ?? 0}-W${lider.bestWave ?? 0}`;
-  const linha = document.createElement("span");
-  const meta = document.createElement("span");
-  meta.className = "gap";
-  meta.textContent = `${fmt(lider.peakPlayers)} pico`;
-  linha.append(document.createTextNode("Alvo da rank: "), meta,
-    document.createTextNode(` · ${fmt(lider.battleWins || 0)}V/${fmt(lider.battleLosses || 0)}D · ` +
-      `jogue em ${lider.login} e passe de Z${lider.bestZone ?? 0} para liderar.`));
-  box.append(titulo, linha);
+
+  if (topo) {
+    const titulo = document.createElement("b");
+    titulo.textContent = `#1 ${topo.name || topo.login} · ${fmt(topo.power)} FC · nv ${topo.level}`;
+    const linha = document.createElement("span");
+    const gap = document.createElement("span");
+    gap.className = "gap";
+    if (eu?.power) {
+      const falta = Math.max(0, Number(topo.power) - Number(eu.power));
+      gap.textContent = `faltam ${fmt(falta)} FC`;
+      linha.append(document.createTextNode("Seu FC: "), gap,
+        document.createTextNode(` · ${(Number(eu.power) / Number(topo.power) * 100).toFixed(1)}% do líder`));
+    } else {
+      linha.textContent = "Entre no jogo para ver seu FC contra o líder.";
+    }
+    box.append(titulo, linha);
+  }
+
+  if (lider) {
+    const linha2 = document.createElement("span");
+    linha2.textContent = `Lives: #1 ${lider.name || lider.login} · Z${lider.bestZone ?? 0}-W${lider.bestWave ?? 0} · ` +
+      `${fmt(lider.peakPlayers)} pico · ${fmt(lider.battleWins || 0)}V/${fmt(lider.battleLosses || 0)}D`;
+    box.appendChild(linha2);
+  }
 }
 
 function renderCandidates() {

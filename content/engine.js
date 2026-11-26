@@ -78,6 +78,10 @@
   // Pesos do modo ótimo: [dano, sobrevivência]. O equilíbrio usa média
   // geométrica — 1% de dano vale o mesmo que 1% de vida efetiva.
   const FOCO_PESOS = {
+    // "fc" é o modo do ranking: o servidor calcula FC ∝ √(dps × ehp), com
+    // multiplicador fixo por classe. Ganho de ponto = ganho de FC, sem peso
+    // arbitrário entre dano e vida.
+    fc: [0.5, 0.5],
     equilibrado: [0.5, 0.5],
     dano: [0.72, 0.28],
     tanque: [0.28, 0.72]
@@ -113,7 +117,7 @@
     stats: {
       ligado: true,
       modo: "otimo",
-      foco: "dano",
+      foco: "fc",
       sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
       metas: {}
     },
@@ -199,7 +203,7 @@
     // impossíveis e deixa o modo automático criar o melhor que a conta permite.
     out.alchemy.raridadeAlvo = Math.max(0, Math.min(4, Math.round(num(out.alchemy.raridadeAlvo, 2))));
     if (!["igual", "nivel", "otimo"].includes(out.stats.modo)) out.stats.modo = "otimo";
-    if (!["equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "dano";
+    if (!["fc", "equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "fc";
     if (!ESTRATEGIAS.includes(out.forge.estrategia)) out.forge.estrategia = "bruto";
     out.forge.chanceMinima = Math.max(0, Math.min(100, Math.round(num(out.forge.chanceMinima, 0))));
     // Sem a chave (config antiga) o padrão é caçar arcano: é o que o modo
@@ -1060,8 +1064,13 @@
   }
 
   function utilidade(c, foco) {
-    const pesos = FOCO_PESOS[foco] || FOCO_PESOS.equilibrado;
-    const aspd = c.aspd <= ASPD_UTIL ? c.aspd : ASPD_UTIL + (c.aspd - ASPD_UTIL) * 0.5;
+    const pesos = FOCO_PESOS[foco] || FOCO_PESOS.fc;
+    // O FC real usa a velocidade cheia. O amortecimento acima de 4,6 só vale
+    // como aproximação de DPS em combate — ele faz o modo "fc" subestimar
+    // Agilidade e, por isso, é desligado nesse modo.
+    const aspd = foco === "fc" || c.aspd <= ASPD_UTIL
+      ? c.aspd
+      : ASPD_UTIL + (c.aspd - ASPD_UTIL) * 0.5;
     const crit = Math.min(60, Math.max(0, c.crit)) / 100;
     const critMult = 1 + crit * (CRIT_BASE_MULT - 1 + Math.max(0, c.critDmg));
     const dps = Math.max(1e-6, c.atk * aspd * critMult);

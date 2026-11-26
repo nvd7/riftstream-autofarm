@@ -4,6 +4,22 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.4.1] - 2026-11-26
+
+### Corrigido
+
+- **Ranking correto: o link `/ranking` é de JOGADORES por FC, não de lives.** A
+  análise anterior usou `/api/ranking/runs` (recorde de zona do canal) e o foco
+  `dano` (0,72 dano / 0,28 vida). O FC do servidor segue
+  **FC ∝ √(dps × vida efetiva)** com a velocidade de ataque cheia — confirmado
+  nos stats públicos dos top 10. O novo foco **`fc`** otimiza exatamente essa
+  conta e é o padrão do build high; o amortecimento de agilidade acima de 4,6
+  foi desligado nele.
+- **Gap contra o #1 na tela.** Painel e popup consultam
+  `/api/ranking/characters?sort=power` (cache 60 s) e mostram o FC do líder e
+  quantos FC faltam para o top 1. O ranking de lives continua disponível como
+  informação secundária.
+
 ## [3.4.0] - 2026-11-26
 
 ### Adicionado

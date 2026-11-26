@@ -61,7 +61,7 @@
           arcano: true
         },
         stats: {
-          ligado: true, modo: "otimo", foco: "dano",
+          ligado: true, modo: "otimo", foco: "fc",
           sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
           metas: {}
         },
@@ -589,6 +589,10 @@
                   <div><span>Combate</span><b id="charPower">—</b></div>
                 </div>
               </div>
+              <div class="statusbox" id="rankBox" style="border-left-color:var(--cyan)">
+                <span id="rankTxt">Ranking de jogadores: consultando…</span>
+                <small id="rankSub"></small>
+              </div>
               <div class="diag">
                 <div><b id="diagForja">0</b><span>grupos prontos</span></div>
                 <div><b id="diagVenda">0</b><span>vendáveis</span></div>
@@ -661,14 +665,16 @@
               <div id="boxOtimo">
                 <h3>Foco do modo ótimo</h3>
                 <div class="chips" id="chipsFoco">
+                  <button data-foco="fc">FC (ranking) ★</button>
                   <button data-foco="equilibrado">Equilibrado</button>
                   <button data-foco="dano">Dano</button>
                   <button data-foco="tanque">Tanque</button>
                 </div>
                 <p class="hint">
-                  Mede o ganho real de cada ponto (ataque, vida efetiva e crítico)
-                  com os seus itens e compra o que rende mais por ouro. O valor de
-                  cada atributo muda a cada compra — por isso não é uma divisão fixa.
+                  <b>FC (ranking)</b> usa a conta do servidor — FC ∝ √(dps × vida
+                  efetiva), com a velocidade cheia e o crítico acima de 60% em
+                  dano crítico. Cada ouro vai para o atributo que mais aumenta
+                  seu FC, que é o número do ranking de jogadores.
                 </p>
               </div>
               <div id="boxIgual">
@@ -1131,8 +1137,8 @@
 
     st.stats.ligado = true;
     st.stats.modo = "otimo";
-    // Dano pesa mais que vida: mais onda por hora é mais XP por hora.
-    st.stats.foco = "dano";
+    // O ranking de jogadores é por FC: maximizar √ (dps × ehp) é maximizar FC.
+    st.stats.foco = "fc";
     for (const k of Object.keys(st.stats.sel)) st.stats.sel[k] = true;
 
     st.gems.ligado = true;
@@ -1520,8 +1526,41 @@
   // rodada chegou a terminar).
   let rodandoDesde = 0;
 
+  // Ranking de jogadores é por FC, não por zona. Busca o #1 direto na API
+  // pública e mostra o gap contra o personagem atual. Cache de 60 s.
+  let rankCache = { at: 0, topo: null };
+  async function atualizarRank() {
+    const agora = Date.now();
+    if (agora - rankCache.at < 60000 && rankCache.topo !== null) {
+      pintarRank(rankCache.topo);
+      return;
+    }
+    rankCache.at = agora;
+    try {
+      const res = await fetch(
+        "https://z6ywq6r3ub.execute-api.us-east-1.amazonaws.com/api/ranking/characters?page=1&size=1&sort=power",
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      rankCache.topo = data?.items?.[0] || null;
+      pintarRank(rankCache.topo);
+    } catch {
+      q("rankTxt").textContent = "Ranking indisponível agora";
+    }
+  }
+
+  function pintarRank(topo) {
+    if (!topo) { q("rankTxt").textContent = "Ranking vazio"; return; }
+    const meu = Number(status.character?.power || 0);
+    q("rankTxt").textContent = `#1 ${topo.name || topo.login} · ${fmt(topo.power)} FC · nv ${topo.level}`;
+    q("rankSub").textContent = meu
+      ? `Você: ${fmt(meu)} FC · faltam ${fmt(Math.max(0, Number(topo.power) - meu))} para o top 1`
+      : "Entre no jogo para comparar seu FC com o líder";
+  }
+
   function desenhar() {
     const st = cfg.settings;
+    atualizarRank();
 
     aplicarTema();
     app.dataset.aberto = ui.aberto ? "1" : "0";
