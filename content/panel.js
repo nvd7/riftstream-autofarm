@@ -511,6 +511,7 @@
           <div><b>RIFTSTREAM</b><small>AUTOFARM ENGINE</small></div>
         </div>
         <div class="head-actions">
+          <span class="dot" id="dot"></span>
           <span class="badge" id="headBadge"><i></i><span id="badgeHeadText">em espera</span></span>
           <button class="icon" id="min" title="Minimizar">–</button>
           <button class="icon" id="close" title="Fechar">✕</button>
@@ -1560,6 +1561,14 @@
 
   function desenhar() {
     const st = cfg.settings;
+    // Falha rápida e com nome: um id faltando no template não pode deixar o
+    // painel preso no HTML inicial com "Verificando..." para sempre.
+    const obrigatorios = ["dot", "swFarm", "badgeText", "badgeHeadText", "headBadge", "heroBadge", "rankTxt", "rankSub"];
+    const faltando = obrigatorios.filter((id) => !q(id));
+    if (faltando.length) {
+      console.error("[RSAF] desenhar abortado, elementos ausentes:", faltando.join(", "));
+      return;
+    }
     atualizarRank();
 
     aplicarTema();

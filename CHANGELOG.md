@@ -4,6 +4,16 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.4.2] - 2026-11-26
+
+### Corrigido
+
+- **Painel preso em "Verificando..." ao abrir.** O cabeçalho novo trocou o
+  indicador `id="dot"` pelo badge, e `desenhar()` morava em `q("dot")` antes de
+  atualizar os switches — o painel ficava no HTML inicial para sempre. O
+  indicador foi restaurado e `desenhar()` agora valida os ids críticos e
+  registra no console qual elemento falta em vez de parar no meio da pintura.
+
 ## [3.4.1] - 2026-11-26
 
 ### Corrigido
