@@ -26,11 +26,11 @@
   const STATS_KEY = "rsafStats";
   const STATUS_KEY = "rsafStatus";
 
-  const INTERVALO = 3000;
-  const ESPERA_FALHA = 60000;
-  const ESPERA_PROTEGIDO = 30000;
-  const MAX_VENDAS = 10;     // por rodada
-  const MAX_RECICLAR = 20;   // itens por ação de alquimia
+  const INTERVALO = 2000;
+  const ESPERA_FALHA = 30000;
+  const ESPERA_PROTEGIDO = 10000;
+  const MAX_VENDAS = 20;     // por rodada
+  const MAX_RECICLAR = 40;   // itens por ação de alquimia
   const INTERVALO_ORGANIZAR = 6 * 60 * 60000;
   const MAX_TRANSMOG_ALVOS = 80; // alvos já transmogados lembrados entre recargas
 
@@ -95,49 +95,48 @@
     auto: false,
     equip: true,
     forge: {
-      ligado: false,
-      auto: false,
-      raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false, imortal: false },
+      ligado: true,
+      auto: true,
+      raridades: { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: true },
       tipos: { arma: true, elmo: true, armadura: true, anel: true },
       minLevel: 0,
       maxLevel: 9999,
-      useScroll: false,
-      // "conservador" só arrisca a roleta com pergaminho e chance alta;
-      // "agressivo" respeita a chance mínima e usa o pergaminho na hora certa;
-      // "bruto" forja tudo que fecha grupo, sem olhar a roleta.
-      estrategia: "agressivo",
-      chanceMinima: 25,
+      useScroll: true,
+      // "bruto" forja tudo que fecha grupo — o gelo da roleta e o pergaminho
+      // ainda são aplicados pelo servidor; o cliente só não segura a mão.
+      estrategia: "bruto",
+      chanceMinima: 0,
       // Caçar o set arcano: libera a fusão de Imortal (4 → Arcano) e mantém o
       // melhor item de cada tipo protegido, em vez de virar material.
       arcano: true
     },
     stats: {
       ligado: true,
-      modo: "igual",
-      foco: "equilibrado",
+      modo: "otimo",
+      foco: "dano",
       sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
       metas: {}
     },
     gems: { ligado: true, juntar: true, suprema: false },
-    socket: { ligado: false },
-    enhance: { ligado: false },
-    sell: { ligado: false, rarity: 2, level: 9999 },
+    socket: { ligado: true },
+    enhance: { ligado: true },
+    sell: { ligado: true, rarity: 2, level: 9999 },
     lote: { ligado: false, rarity: 2, level: 40 },
     organize: true,
     roleta: { ligada: false, vel: 4 },
     goldReserve: 50000,
-    theme: "farmline",
+    theme: "riftviolet",
     font: 12,
     alchemy: {
-      ligado: false,
+      ligado: true,
       reciclar: true,
       criar: true,
       subirNivel: true,
       slotAlvo: "arma",
-      raridadeAlvo: 0
+      raridadeAlvo: 2
     },
     transmog: {
-      ligado: false,
+      ligado: true,
       alvoSlot: "arma",
       fonteSlot: "arma"
     }
@@ -176,13 +175,11 @@
     return base;
   }
 
-  // Aceita os nomes antigos ("dark"/"light") e só deixa passar temas conhecidos.
+  // Tema único.Qualquer id antigo é normalizado pelo themes.js; sem ele, cai
+  // direto no Rift Violet.
   function normalizarTema(id) {
     if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
-    if (id === "light") return "mint";
-    const conhecidos = ["farmline", "opencode", "midnight", "tokyo", "dracula", "nord",
-      "gruvbox", "rosepine", "liah", "nvd", "solarized", "daybreak", "paper", "mint"];
-    return conhecidos.includes(id) ? id : "farmline";
+    return "riftviolet";
   }
 
   function normalizedSettings(raw) {
@@ -198,11 +195,13 @@
     out.lote.rarity = Math.max(-1, Math.min(3, Math.round(num(out.lote.rarity, 2))));
     out.lote.level = Math.max(0, Math.min(9999, Math.round(num(out.lote.level, 40))));
     out.alchemy.slotAlvo = ["arma","elmo","armadura","anel"].includes(out.alchemy.slotAlvo) ? out.alchemy.slotAlvo : "arma";
-    out.alchemy.raridadeAlvo = Math.max(0, Math.min(2, Math.round(num(out.alchemy.raridadeAlvo, 0))));
-    if (!["igual", "nivel", "otimo"].includes(out.stats.modo)) out.stats.modo = "igual";
-    if (!["equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "equilibrado";
-    if (!ESTRATEGIAS.includes(out.forge.estrategia)) out.forge.estrategia = "agressivo";
-    out.forge.chanceMinima = Math.max(0, Math.min(100, Math.round(num(out.forge.chanceMinima, 25))));
+    // O servidor limita a raridade em /api/me/alchemy; aqui só impede valores
+    // impossíveis e deixa o modo automático criar o melhor que a conta permite.
+    out.alchemy.raridadeAlvo = Math.max(0, Math.min(4, Math.round(num(out.alchemy.raridadeAlvo, 2))));
+    if (!["igual", "nivel", "otimo"].includes(out.stats.modo)) out.stats.modo = "otimo";
+    if (!["equilibrado", "dano", "tanque"].includes(out.stats.foco)) out.stats.foco = "dano";
+    if (!ESTRATEGIAS.includes(out.forge.estrategia)) out.forge.estrategia = "bruto";
+    out.forge.chanceMinima = Math.max(0, Math.min(100, Math.round(num(out.forge.chanceMinima, 0))));
     // Sem a chave (config antiga) o padrão é caçar arcano: é o que o modo
     // automático espera e o que dá o maior salto de força.
     out.forge.arcano = out.forge.arcano !== false;
@@ -321,22 +320,18 @@
     const x = s();
     return x.equip || x.forge.ligado || x.stats.ligado || x.gems.ligado ||
       x.socket.ligado || x.enhance.ligado || x.sell.ligado || x.lote.ligado ||
-      x.alchemy?.ligado || x.transmog?.ligado;
+      x.alchemy?.ligado || x.transmog?.ligado || x.organize;
   };
 
   const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
   const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
-  // Reserva de ouro. No modo automático ela é recalculada na hora: guarda 10%
-  // do ouro atual para o personagem nunca ficar zerado, sem o jogador configurar.
+  // Reserva de ouro. Build high: o ouro é ferramenta de progressão, não
+  // patrimônio parado. No automático a reserva é zero — a forja e os atributos
+  // já param sozinhos quando o custo passa do saldo disponível.
   function reserva(ch) {
-    const base = Math.max(0, num(s().goldReserve, 0));
-    if (!s().auto) return base;
-    const ouro = num(ch?.gold, 0);
-    if (ouro <= 0) return base;
-    // 10% do saldo atual, arredondado para mil. Ignora a reserva salva de
-    // propósito: no modo automático quem manda é o saldo, não um número antigo.
-    return Math.max(0, Math.round((ouro * 0.1) / 1000) * 1000);
+    if (s().auto) return 0;
+    return Math.max(0, num(s().goldReserve, 0));
   }
   const nivelRaridade = (item) => (item.rarity === 5 ? 3 : num(item.rarity, 0));
   const destinoDe = (r) => (r === 4 ? 6 : r + 1);
@@ -648,7 +643,15 @@
         grupos.push({ chave, r, slot: itens[0].slot, itens: ordenados.slice(k, k + precisa), precisa });
       }
     }
-    return grupos.sort((a, b) => a.r - b.r || num(a.itens[0].itemLevel, 0) - num(b.itens[0].itemLevel, 0));
+    return grupos.sort((a, b) => {
+      // O gelo da roleta é por raridade+slot no servidor. Concentrar as
+      // tentativas de Lendário+/Imortal no mesmo slot acumula o bônus de
+      // falha até +10% muito mais rápido do que espalhar entre quatro slots.
+      if (a.r >= 4 && b.r >= 4 && a.slot !== b.slot) {
+        return String(a.slot).localeCompare(String(b.slot));
+      }
+      return a.r - b.r || num(a.itens[0].itemLevel, 0) - num(b.itens[0].itemLevel, 0);
+    });
   }
 
   // Mochila perto do limite: libera as sobras (grupos incompletos) para a
@@ -745,7 +748,6 @@
   async function carregarRoleta(force = false) {
     const agora = Date.now();
     if (!force && agora - num(roleta.at, 0) < ROLETA_TTL) return roleta;
-    roleta.at = agora;
 
     try {
       const w = await api("/api/wiki");
@@ -772,6 +774,9 @@
       }
     } catch { /* sem gelo: chance base */ }
 
+    // Só marca o cache como válido depois que as leituras terminam. Marcar
+    // antes (como era) envenenava o cache por 10 min quando a wiki falhava.
+    roleta.at = agora;
     return roleta;
   }
 
@@ -811,9 +816,10 @@
     return num(roleta.bonusPergaminho, 0.1);
   }
 
-  function melhorPergaminho(ch, destino) {
+  function melhorPergaminho(ch, destino, usados) {
     let melhor = null;
     for (const i of ch.items || []) {
+      if (usados?.has(i.id)) continue;
       if (!pergaminhoCompativel(i, destino)) continue;
       const bonus = bonusDoPergaminho(i);
       if (!melhor || bonus > melhor.bonus) melhor = { item: i, bonus };
@@ -868,8 +874,11 @@
     }
 
     const f = s().forge;
-    const estrategia = ESTRATEGIAS.includes(f.estrategia) ? f.estrategia : "agressivo";
-    const chanceMinima = Math.max(0, Math.min(100, num(f.chanceMinima, 30))) / 100;
+    const estrategia = ESTRATEGIAS.includes(f.estrategia) ? f.estrategia : "bruto";
+    const chanceMinima = Math.max(0, Math.min(100, num(f.chanceMinima, 0))) / 100;
+    // Um pergaminho consumido numa fusão não pode ser reusado nas próximas
+    // fusões da mesma passada: o snapshot `ch` ainda o mostra no inventário.
+    const scrollsUsados = new Set();
     // Wiki e gelo só são lidos quando existe roleta para rodar.
     if (grupos.some((g) => destinoDe(g.r) >= ROLETA_MIN)) await carregarRoleta();
 
@@ -909,7 +918,7 @@
       let pergaminho = null;
       let chance = chanceDeForja(destino, g.slot, 0);
       if (f.useScroll && destino >= ROLETA_MIN && chance < 1) {
-        const achado = melhorPergaminho(ch, destino);
+        const achado = melhorPergaminho(ch, destino, scrollsUsados);
         if (achado) {
           pergaminho = achado;
           chance = chanceDeForja(destino, g.slot, achado.bonus);
@@ -923,11 +932,11 @@
         const aviso = teto >= chanceMinima
           ? `Roleta ${pct(chance)}: espero o gelo subir (nível ${gelo}/5) até ${pct(chanceMinima)}`
           : `Roleta ${pct(chance)}: no máximo chega a ${pct(Math.min(1, teto))} — baixe o mínimo ou use um pergaminho`;
-        bloquear(g.chave, aviso, 5 * 60000, "forja");
+        bloquear(g.chave, aviso, 60000, "forja");
         continue;
       }
       if (estrategia === "conservador" && destino >= ROLETA_MIN && !pergaminho) {
-        bloquear(g.chave, `Roleta ${pct(chance)} sem pergaminho: não arrisco (conservador)`, 5 * 60000, "forja");
+        bloquear(g.chave, `Roleta ${pct(chance)} sem pergaminho: não arrisco (conservador)`, 60000, "forja");
         continue;
       }
 
@@ -977,10 +986,15 @@
           setStatus("forja", `Forjado: ${itemNome || rotulo} (nv ${num(res.result?.itemLevel, lo)}-${hi})`);
           status.lastAction = `Forjou ${itemNome || rotulo}`;
         }
+        if (pergaminho) scrollsUsados.add(pergaminho.item.id);
         livre -= custo;
         forjou += 1;
         // Gelo/fogo mudou: a próxima rodada precisa reler as sequências.
         roleta.at = 0;
+        // Atualiza o gelo localmente para as próximas fusões desta mesma
+        // passada: uma falha acrescenta um passo no slot, um sucesso zera.
+        const chaveGelo = `${destino}|${g.slot}`;
+        roleta.gelo.set(chaveGelo, sucesso ? 0 : Math.min(GELO_MAX, geloDe(destino, g.slot) + 1));
       } catch (e) {
         console.warn("[Forja]", e);
         if (temRoleta) {
@@ -1268,7 +1282,7 @@
   function escolherGema(lista, cls) {
     const prio = GEM_PRIO[cls] || GEM_TYPES;
     const disponiveis = (lista || [])
-      .filter((g) => g && GEM_TYPES.includes(g.type) && num(g.count) > 0 && num(g.tier, 1) >= 2)
+      .filter((g) => g && GEM_TYPES.includes(g.type) && num(g.count) > 0 && num(g.tier, 1) >= 1)
       .slice();
     disponiveis.sort((a, b) => {
       const dt = num(b.tier, 1) - num(a.tier, 1);
@@ -1289,12 +1303,14 @@
       return false;
     }
     const equipados = (ch.items || []).filter((it) =>
-      it.equipped && TIPOS[it.slot] && num(it.itemLevel) >= 20 &&
+      it.equipped && TIPOS[it.slot] &&
       num(it.sockets) > (it.gems?.length || 0)
     );
+    let fez = false;
+    let total = 0;
     for (const item of equipados) {
       let livre = num(item.sockets) - (item.gems?.length || 0);
-      while (livre > 0) {
+      while (livre > 0 && total < 4) {
         const gema = escolherGema(gemas, ch.cls);
         if (!gema) break;
         if (SIMULAR) {
@@ -1305,17 +1321,19 @@
           const res = await api(`/api/me/items/${item.id}/socket`, { type: gema.type, tier: num(gema.tier, 1) });
           gema.count = Math.max(0, num(gema.count) - 1);
           livre -= 1;
+          total += 1;
+          fez = true;
           setStatus("socket", `Engastou ${gema.type} T${gema.tier} em ${item.name}${res?.cost ? ` (${res.cost}g)` : ""}`);
-          return true;
         } catch (e) {
           console.warn("[Engaste]", e);
           setStatus("socket", `Engaste falhou em ${item.name}`);
-          return false;
+          break;
         }
       }
+      if (total >= 4) break;
     }
-    setStatus("socket", "Nenhum encaixe livre");
-    return false;
+    if (!fez) setStatus("socket", "Nenhum encaixe livre");
+    return fez;
   }
 
   /* ----------------------------- aprimoramento ---------------------------- */
@@ -1830,10 +1848,10 @@
       { id: "transmog", ligado: () => s().transmog.ligado, acao: transmogUm }
     ];
 
-    // Escalonamento justo: cada módulo ligado tenta UMA ação por onda. Antes a
-    // ordem fixa fazia equipar/aprimorar consumirem a rodada inteira e a forja
-    // e a venda nunca chegavam a rodar.
-    for (let onda = 0; onda < 2; onda += 1) {
+    // Três passadas por rodada: forja primeiro, depois o resto. Cada módulo
+    // ligado tenta uma ação por passada e a rodada só para quando não há mais
+    // trabalho. Ciclo de 2 s => até 9 fusões e 60 vendas por minuto.
+    for (let onda = 0; onda < 3; onda += 1) {
       let fezNaOnda = false;
       for (const m of modulos) {
         if (!m.ligado()) continue;

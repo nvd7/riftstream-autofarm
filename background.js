@@ -758,19 +758,29 @@ async function playTick({ force = false } = {}) {
 /* ------------------------------ ranking/lives ---------------------------- */
 
 function publicApi(path) {
+  const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : null;
   return fetch(API_BASE + path, {
     headers: { Accept: "application/json" },
-    cache: "no-store"
+    cache: "no-store",
+    signal: ctrl?.signal
   }).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
-  });
+  }).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 function scoreChannel(c, strategy) {
   const z = Math.max(0, num(c.zone, 0));
   const w = Math.max(0, num(c.wave, 0));
   const p = Math.max(0, num(c.playersNow, 0));
+  if (strategy === "top1") {
+    // Pontua o canal que mais perto está de liderar: recorde de zona/onda do
+    // ranking + gente dentro agora (mais jogadores = mais dano por minuto).
+    const bz = Math.max(0, num(c.bestZone, z));
+    const bw = Math.max(0, num(c.bestWave, w));
+    return (bz * 100 + bw) * 1000 + Math.min(p, 300) * 20 + Math.min(num(c.potential, 0), 200) * 5;
+  }
   if (strategy === "players") return p * 1000 + z * 100 + w;
   if (strategy === "balanced") return (z * 100 + w) * 10 + Math.min(p, 250) * 3 + Math.log1p(p) * 40;
   return z * 1000 + w * 10 + Math.log1p(p) * 50;
@@ -817,7 +827,7 @@ async function openTwitchLogins() {
 
 async function scanChannels({ force = false } = {}) {
   const cfg = await loadCfg();
-  const estratégia = cfg.settings.strategy || "zone";
+  const estratégia = cfg.settings.strategy || "top1";
   const minPlayers = num(cfg.settings.minPlayers, 3);
   const lives = await loadLives();
   const now = Date.now();
@@ -867,6 +877,11 @@ async function scanChannels({ force = false } = {}) {
         // O detalhe do canal limita playersNow a 60; o ranking público traz o
         // número real (até 250). Fica com o maior para não mostrar 60 em live cheia.
         playersNow: Math.max(num(item.playersNow, 0), num(d.playersNow, 0)),
+        rank: num(item.rank, 0),
+        bestZone: num(item.bestZone ?? d.bestZone, z),
+        bestWave: num(item.bestWave ?? d.bestWave, w),
+        peakPlayers: num(item.peakPlayers ?? d.peakPlayers, 0),
+        potential: num(item.potential ?? d.potentialWaves, 0),
         live: !!d.live,
         online: !!d.online,
         open: false
@@ -919,9 +934,20 @@ async function scanChannels({ force = false } = {}) {
     }
   }
 
+  const lider = (runs?.items || [])[0] || null;
   await saveLives({
     ...lives,
     candidates: finalList.slice(0, 8),
+    lider: lider ? {
+      login: lider.login,
+      name: lider.name,
+      bestZone: num(lider.bestZone, 0),
+      bestWave: num(lider.bestWave, 0),
+      peakPlayers: num(lider.peakPlayers, 0),
+      potential: num(lider.potential, 0),
+      battleWins: num(lider.battleWins, 0),
+      battleLosses: num(lider.battleLosses, 0)
+    } : null,
     scanAt: Date.now(),
     scanError
   });
@@ -996,6 +1022,7 @@ async function publicState() {
       scanAt: lives.scanAt,
       scanError: lives.scanError,
       candidates: lives.candidates || [],
+      lider: lives.lider || null,
       character: status.character || null
     },
     status,

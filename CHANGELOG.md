@@ -4,6 +4,30 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.4.0] - 2026-11-26
+
+### Adicionado
+
+- **Tema único Rift Violet.** Removidos os 14 temas, o seletor de paleta e o botão
+  ◐ do cabeçalho. Painel e popup agora usam preto profundo, ondas violeta/rosa e
+  estrelas, com badge **processo ativo** e CTA em gradiente roxo. IDs de temas
+  antigos são normalizados para o tema único — config salva continua válida.
+- **Estratégia Top 1.** O ranking público vira inteligência de escolha: o popup
+  mostra quem lidera (recorde zona/onda, pico de público e vitórias) e a ordem
+  padrão de lives favorece o canal mais perto de passar o líder.
+
+### Alterado
+
+- **Build high por padrão.** Reserva de ouro zero, forja `bruto` sem chance
+  mínima, atributos `ótimo` com foco em dano, engaste, aprimoramento, alquimia e
+  transmog ligados. Ciclo do motor de 3 s para 2 s e três passadas por rodada.
+- **Roleta sem trava local.** As tentativas de Lendário+/Imortal são
+  concentradas por slot para acumular o gelo até +10%; falhas e sucessos
+  atualizam o gelo local na hora; o cache da wiki só é marcado válido depois das
+  leituras. Pergaminhos gastos não são reaproveitados na mesma passada.
+- **Limites de vazão ampliados:** 20 vendas e 40 reciclagens por ação; backoff de
+  falha 30 s e de proteção 10 s; engaste preenche até 4 encaixes por chamada.
+
 ## [3.3.1] - 2026-11-25
 
 ### Corrigido

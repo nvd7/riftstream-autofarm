@@ -1,37 +1,20 @@
 :root {
   --font-size: 12px;
-  --bg: #07110e;
-  --bg2: #0a1a15;
-  --panel: #0f2620;
-  --panel2: #143029;
-  --line: #1d443a;
-  --line2: #2a5c4d;
-  --text: #e4fff6;
-  --muted: #7fa89c;
-  --gold: #4de3b0;
-  --gold-dim: #4de3b01c;
-  --green: #4de3b0;
-  --red: #ff7a7a;
+  --bg: #07060c;
+  --bg2: #0e0b18;
+  --panel: #141021;
+  --panel2: #1d1730;
+  --line: #2b2342;
+  --line2: #3d2f5c;
+  --text: #f6f3ff;
+  --muted: #9a90b8;
+  --gold: #a06bff;
+  --gold-dim: #a06bff22;
+  --green: #a06bff;
+  --red: #ff5c8a;
   --blue: #5cc8ff;
-  --purple: #9d8bff;
+  --purple: #ff5fd2;
   --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-}
-
-:root[data-mode="light"] {
-  --bg: #edfaf4;
-  --bg2: #f7fffb;
-  --panel: #ffffff;
-  --panel2: #e6f5ee;
-  --line: #c6e6d9;
-  --line2: #a7d5c5;
-  --text: #0b2b22;
-  --muted: #4f776b;
-  --gold: #0a9d74;
-  --gold-dim: #0a9d7414;
-  --green: #0a9d74;
-  --red: #c93a3a;
-  --blue: #0b78a8;
-  --purple: #6b5bd6;
 }
 
 * { box-sizing: border-box; }
@@ -77,10 +60,10 @@ body::-webkit-scrollbar-track { background: transparent; }
   width: 30px; height: 30px;
   display: grid; place-items: center;
   border-radius: 7px;
-  background: linear-gradient(150deg, var(--gold), #18a982);
-  color: #04231b;
+  background: linear-gradient(145deg, #a06bff, #ff5fd2);
+  color: #0a0512;
   font: 800 15px/1 var(--mono);
-  box-shadow: 0 0 18px #4de3b045;
+  box-shadow: 0 0 18px #a06bff66;
 }
 
 .brand-text b { display: block; font: 700 11.5px/1.15 var(--mono); letter-spacing: 1.6px; }
@@ -97,8 +80,8 @@ body::-webkit-scrollbar-track { background: transparent; }
   color: var(--muted);
   background: var(--panel2);
 }
-.pill.on { color: #04231b; background: var(--green); border-color: var(--green); }
-.pill.wait { color: #04202b; background: var(--blue); border-color: var(--blue); }
+.pill.on { color: #0a0512; background: var(--green); border-color: var(--green); }
+.pill.wait { color: #06121e; background: var(--blue); border-color: var(--blue); }
 .pill.err { color: #fff; background: var(--red); border-color: var(--red); }
 
 /* ------------------------------- cartões -------------------------------- */
@@ -176,7 +159,7 @@ main { padding: 11px 12px 16px; display: flex; flex-direction: column; gap: 10px
 .btn.gold {
   background: linear-gradient(180deg, var(--gold), color-mix(in srgb, var(--gold) 78%, #000));
   border-color: var(--gold);
-  color: #04231b;
+  color: #0a0512;
 }
 .btn.gold:hover { filter: brightness(1.06); }
 .btn.ghost { background: transparent; }
@@ -187,8 +170,8 @@ main { padding: 11px 12px 16px; display: flex; flex-direction: column; gap: 10px
   padding: 10px;
   border: 0;
   border-radius: 6px;
-  background: linear-gradient(180deg, var(--gold), color-mix(in srgb, var(--gold) 80%, #000));
-  color: #04231b;
+  background: linear-gradient(100deg, #7c3aed, #a855f7 48%, #d946ef);
+  color: #fff;
   font: 800 10.5px var(--mono);
   letter-spacing: 1px;
   cursor: pointer;
@@ -272,7 +255,7 @@ main { padding: 11px 12px 16px; display: flex; flex-direction: column; gap: 10px
   padding: 1px 6px;
   border-radius: 20px;
   background: var(--green);
-  color: #06210f;
+  color: #0a0512;
   font-size: 8.5px;
   font-weight: 800;
   text-transform: uppercase;
@@ -302,7 +285,7 @@ main { padding: 11px 12px 16px; display: flex; flex-direction: column; gap: 10px
   background: var(--panel2);
   border: 1px solid var(--line);
 }
-.mdot { width: 7px; height: 7px; border-radius: 50%; background: #3d5a51; flex: none; }
+.mdot { width: 7px; height: 7px; border-radius: 50%; background: #4a3c66; flex: none; }
 .mdot.on { background: var(--green); box-shadow: 0 0 7px var(--green); }
 .mtxt { flex: 1; min-width: 0; }
 .mtxt b { display: block; font-size: 10.5px; font-weight: 600; }
@@ -385,74 +368,37 @@ details.card > *:not(summary) { margin-top: 9px; }
 
 .made b { color: var(--gold); letter-spacing: 1.6px; }
 
-/* ---------------------------- tema da liah ------------------------------ */
+/* --------------------------- identidade SynEx -------------------------- */
 
-:root[data-theme="liah"] .logo { animation: liahLogo 3.4s ease-in-out infinite; }
-
-@keyframes liahLogo {
-  0%, 100% { box-shadow: 0 0 10px #ff79c640; }
-  50% { box-shadow: 0 0 22px #ff79c688; }
+.top {
+  background:
+    radial-gradient(90% 140% at 0% 0%, #a06bff1f, transparent 60%),
+    linear-gradient(100deg, #1b1230, #0e0b18 55%, #26143c);
+  border-bottom-color: #3d2f5c;
 }
+
+.identity {
+  display: flex; align-items: center; gap: 9px; padding: 8px 9px;
+  border: 1px solid var(--line2); border-radius: 8px;
+  background: linear-gradient(120deg, #a06bff1f, #ff5fd214 55%, transparent);
+}
+.identity .mark {
+  width: 28px; height: 28px; border-radius: 7px; flex: none; display: grid; place-items: center;
+  background: linear-gradient(145deg, #a06bff, #ff5fd2); color: #0a0512;
+  font: 800 13px/1 var(--mono); box-shadow: 0 0 14px #a06bff55;
+}
+.identity b { display: block; font: 700 10px/1.2 var(--mono); letter-spacing: 1.1px; }
+.identity small { display: block; color: var(--muted); font: 9px/1.3 var(--mono); margin-top: 2px; }
+
+.leader-gap {
+  margin-top: 9px; padding: 9px 10px; border-radius: 8px;
+  border: 1px solid #a06bff44;
+  background: radial-gradient(120% 140% at 100% 0%, #a06bff24, transparent 65%), var(--panel2);
+}
+.leader-gap b { display: block; color: #d9c6ff; font: 700 11px/1.3 var(--mono); }
+.leader-gap span { display: block; color: var(--muted); font-size: 10px; line-height: 1.45; margin-top: 3px; }
+.leader-gap .gap { color: var(--purple); font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
-  :root[data-theme="liah"] .logo { animation: none; }
+  .logo { animation: none; }
 }
-
-/* ----------------------------- tema do nvd ------------------------------- */
-
-:root[data-theme="nvd"] .top {
-  background: linear-gradient(100deg, #2a0a10, #12050a 40%, #3a0c13 55%, #12050a 70%, #2a0a10);
-  background-size: 240% 100%;
-  border-bottom-color: #521b26;
-  animation: nvdPopSheen 7s linear infinite;
-}
-
-:root[data-theme="nvd"] .logo {
-  position: relative;
-  background: linear-gradient(150deg, #ff3b4a, #5c0410 72%);
-  color: #fff1f2;
-  animation: nvdPopLogo 3.4s ease-in-out infinite;
-}
-
-:root[data-theme="nvd"] .logo::before,
-:root[data-theme="nvd"] .logo::after {
-  content: "";
-  position: absolute;
-  top: -7px;
-  width: 9px;
-  height: 11px;
-  background: linear-gradient(180deg, #ff5a64, #7d0813 65%, #230206);
-  clip-path: path("M 9 11 C 8 7 6 3 3 0 C 2 4 1 8 0 11 Z");
-  filter: drop-shadow(0 0 4px #ff2b3d99);
-  animation: nvdPopHorn 3.8s ease-in-out infinite;
-}
-
-:root[data-theme="nvd"] .logo::before { left: 3px; }
-:root[data-theme="nvd"] .logo::after { right: 3px; transform: scaleX(-1); animation-delay: -1.9s; }
-
-@keyframes nvdPopSheen { to { background-position: -240% 0; } }
-
-@keyframes nvdPopLogo {
-  0%, 100% { box-shadow: 0 0 12px #ff2b3d55, inset 0 0 6px #ff8a9233; }
-  50% { box-shadow: 0 0 24px #ff2b3daa, inset 0 0 12px #ff8a9266; }
-}
-
-@keyframes nvdPopHorn {
-  0%, 100% { filter: drop-shadow(0 0 3px #ff2b3d80); translate: 0 0; }
-  50% { filter: drop-shadow(0 0 7px #ff4d5acc); translate: 0 -1px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root[data-theme="nvd"] .top,
-  :root[data-theme="nvd"] .logo,
-  :root[data-theme="nvd"] .logo::before,
-  :root[data-theme="nvd"] .logo::after { animation: none; }
-}
-
-/* ------------------------------ tema claro ------------------------------- */
-
-:root[data-mode="light"] .logo { box-shadow: 0 0 16px #0a9d7430; }
-:root[data-mode="light"] .switch .track { background: var(--bg); }
-:root[data-mode="light"] .mdot { background: #a7d5c5; }
-:root[data-mode="light"] .cand:hover { background: #ffffff; }
-:root[data-mode="light"] .entry .t { color: #8fbcae; }

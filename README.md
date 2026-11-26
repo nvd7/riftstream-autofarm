@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png?v=273" alt="RiftStream AutoFarm - painel no jogo, 14 temas e lives na Twitch" width="100%">
+  <img src="docs/banner.png?v=273" alt="RiftStream AutoFarm - painel Rift Violet, build high e lives na Twitch" width="100%">
 </p>
 
 <h1 align="center">RiftStream AutoFarm</h1>
@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate"><img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white" alt="Manifest V3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-34d399" alt="Licença MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.3.1-f5c451" alt="Versão 3.3.1"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/vers%C3%A3o-3.4.0-a855f7" alt="Versão 3.4.0"></a>
   <img src="https://img.shields.io/badge/idioma-PT--BR-0b1220" alt="Português do Brasil">
   <a href="https://github.com/nvd7"><img src="https://img.shields.io/badge/made%20by-nvd7-f5c451" alt="made by nvd7"></a>
   <img src="https://img.shields.io/badge/telemetria-nenhuma-34d399" alt="Sem telemetria">
@@ -32,14 +32,17 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png?v=273" alt="Painel do RiftStream AutoFarm com o Tema da Liah" width="310">
-  &nbsp;&nbsp;
-  <img src="docs/temas.png?v=273" alt="Seletor de temas do painel" width="310">
+  <sub><b>Painel dentro do jogo</b> · <b>tema único Rift Violet</b> · <b>build high sem freio</b> · <b>estratégia Top 1</b></sub>
 </p>
 
-<p align="center">
-  <sub><b>Painel dentro do jogo</b> · <b>14 temas com o Tema da Liah e o Tema do nvd em destaque</b></sub>
-</p>
+> [!NOTE]
+> **v3.4.0 — Rift Violet / Build High.** Um tema só (preto, ondas violeta/rosa e
+> estrelas), sem seletor de paleta. O botão **Farmar sozinho** agora liga tudo
+> em modo agressivo: reserva de ouro zero, forja `bruto` sem chance mínima,
+> atributos `ótimo` com foco em dano, engaste de todas as gemas e três passadas
+> por rodada a cada 2 s. A estratégia padrão de lives é **Top 1**: o painel lê o
+> ranking público, mostra quem lidera (zona/onda, pico e vitórias) e escolhe o
+> canal mais perto de passar o líder.
 
 > [!IMPORTANT]
 > **A extensão fala no chat por você.** Ela manda o keepalive anti-AFK
@@ -103,18 +106,16 @@ Tudo acontece na sua máquina. Nenhum dado vai para servidores do projeto.
   ele vira uma bolinha no canto para reabrir.
 - **Nove abas:** Auto, Início, Forja, Atributos, Gemas, Venda, Alquimia, Transmog
   e Ajustes.
-- **Auto (um botão só):** toque em **Farmar sozinho** e pronto. A extensão liga
-  todos os módulos com os ajustes recomendados, calcula a reserva de ouro a
-  partir do seu saldo e deixa a forja agrupar pelo próprio inventário. Nada de configurar. A **forja tem prioridade**: ela reserva os
-  grupos (inclusive os quase completos) e os outros módulos só usam o que sobra.
+- **Auto (um botão só):** toque em **Farmar sozinho** e pronto. Tudo ligado em
+  build high: reserva zero, forja `bruto` sem chance mínima, atributos `ótimo`
+  com foco em dano, engaste em massa, alquimia e transmog. A **forja tem
+  prioridade**: ela reserva os grupos (inclusive os quase completos) e os
+  outros módulos só usam o que sobra.
 - **Início:** personagem (nome, classe, nível, ouro e Força de Combate), status
   ao vivo de cada módulo e contadores (forjados, perdidos, equipados, vendidos,
   aprimorados, gemas).
-- **14 temas de cor** (estilo OpenCode) e **tamanho da fonte** aplicados na hora e
-  salvos — incluindo o **Tema da Liah** (rosa, com borda neon girando no botão e
-  brilho pulsante no painel) e o **Tema do nvd** (vermelho e preto, com dois
-  chifres no topo do painel, brilho de brasa e animações próprias). O mesmo tema
-  vale para o painel e para o popup; o botão ◐ do cabeçalho percorre a lista.
+- **Tema único Rift Violet:** preto profundo, ondas violeta/rosa e estrelas no
+  painel e no popup. Sem seletor de paleta — só o tamanho da fonte é ajustável.
 - **Roleta rápida** (2×, 4×, 8×): acelera **só a animação** quando você gira na
   mão. O resultado vem do servidor — a chance não muda.
 - **Uma aba por vez:** `navigator.locks` garante que só uma aba do jogo rode a
@@ -399,7 +400,7 @@ página do jogo (engine) ──► API oficial ──► inventário
 |---|---|
 | `background.js` | Acorda as abas do jogo a cada 1 min, busca lives, mantém o keepalive do chat e o badge |
 | `content/engine.js` | Toda a automação, rodando na página com o token e a API do jogo |
-| `content/themes.js` | Catálogo das 14 paletas de tema, compartilhado entre painel e popup |
+| `content/themes.js` | Paleta única Rift Violet, compartilhada entre painel e popup |
 | `content/panel.js` | Painel flutuante (Shadow DOM, 9 abas, tema e fonte) |
 | `content/roleta.js` | Acelera só a animação da roleta (mundo MAIN da página) |
 | `content/riftstream.js` | Ponte do token para o popup saber se há login |

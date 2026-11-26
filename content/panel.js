@@ -49,39 +49,42 @@
         auto: false,
         equip: true,
         forge: {
-          ligado: false,
-          auto: false,
-          raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false, imortal: false },
+          ligado: true,
+          auto: true,
+          raridades: { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: true },
           tipos: { arma: true, elmo: true, armadura: true, anel: true },
           minLevel: 0,
           maxLevel: 9999,
-          useScroll: false
+          useScroll: true,
+          estrategia: "bruto",
+          chanceMinima: 0,
+          arcano: true
         },
         stats: {
-          ligado: true, modo: "igual", foco: "equilibrado",
+          ligado: true, modo: "otimo", foco: "dano",
           sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
           metas: {}
         },
         gems: { ligado: true, juntar: true, suprema: false },
-        socket: { ligado: false },
-        enhance: { ligado: false },
-        sell: { ligado: false, rarity: 2, level: 9999 },
+        socket: { ligado: true },
+        enhance: { ligado: true },
+        sell: { ligado: true, rarity: 2, level: 9999 },
         lote: { ligado: false, rarity: 2, level: 40 },
         organize: true,
         roleta: { ligada: false, vel: 4 },
-        goldReserve: 50000,
-        theme: "farmline",
+        goldReserve: 0,
+        theme: "riftviolet",
         font: 12,
         alchemy: {
-          ligado: false,
+          ligado: true,
           reciclar: true,
           criar: true,
           subirNivel: true,
           slotAlvo: "arma",
-          raridadeAlvo: 0
+          raridadeAlvo: 2
         },
         transmog: {
-          ligado: false,
+          ligado: true,
           alvoSlot: "arma",
           fonteSlot: "arma"
         },
@@ -136,20 +139,13 @@
     :host, * { box-sizing: border-box; }
     .app{
       --fs:12px;
-      --bg:#07110e; --bg2:#0a1a15; --surface:#0f2620; --surface2:#143029;
-      --line:#1d443a; --line2:#2a5c4d; --text:#e4fff6; --muted:#7fa89c;
-      --mint:#4de3b0; --mint-dim:#4de3b01c; --cyan:#5cc8ff; --red:#ff7a7a;
+      --bg:#07060c; --bg2:#0e0b18; --surface:#141021; --surface2:#1d1730;
+      --line:#2b2342; --line2:#3d2f5c; --text:#f6f3ff; --muted:#9a90b8;
+      --mint:#a06bff; --mint-dim:#a06bff22; --cyan:#ff5fd2; --red:#ff5c8a;
       --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
-      --shadow:0 24px 64px #000000c9, 0 0 0 1px #0a1a1555;
+      --shadow:0 24px 70px #000000e6, 0 0 0 1px #a06bff1f;
       font:var(--fs)/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
       color:var(--text);
-    }
-    /* Fallback claro: o tema escolhido sobrescreve estas variáveis via JS. */
-    .app[data-mode="light"]{
-      --bg:#edfaf4; --bg2:#f7fffb; --surface:#ffffff; --surface2:#e6f5ee;
-      --line:#c6e6d9; --line2:#a7d5c5; --text:#0b2b22; --muted:#4f776b;
-      --mint:#0a9d74; --mint-dim:#0a9d7416; --cyan:#0b78a8; --red:#c93a3a;
-      --shadow:0 22px 55px #12352a2e, 0 0 0 1px #c6e6d9;
     }
     .bubble{
       display:none; width:48px; height:48px; border-radius:13px; border:1px solid var(--line2);
@@ -166,105 +162,53 @@
       background:var(--bg); box-shadow:var(--shadow);
       flex-direction:column;
     }
-    /* Tema da Liah: brilho neon rosa em volta do painel. */
-    .app[data-theme="liah"] .shell{
-      border-color:#ff79c699;
-      animation:liahGlow 4.2s ease-in-out infinite;
+    /* Fundo "SynEx": ondas violeta/rosa + estrelas, atrás de todo o conteúdo. */
+    .waves{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:0; }
+    .waves svg{ position:absolute; left:-12%; right:-12%; bottom:-2px; width:124%; height:62%; opacity:.55; }
+    .waves .stars{
+      position:absolute; inset:0;
+      background-image:
+        radial-gradient(1px 1px at 12% 18%, #ffffffcc 50%, transparent 50%),
+        radial-gradient(1px 1px at 27% 72%, #c9a0ffaa 50%, transparent 50%),
+        radial-gradient(1.5px 1.5px at 48% 34%, #ffffff99 50%, transparent 50%),
+        radial-gradient(1px 1px at 63% 61%, #ff5fd2aa 50%, transparent 50%),
+        radial-gradient(1px 1px at 78% 23%, #ffffff88 50%, transparent 50%),
+        radial-gradient(1.5px 1.5px at 89% 79%, #a06bffaa 50%, transparent 50%);
+      opacity:.7;
     }
-    @keyframes liahGlow{
-      0%, 100%{ box-shadow:var(--shadow), 0 0 16px #ff79c62e, 0 0 0 1px #ff79c655; }
-      50%{ box-shadow:var(--shadow), 0 0 34px #ff79c65c, 0 0 0 1px #ff79c6aa; }
+    .app{
+      position:relative;
     }
+    .shell{
+      position:relative;
+      border-color:#a06bff40;
+      box-shadow:var(--shadow), 0 0 28px #a06bff1a;
+    }
+    .head, .work, .ticker{ position:relative; z-index:1; }
 
-    /* Tema do nvd: chifres no topo, brasa vermelha e animações de premium. */
-    .horns{ display:none; }
-    .app[data-theme="nvd"]{ position:relative; }
-    .app[data-theme="nvd"] .shell{
-      border-color:#ff2b3d99;
-      animation:nvdRim 4.6s ease-in-out infinite;
+    /* Identidade visual "SynEx": badge de processo e CTA em gradiente. */
+    @keyframes synSheen{ to{ background-position:-230% 0; } }
+    .badge{
+      display:inline-flex; align-items:center; gap:6px; padding:4px 9px; border-radius:20px;
+      border:1px solid #a06bff55; background:#a06bff1c;
+      color:#d9c6ff; font:700 8.5px/1 var(--mono); letter-spacing:1.1px; text-transform:uppercase;
     }
-    @keyframes nvdRim{
-      0%, 100%{ box-shadow:var(--shadow), 0 0 14px #ff2b3d26, 0 0 0 1px #ff2b3d55; }
-      50%{ box-shadow:var(--shadow), 0 0 38px #ff2b3d66, 0 0 0 1px #ff6b3dcc; }
-    }
-    .app[data-theme="nvd"] .horns{
-      display:block; position:absolute; left:0; right:0; top:-24px; height:38px;
-      pointer-events:none; z-index:3;
-    }
-    .app[data-theme="nvd"] .horns i{
-      position:absolute; bottom:0; width:34px; height:38px;
-      background:
-        radial-gradient(70% 55% at 70% 72%, #ff8a9240, transparent 70%),
-        linear-gradient(172deg,#ff5a64 0%,#e01b2c 26%,#7d0813 62%,#230206 100%);
-      clip-path:path("M 34 38 C 29 25 23 11 10 0 C 9 13 5 25 0 38 Z");
-      filter:drop-shadow(0 0 8px #ff2b3d99) drop-shadow(0 0 2px #ff8a9233);
-      animation:nvdHorn 3.8s ease-in-out infinite;
-    }
-    .app[data-theme="nvd"] .horns i:first-child{ left:28px; transform:rotate(-5deg); }
-    .app[data-theme="nvd"] .horns i:last-child{
-      right:28px; transform:scaleX(-1) rotate(-5deg); animation-delay:-1.9s;
-    }
-    @keyframes nvdHorn{
-      0%, 100%{ filter:drop-shadow(0 0 7px #ff2b3d80); translate:0 0; }
-      50%{ filter:drop-shadow(0 0 13px #ff4d5acc); translate:0 -2px; }
-    }
-    .app[data-theme="nvd"] .head{
-      background:linear-gradient(100deg,#2a0a10 0%,#12050a 38%,#3a0c13 52%,#12050a 66%,#2a0a10 100%);
-      background-size:240% 100%;
-      animation:nvdSheen 7s linear infinite;
-      border-bottom-color:#521b26;
-    }
-    @keyframes nvdSheen{ to{ background-position:-240% 0; } }
-    .app[data-theme="nvd"] .logo{
-      background:linear-gradient(150deg,#ff3b4a,#5c0410 72%);
-      color:#fff1f2;
-      animation:nvdLogo 3.4s ease-in-out infinite;
-    }
-    @keyframes nvdLogo{
-      0%, 100%{ box-shadow:0 0 14px #ff2b3d55, inset 0 0 6px #ff8a9233; }
-      50%{ box-shadow:0 0 26px #ff2b3daa, inset 0 0 12px #ff8a9266; }
-    }
-    .app[data-theme="nvd"] .power{
-      position:relative; overflow:hidden;
-      background:linear-gradient(90deg,#ff2b3d22,#16080a 55%,#070304);
-    }
-    .app[data-theme="nvd"] .power::after{
-      content:""; position:absolute; inset:0; pointer-events:none;
-      background:linear-gradient(100deg,transparent 35%,#ff6b3d2e 50%,transparent 65%);
-      transform:translateX(-100%);
-      animation:nvdSweep 5.5s ease-in-out infinite;
-    }
-    @keyframes nvdSweep{ 45%, 100%{ transform:translateX(100%); } }
-    .app[data-theme="nvd"] .tab.on{
-      background:linear-gradient(90deg,#ff2b3d24,var(--surface2) 70%);
-      border-left-color:#ff4d5a;
-      box-shadow:inset 0 0 0 1px #521b26, 0 0 12px #ff2b3d1f;
-    }
-    .app[data-theme="nvd"] .tab.on .ico{ color:#ff6b76; text-shadow:0 0 8px #ff2b3d99; }
-    .app[data-theme="nvd"] .panel.on{ animation:nvdPanel .38s cubic-bezier(.2,.8,.2,1); }
-    @keyframes nvdPanel{
-      from{ opacity:0; transform:translateY(7px) scale(.99); filter:blur(3px); }
-      to{ opacity:1; transform:none; filter:blur(0); }
-    }
-    .app[data-theme="nvd"] .hero{
-      background:
-        radial-gradient(120% 140% at 100% 0%, #ff2b3d1f, transparent 55%),
-        linear-gradient(150deg,var(--surface2),var(--surface));
-      animation:nvdHero 6s ease-in-out infinite;
-    }
-    @keyframes nvdHero{ 50%{ border-color:#ff4d5a66; } }
+    .badge i{ width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px var(--mint); }
+    .badge.work i{ background:var(--cyan); box-shadow:0 0 8px var(--cyan); animation:pulse 1.1s infinite; }
 
     .head{
       display:flex; align-items:center; gap:10px; padding:9px 10px 9px 12px; cursor:grab;
-      background:linear-gradient(90deg,var(--surface),var(--bg2));
-      border-bottom:1px solid var(--line); user-select:none; flex:none;
+      background:linear-gradient(100deg,#1b1230 0%,#0e0b18 42%,#26143c 58%,#0e0b18 74%,#1b1230 100%);
+      background-size:230% 100%;
+      animation:synSheen 9s linear infinite;
+      border-bottom:1px solid #3d2f5c; user-select:none; flex:none;
     }
     .head:active{ cursor:grabbing; }
     .brand{ display:flex; align-items:center; gap:9px; flex:1; min-width:0; }
     .logo{
       width:28px; height:28px; border-radius:7px; display:grid; place-items:center;
-      background:linear-gradient(150deg,var(--mint),#18a982); color:#04231b;
-      font:800 15px/1 var(--mono); box-shadow:0 0 18px #4de3b045;
+      background:linear-gradient(145deg,#a06bff,#ff5fd2); color:#0a0512;
+      font:800 15px/1 var(--mono); box-shadow:0 0 18px #a06bff66;
     }
     .brand b{ display:block; font:700 11.5px/1.15 var(--mono); letter-spacing:1.6px; }
     .brand small{ display:block; font:600 8.5px/1.2 var(--mono); letter-spacing:1.8px; color:var(--muted); margin-top:2px; }
@@ -275,7 +219,7 @@
       display:grid; place-items:center; transition:.15s;
     }
     .icon:hover{ color:var(--mint); border-color:var(--mint); }
-    .dot{ width:7px; height:7px; border-radius:50%; background:#3d5a51; flex:none; }
+    .dot{ width:7px; height:7px; border-radius:50%; background:#4a3c66; flex:none; }
     .dot.on{ background:var(--mint); box-shadow:0 0 9px var(--mint); }
     .dot.work{ background:var(--cyan); box-shadow:0 0 9px var(--cyan); animation:pulse 1.1s infinite; }
     @keyframes pulse{ 50%{ opacity:.3 } }
@@ -296,14 +240,14 @@
     .tab .ico{ font-size:14px; line-height:1; }
     .tab:hover{ color:var(--text); background:var(--surface); }
     .tab.on{
-      color:var(--text); background:var(--surface2);
-      border-left-color:var(--mint); box-shadow:inset 0 0 0 1px var(--line);
+      color:var(--text); background:linear-gradient(90deg,#a06bff26,var(--surface2) 75%);
+      border-left-color:var(--mint); box-shadow:inset 0 0 0 1px #a06bff38;
     }
-    .tab.on .ico{ color:var(--mint); }
-    .tab i{ position:absolute; top:7px; right:9px; width:5px; height:5px; border-radius:50%; background:#3d5a51; }
+    .tab.on .ico{ color:var(--mint); text-shadow:0 0 8px #a06bff88; }
+    .tab i{ position:absolute; top:7px; right:9px; width:5px; height:5px; border-radius:50%; background:#4a3c66; }
     .tab i.vivo{ background:var(--mint); box-shadow:0 0 6px var(--mint); }
     .rail .spacer{ flex:1; }
-    .rail .ver{ font:600 8px/1 var(--mono); color:#4e6c63; text-align:center; padding-bottom:2px; }
+    .rail .ver{ font:600 8px/1 var(--mono); color:#5c4d7d; text-align:center; padding-bottom:2px; }
 
     .main{ display:flex; flex-direction:column; min-width:0; min-height:0; }
 
@@ -361,67 +305,19 @@
     .seg button{ padding:7px 4px; border:0; background:transparent; color:var(--muted); font:600 10px/1 var(--mono); cursor:pointer; }
     .seg button.on{ background:var(--mint-dim); color:var(--mint); }
 
-    /* Seletor de temas: cada cartão mostra a própria paleta. */
-    .temas{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:7px 0 3px; }
-    .tema{
-      display:flex; align-items:center; gap:7px; padding:6px 8px; cursor:pointer;
-      border:1px solid var(--line2); border-radius:7px; background:var(--bg2);
-      color:var(--muted); font:600 9.5px/1 var(--mono); text-align:left; transition:.14s;
-      min-width:0;
+    /* Cartão de identidade do tema único — sem seletor, só informação. */
+    .identity{
+      display:flex; align-items:center; gap:9px; padding:9px 10px; margin:7px 0 3px;
+      border:1px solid var(--line2); border-radius:9px;
+      background:linear-gradient(120deg,#a06bff1f,#ff5fd214 55%,transparent);
     }
-    .tema:hover{ color:var(--text); border-color:var(--t-accent,var(--mint)); }
-    .tema.on{ color:var(--text); border-color:var(--t-accent,var(--mint)); box-shadow:inset 0 0 0 1px var(--t-accent,var(--mint)); }
-    .tema .sw3{ display:flex; flex:none; width:30px; height:15px; border-radius:4px; overflow:hidden; border:1px solid #00000033; }
-    .tema .sw3 i{ flex:1; }
-    .tema .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .tema .mo{ margin-left:auto; flex:none; font:8px var(--mono); color:var(--muted); opacity:.75; }
-
-    /* Tema da Liah: borda neon rosa girando em volta do botão. */
-    .tema.liah{
-      position:relative; overflow:hidden; border-color:transparent;
-      background:var(--bg2);
-      box-shadow:0 0 10px #ff79c63d;
+    .identity .mark{
+      width:30px; height:30px; border-radius:8px; flex:none; display:grid; place-items:center;
+      background:linear-gradient(145deg,#a06bff,#ff5fd2); color:#0a0512;
+      font:800 14px/1 var(--mono); box-shadow:0 0 16px #a06bff55;
     }
-    .tema.liah::before{
-      content:""; position:absolute; inset:-70%; z-index:0; pointer-events:none;
-      background:conic-gradient(from 0deg,
-        transparent 0 58%, #ff79c6 72%, #ff9ee0 82%, #c9a0ff 90%, transparent 100%);
-      animation:liahSpin 2.8s linear infinite;
-    }
-    .tema.liah::after{
-      content:""; position:absolute; inset:1.5px; z-index:0; pointer-events:none;
-      border-radius:5px; background:var(--bg2);
-    }
-    .tema.liah > *{ position:relative; z-index:1; }
-    .tema.liah:hover{ box-shadow:0 0 14px #ff79c66b; }
-    @keyframes liahSpin{ to{ transform:rotate(360deg); } }
-
-    /* Tema do nvd: borda vermelha girando mais rápida, com brasa laranja. */
-    .tema.nvd{
-      position:relative; overflow:hidden; border-color:transparent;
-      box-shadow:0 0 12px #ff2b3d4d;
-    }
-    .tema.nvd::before{
-      content:""; position:absolute; inset:-70%; z-index:0; pointer-events:none;
-      background:conic-gradient(from 180deg,
-        transparent 0 52%, #ff2b3d 68%, #ff6b3d 80%, #9d0f1c 90%, transparent 100%);
-      animation:nvdSpin 2.2s linear infinite;
-    }
-    .tema.nvd::after{
-      content:""; position:absolute; inset:1.5px; z-index:0; pointer-events:none;
-      border-radius:5px; background:var(--bg2);
-    }
-    .tema.nvd > *{ position:relative; z-index:1; }
-    .tema.nvd:hover{ box-shadow:0 0 18px #ff2b3d8c; }
-    @keyframes nvdSpin{ to{ transform:rotate(360deg); } }
-
-    @media (prefers-reduced-motion: reduce){
-      .tema.liah::before, .tema.nvd::before{ animation:none; }
-      .app[data-theme="liah"] .shell, .app[data-theme="nvd"] .shell,
-      .app[data-theme="nvd"] .head, .app[data-theme="nvd"] .logo,
-      .app[data-theme="nvd"] .power::after, .app[data-theme="nvd"] .horns i,
-      .app[data-theme="nvd"] .hero{ animation:none; }
-    }
+    .identity b{ display:block; font:700 10px/1.2 var(--mono); letter-spacing:1.2px; }
+    .identity small{ display:block; color:var(--muted); font:9.5px/1.3 var(--mono); margin-top:2px; }
 
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; }
     .field{ display:flex; flex-direction:column; gap:4px; color:var(--muted); font:600 9px/1.2 var(--mono); letter-spacing:.4px; text-transform:uppercase; }
@@ -451,8 +347,7 @@
     .statusbox small{ display:block; margin-top:3px; color:var(--muted); font:9.5px var(--mono); }
     .statusbox .by{ color:var(--mint); font-weight:700; }
 
-    .risk{ margin:8px 0 0; padding:6px 8px; border-radius:5px; background:#ff7a7a1c; color:#ff9d94; font-size:10.5px; }
-    .app[data-mode="light"] .risk{ color:#a12a2a; }
+    .risk{ margin:8px 0 0; padding:6px 8px; border-radius:5px; background:#ff5c8a1c; color:#ffa3bd; font-size:10.5px; }
     .hint{ margin:6px 0 0; color:var(--muted); font-size:10.5px; line-height:1.45; }
 
     .hero{
@@ -468,8 +363,7 @@
     .hero-top b{ font-size:13px; }
     .hero-top span{ color:var(--mint); font:600 9px var(--mono); text-transform:uppercase; letter-spacing:1px; }
     .hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:9px; position:relative; z-index:1; }
-    .hero-grid div{ background:#0000001f; border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
-    .app[data-mode="light"] .hero-grid div{ background:#0a9d7408; }
+    .hero-grid div{ background:#00000033; border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
     .hero-grid span{ display:block; color:var(--muted); font:600 8.5px var(--mono); letter-spacing:.8px; text-transform:uppercase; }
     .hero-grid b{ display:block; font:700 13px var(--mono); margin-top:2px; }
 
@@ -497,34 +391,37 @@
 
     .warn{ margin:11px 0 0; color:var(--muted); font-size:9.5px; line-height:1.4; border-left:2px solid var(--mint); padding-left:8px; }
 
-    /* Aba Auto: um botão só, sem o jogador precisar configurar nada. */
+    /* Aba Auto: painel central estilo SynEx — título, badge e CTA roxo. */
     .autoHero{
-      padding:11px; border-radius:9px; border:1px solid var(--line2);
+      padding:16px 13px 14px; border-radius:11px; border:1px solid #a06bff33;
+      text-align:center;
       background:
-        radial-gradient(130% 150% at 100% 0%, var(--mint-dim), transparent 60%),
-        linear-gradient(150deg,var(--surface2),var(--surface));
+        radial-gradient(120% 140% at 50% 0%, #a06bff24, transparent 62%),
+        linear-gradient(160deg,#1b1430,#0e0b18 78%);
     }
-    .autoHero b{ display:block; font:700 12px var(--mono); letter-spacing:1px; }
-    .autoHero small{ display:block; margin-top:3px; color:var(--muted); font-size:10.5px; line-height:1.4; }
+    .autoHero .eyebrow{
+      display:block; font:700 8px/1 var(--mono); letter-spacing:2px;
+      text-transform:uppercase; color:#c9a0ff; margin-bottom:8px;
+    }
+    .autoHero h1{
+      margin:0; font:700 16px/1.25 ui-sans-serif,system-ui,sans-serif;
+      letter-spacing:-.3px; color:#fff;
+    }
+    .autoHero p{ margin:6px 0 0; font-size:10px; line-height:1.5; color:var(--muted); }
+    .autoHero .badge{ margin-top:11px; }
     .autoBtn{
-      display:flex; align-items:center; gap:11px; width:100%; margin-top:11px;
-      padding:13px 14px; border-radius:10px; cursor:pointer; text-align:left;
-      border:1px solid var(--mint); color:var(--text);
-      background:linear-gradient(135deg,var(--mint-dim),transparent 70%);
+      display:flex; align-items:center; justify-content:center; gap:9px; width:100%; margin-top:12px;
+      padding:13px 14px; border-radius:10px; cursor:pointer; text-align:center;
+      border:1px solid #c9a0ff; color:#fff; font:800 11px/1 var(--mono); letter-spacing:1.2px;
+      background:linear-gradient(100deg,#7c3aed 0%,#a855f7 48%,#d946ef 100%);
+      box-shadow:0 8px 24px #7c3aed4d, inset 0 1px 0 #ffffff40;
       transition:.16s;
     }
-    .autoBtn:hover{ box-shadow:0 0 18px var(--mint-dim); }
-    .autoBtn .ai{
-      width:34px; height:34px; border-radius:9px; display:grid; place-items:center; flex:none;
-      background:linear-gradient(150deg,var(--mint),#18a982); color:#04231b;
-      font-size:15px; box-shadow:0 0 16px var(--mint-dim);
-    }
-    .autoBtn .at{ min-width:0; }
-    .autoBtn .at b{ display:block; font:700 12.5px var(--mono); letter-spacing:.8px; }
-    .autoBtn .at small{ display:block; margin-top:3px; color:var(--muted); font-size:10px; line-height:1.35; }
-    .autoBtn.on{ border-color:var(--red); background:linear-gradient(135deg,#ff2b3d1f,transparent 70%); }
-    .autoBtn.on .ai{ background:linear-gradient(150deg,var(--red),#7a0b14); color:#fff1f2; animation:autoPulse 1.8s ease-in-out infinite; }
-    @keyframes autoPulse{ 50%{ box-shadow:0 0 24px var(--red); } }
+    .autoBtn:hover{ filter:brightness(1.09); box-shadow:0 10px 32px #a855f770; transform:translateY(-1px); }
+    .autoBtn .ai{ font-size:14px; }
+    .autoBtn.on{ border-color:var(--red); background:linear-gradient(100deg,#7c3aed,#ff5c8a); }
+    .autoBtn.on .ai{ animation:autoPulse 1.8s ease-in-out infinite; }
+    @keyframes autoPulse{ 50%{ opacity:.5; } }
     .autoStop{
       width:100%; margin-top:8px; padding:9px; border-radius:8px; cursor:pointer;
       border:1px solid var(--line2); background:transparent; color:var(--muted);
@@ -554,7 +451,6 @@
 
     .app[data-min="1"] .rail, .app[data-min="1"] .body,
     .app[data-min="1"] .ticker, .app[data-min="1"] .work{ display:none; }
-    .app[data-min="1"] .horns, .app[data-aberto="0"] .horns{ display:none; }
     .app[data-aberto="0"] .shell{ display:none; }
     .app[data-aberto="0"] .bubble{ display:flex; }
     .app[data-aberto="1"] .shell{ display:flex; }
@@ -588,18 +484,34 @@
     @media (prefers-reduced-motion: reduce){ .panel, .dot.work{ animation:none } .rl-reel{ animation:none !important; } }
   </style>
 
-  <div class="app" id="app" data-aberto="1" data-theme="farmline" data-mode="dark" data-min="0">
-    <div class="horns" aria-hidden="true"><i></i><i></i></div>
+  <div class="app" id="app" data-aberto="1" data-theme="riftviolet" data-mode="dark" data-min="0">
     <button class="bubble" id="bubble" title="Abrir RiftStream AutoFarm">◆</button>
     <div class="shell">
+      <div class="waves" aria-hidden="true">
+        <div class="stars"></div>
+        <svg viewBox="0 0 800 320" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="waveA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#a06bff" stop-opacity=".55" />
+              <stop offset="100%" stop-color="#ff5fd2" stop-opacity=".12" />
+            </linearGradient>
+            <linearGradient id="waveB" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stop-color="#ff5fd2" stop-opacity=".4" />
+              <stop offset="100%" stop-color="#5b21b6" stop-opacity=".1" />
+            </linearGradient>
+          </defs>
+          <path d="M-40 290 C 120 170 240 310 400 210 C 540 122 660 250 840 150 L840 340 L-40 340 Z" fill="url(#waveA)" opacity=".5" />
+          <path d="M-40 320 C 140 230 280 340 440 260 C 590 185 700 290 840 210 L840 340 L-40 340 Z" fill="url(#waveB)" opacity=".45" />
+          <path d="M-40 290 C 120 170 240 310 400 210 C 540 122 660 250 840 150" fill="none" stroke="#c9a0ff" stroke-opacity=".35" stroke-width="1" />
+        </svg>
+      </div>
       <header class="head" id="head">
         <div class="brand">
-          <span class="logo">F</span>
-          <div><b>FARMLINE</b><small>RIFTSTREAM ENGINE</small></div>
+          <span class="logo">R</span>
+          <div><b>RIFTSTREAM</b><small>AUTOFARM ENGINE</small></div>
         </div>
         <div class="head-actions">
-          <span class="dot" id="dot"></span>
-          <button class="icon" id="themeQuick" title="Alternar tema">◐</button>
+          <span class="badge" id="headBadge"><i></i><span id="badgeHeadText">em espera</span></span>
           <button class="icon" id="min" title="Minimizar">–</button>
           <button class="icon" id="close" title="Fechar">✕</button>
         </div>
@@ -632,19 +544,13 @@
           <div class="body">
             <section class="panel" data-panel="auto">
               <div class="autoHero">
-                <b>DEIXA COMIGO</b>
-                <small>
-                  Um toque liga tudo com os ajustes certos: equipar, forjar,
-                  atributos, gemas, engaste, aprimoramento, venda, alquimia,
-                  transmog e baús. Você não precisa configurar nem entender nada.
-                </small>
+                <span class="eyebrow">Controle de farm</span>
+                <h1>Build high, um toque só.</h1>
+                <p id="autoSub">Equipar, forjar, upar, gemas, engaste, alquimia e venda em uma única passada agressiva.</p>
+                <span class="badge" id="heroBadge"><i></i><span id="badgeText">processo inativo</span></span>
               </div>
               <button class="autoBtn" id="autoTudo">
-                <span class="ai">▶</span>
-                <span class="at">
-                  <b>FARMAR SOZINHO</b>
-                  <small id="autoSub">Liga todos os módulos e começa a cuidar do inventário</small>
-                </span>
+                <span class="ai">▶</span> FARMAR SOZINHO →
               </button>
               <button class="autoStop" id="autoParar" hidden>Parar o farm</button>
               <div class="statusbox"><span id="stAuto">Pronto para começar</span><small id="ctAuto"></small></div>
@@ -909,8 +815,10 @@
             </section>
 
             <section class="panel" data-panel="ajustes">
-              <h3>Tema</h3>
-              <div class="temas" id="temasGrid"></div>
+              <div class="identity">
+                <span class="mark">V</span>
+                <div><b>RIFT VIOLET</b><small>tema único · visual SynEx</small></div>
+              </div>
               <h3>Tamanho da fonte</h3>
               <div class="row">
                 <input id="fontRange" type="range" min="10" max="18" step="1" />
@@ -1059,65 +967,19 @@
     rlRodarFila();
   });
 
-  /* -------------------------------- temas --------------------------------- */
+  /* -------------------------------- tema ---------------------------------- */
 
-  const CATALOGO = window.RSAF_THEMES || {};
-  const ORDEM_TEMAS = (window.RSAF_THEME_ORDER || Object.keys(CATALOGO)).slice();
-
-  function temaId(id) {
-    if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
-    if (id === "light") return "mint";
-    if (id === "dark") return "farmline";
-    return CATALOGO[id] ? id : "farmline";
-  }
-
-  function temaDe(id) {
-    const chave = temaId(id);
-    return { id: chave, ...(CATALOGO[chave] || CATALOGO.farmline || {}) };
-  }
-
-  // Aplica a paleta no cartão do painel. Sem themes.js (harness antigo) mantém
-  // as cores do CSS e só ajusta o modo claro/escuro.
-  function aplicarTema(id) {
-    const t = temaDe(id);
-    app.dataset.theme = t.id;
-    app.dataset.mode = t.modo === "light" ? "light" : "dark";
+  // Tema único. IDs antigos são normalizados pelo themes.js para não quebrar
+  // configurações salvas; o painel só aplica as variáveis.
+  function aplicarTema() {
+    app.dataset.theme = "riftviolet";
+    app.dataset.mode = "dark";
     if (typeof window.RSAF_varsPainel === "function") {
-      for (const [k, v] of Object.entries(window.RSAF_varsPainel(t))) {
+      for (const [k, v] of Object.entries(window.RSAF_varsPainel())) {
         app.style.setProperty(k, v);
       }
     }
-    return t;
   }
-
-  const botoesTema = ORDEM_TEMAS.map((id) => {
-    const t = temaDe(id);
-    const b = document.createElement("button");
-    b.className = "tema" + (t.id === "liah" || t.id === "nvd" ? " " + t.id : "");
-    b.dataset.tema = t.id;
-    b.title = `${t.nome || t.id} · ${t.modo === "light" ? "claro" : "escuro"}${t.id === "liah" || t.id === "nvd" ? " · exclusivo" : ""}`;
-    b.style.setProperty("--t-accent", t.accent || "#4de3b0");
-    const amostra = document.createElement("span");
-    amostra.className = "sw3";
-    for (const cor of [t.bg, t.accent, t.accent2]) {
-      const i = document.createElement("i");
-      i.style.background = cor || "transparent";
-      amostra.append(i);
-    }
-    const nome = document.createElement("span");
-    nome.className = "nm";
-    nome.textContent = t.nome || t.id;
-    const modo = document.createElement("span");
-    modo.className = "mo";
-    modo.textContent = t.modo === "light" ? "claro" : "escuro";
-    b.append(amostra, nome, modo);
-    b.addEventListener("click", () => {
-      cfg.settings.theme = t.id;
-      salvarCfg();
-    });
-    q("temasGrid").append(b);
-    return b;
-  });
 
   /* ------------------------------ elementos ------------------------------- */
 
@@ -1248,16 +1110,10 @@
 
   // ------------------------------ modo automático ---------------------------
 
-  // Um botão só: escolhe tudo sozinho e liga. A reserva de ouro é calculada a
-  // partir do ouro atual, e a engine recalcula a faixa de nível da forja pelo
-  // próprio inventário (settings.forge.auto).
+  // Um botão só: build high sem freio. Tudo ligado, roleta sem chance mínima,
+  // reserva zero — a engine para sozinha quando o custo passa do saldo.
   function aplicarAuto() {
     const st = cfg.settings;
-    const ouro = Number(status.character?.gold) || 0;
-    const reservaAuto = ouro > 0
-      ? Math.max(5000, Math.round((ouro * 0.1) / 1000) * 1000)
-      : (Number(st.goldReserve) || 50000);
-
     st.auto = true;
 
     st.equip = true;
@@ -1270,8 +1126,8 @@
     // Caçar arcano: 4 Imortais viram Arcano (25% base, +2% por falha até +10%
     // e +50% com o Supremo). Sem essa fusão o set arcano nunca chega.
     st.forge.arcano = true;
-    st.forge.estrategia = "agressivo";
-    st.forge.chanceMinima = 25;
+    st.forge.estrategia = "bruto";
+    st.forge.chanceMinima = 0;
 
     st.stats.ligado = true;
     st.stats.modo = "otimo";
@@ -1297,15 +1153,16 @@
     st.alchemy.reciclar = true;
     st.alchemy.criar = true;
     st.alchemy.subirNivel = true;
+    st.alchemy.raridadeAlvo = 2;
 
     st.transmog.ligado = true;
 
-    st.goldReserve = reservaAuto;
+    st.goldReserve = 0;
     st.roleta.ligada = true;
 
     cfg.running = true;
     salvarCfg();
-    q("footStatus").textContent = "Modo automático ligado";
+    q("footStatus").textContent = "Build high ligada — sem reserva, sem chance mínima";
   }
 
   function pararAuto() {
@@ -1447,15 +1304,6 @@
   });
   q("swRoleta").addEventListener("click", () => {
     cfg.settings.roleta.ligada = !cfg.settings.roleta.ligada;
-    salvarCfg();
-  });
-
-  // O botão do cabeçalho percorre a lista de temas.
-  q("themeQuick").addEventListener("click", () => {
-    const atual = temaId(cfg.settings.theme);
-    const lista = ORDEM_TEMAS.length ? ORDEM_TEMAS : [atual];
-    const proximo = lista[(lista.indexOf(atual) + 1) % lista.length];
-    cfg.settings.theme = proximo;
     salvarCfg();
   });
 
@@ -1675,7 +1523,7 @@
   function desenhar() {
     const st = cfg.settings;
 
-    aplicarTema(st.theme);
+    aplicarTema();
     app.dataset.aberto = ui.aberto ? "1" : "0";
     app.dataset.min = ui.minimizado ? "1" : "0";
     app.style.setProperty("--fs", `${Math.min(18, Math.max(10, Number(st.font) || 12))}px`);
@@ -1693,8 +1541,14 @@
 
     q("swFarm").classList.toggle("on", !!cfg.running);
     q("masterHint").textContent = cfg.running
-      ? (algum ? "Ligado — manutenção a cada ~30 s" : "Ligado, mas nenhum módulo marcado")
-      : "Desligado — nada é enviado ao jogo";
+      ? (algum ? "Processo ativo — build high em execução" : "Ligado, mas nenhum módulo marcado")
+      : "Processo inativo — nada é enviado ao jogo";
+
+    const ativoBadge = !!(cfg.running && algum);
+    q("badgeHeadText").textContent = ativoBadge ? "processo ativo" : "em espera";
+    q("badgeText").textContent = ativoBadge ? "processo ativo" : "processo inativo";
+    q("headBadge").classList.toggle("work", dot.classList.contains("work"));
+    q("heroBadge").classList.toggle("work", dot.classList.contains("work"));
 
     // Base
     const ch = status.character;
@@ -1768,7 +1622,7 @@
     const cheia = pc && Number(pc.capacity) > 0 &&
       Number(pc.items) >= Math.ceil(Number(pc.capacity) * 0.85);
     q("ctAuto").textContent = `${modulosLigados.length} módulo(s) ativo(s) · ` +
-      `${st.auto ? "reserva automática (10% do ouro)" : `reserva ${fmt(st.goldReserve)}g`} · ` +
+      `${st.auto ? "reserva zero (build high)" : `reserva ${fmt(st.goldReserve)}g`} · ` +
       (mochila ? `${mochila} · ` : "") +
       `forjados ${fmt(stats.forjaTotal)} · vendidos ${fmt(stats.vendidos)}` +
       (Number(status.counts?.forja) > 0 ? ` · ${status.counts.forja} forja(s) pronta(s)` : "") +
@@ -1943,7 +1797,6 @@
     q("ctTransmog").textContent = `Transmogs: ${fmt(stats.transmogFeitos)}`;
 
     // Ajustes
-    botoesTema.forEach((b) => b.classList.toggle("on", b.dataset.tema === temaId(st.theme)));
     if (!ativo(q("fontRange"))) q("fontRange").value = st.font ?? 12;
     q("fontVal").textContent = `${st.font ?? 12}px`;
     q("swRoleta").classList.toggle("on", !!st.roleta.ligada);

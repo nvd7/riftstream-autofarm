@@ -19,25 +19,26 @@ function defaults() {
   return {
     equip: true,
     forge: {
-      ligado: false,
-      raridades: { comum: true, incomum: true, raro: false, epico: false, lendario: false },
+      ligado: true,
+      raridades: { comum: true, incomum: true, raro: true, epico: true, lendario: true, imortal: true },
       tipos: { arma: true, elmo: true, armadura: true, anel: true },
-      minLevel: 0, maxLevel: 9999
+      minLevel: 0, maxLevel: 9999,
+      estrategia: "bruto", chanceMinima: 0, arcano: true
     },
     stats: {
-      ligado: true, modo: "igual",
+      ligado: true, modo: "otimo", foco: "dano",
       sel: { forca: true, vitalidade: true, defesa: true, agilidade: true, sorte: true },
       metas: {}
     },
     gems: { ligado: true, juntar: true, suprema: false },
-    socket: { ligado: false },
-    enhance: { ligado: false },
-    sell: { ligado: false, rarity: 2, level: 40 },
+    socket: { ligado: true },
+    enhance: { ligado: true },
+    sell: { ligado: true, rarity: 2, level: 9999 },
     lote: { ligado: false, rarity: 2, level: 40 },
     organize: true,
-    roleta: { ligada: false, vel: 4 },
-    goldReserve: 50000,
-    theme: "farmline",
+    roleta: { ligada: true, vel: 8 },
+    goldReserve: 0,
+    theme: "riftviolet",
     font: 12,
     chatKeep: { ligado: true, minutos: 0, texto: "$jump" },
     autoPlay: { ligado: true, classe: "auto", autoLive: true, raid: false }
@@ -90,45 +91,16 @@ function setCheck(id, value) {
   if (el && document.activeElement !== el) el.checked = !!value;
 }
 
-function temaId(id) {
-  if (typeof window.RSAF_resolverTema === "function") return window.RSAF_resolverTema(id);
-  if (id === "light") return "mint";
-  if (id === "dark") return "farmline";
-  return window.RSAF_THEMES && window.RSAF_THEMES[id] ? id : "farmline";
-}
-
 function applyAppearance(s) {
-  const catalogo = window.RSAF_THEMES || {};
-  const id = temaId(s?.theme);
-  const t = catalogo[id];
-  const claro = t ? t.modo === "light" : s?.theme === "light";
-  document.documentElement.dataset.theme = id;
-  document.documentElement.dataset.mode = claro ? "light" : "dark";
-  if (t && typeof window.RSAF_varsPopup === "function") {
-    for (const [k, v] of Object.entries(window.RSAF_varsPopup(t))) {
+  document.documentElement.dataset.theme = "riftviolet";
+  document.documentElement.dataset.mode = "dark";
+  if (typeof window.RSAF_varsPopup === "function") {
+    for (const [k, v] of Object.entries(window.RSAF_varsPopup())) {
       document.documentElement.style.setProperty(k, v);
     }
   }
   const size = Math.min(18, Math.max(10, Number(s?.font) || 12));
   document.documentElement.style.setProperty("--font-size", `${size}px`);
-}
-
-// Preenche o seletor com os temas disponíveis (o valor é o id da paleta).
-function preencherTemas() {
-  const sel = $("theme");
-  if (!sel || sel.dataset.pronto) return;
-  const catalogo = window.RSAF_THEMES || {};
-  const ordem = window.RSAF_THEME_ORDER || Object.keys(catalogo);
-  sel.textContent = "";
-  for (const id of ordem) {
-    const t = catalogo[id];
-    if (!t) continue;
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = `${t.nome || id}${t.modo === "light" ? " · claro" : ""}`;
-    sel.appendChild(opt);
-  }
-  sel.dataset.pronto = "1";
 }
 
 function render() {
@@ -216,7 +188,26 @@ function renderCharacter() {
   $("charAt").textContent = c.at ? `atualizado ${timeLabel(c.at)}` : "";
 }
 
+function renderLeader() {
+  const box = $("leaderGap");
+  const lider = state?.runtime?.lider;
+  if (!box || !lider) { box?.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  box.textContent = "";
+  const titulo = document.createElement("b");
+  titulo.textContent = `#1 ${lider.name || lider.login} · Z${lider.bestZone ?? 0}-W${lider.bestWave ?? 0}`;
+  const linha = document.createElement("span");
+  const meta = document.createElement("span");
+  meta.className = "gap";
+  meta.textContent = `${fmt(lider.peakPlayers)} pico`;
+  linha.append(document.createTextNode("Alvo da rank: "), meta,
+    document.createTextNode(` · ${fmt(lider.battleWins || 0)}V/${fmt(lider.battleLosses || 0)}D · ` +
+      `jogue em ${lider.login} e passe de Z${lider.bestZone ?? 0} para liderar.`));
+  box.append(titulo, linha);
+}
+
 function renderCandidates() {
+  renderLeader();
   const box = $("candidates");
   box.textContent = "";
   const list = state?.runtime?.candidates || [];
@@ -300,10 +291,8 @@ function renderModules() {
 
 function renderSettings() {
   const st = cfg.settings || defaults();
-  preencherTemas();
-  setVal("strategy", st.strategy || "zone");
+  setVal("strategy", st.strategy || "top1");
   setVal("minPlayers", st.minPlayers ?? 3);
-  setVal("theme", temaId(st.theme));
   setVal("font", st.font ?? 12);
   setVal("goldReserve", st.goldReserve ?? 0);
   setVal("chatMode", st.chatOnly === false ? "live" : "chat");
@@ -409,7 +398,7 @@ function gatherSettings() {
   const st = cfg.settings;
   st.strategy = $("strategy").value;
   st.minPlayers = Number($("minPlayers").value);
-  st.theme = $("theme").value;
+  st.theme = "riftviolet";
   st.font = Number($("font").value);
   st.goldReserve = Number($("goldReserve").value);
   st.chatOnly = $("chatMode").value === "chat";
@@ -528,7 +517,7 @@ function wire() {
     try { state = await send("RSAF_CLEAR_LOG"); render(); } catch (e) { setError(e.message); }
   });
 
-  for (const id of ["strategy", "minPlayers", "theme", "font", "goldReserve", "chatMode", "muteTab", "chatKeep", "chatMinutes", "chatText",
+  for (const id of ["strategy", "minPlayers", "font", "goldReserve", "chatMode", "muteTab", "chatKeep", "chatMinutes", "chatText",
     "playOn", "playAutoLive", "playRaid", "playClass"]) {
     const el = $(id);
     el.addEventListener("change", () => {

@@ -9,10 +9,10 @@
 <body>
   <header class="top">
     <div class="brand">
-      <span class="logo">F</span>
+      <span class="logo">R</span>
       <div class="brand-text">
-        <b>FARMLINE</b>
-        <small>RIFTSTREAM ENGINE</small>
+        <b>RIFTSTREAM</b>
+        <small>AUTOFARM ENGINE</small>
       </div>
     </div>
     <span id="statusPill" class="pill off">parado</span>
@@ -66,6 +66,7 @@
         <label class="field">
           <span>Ordenar por</span>
           <select id="strategy">
+            <option value="top1">Top 1 (líder do ranking)</option>
             <option value="zone">Maior zona</option>
             <option value="players">Mais jogadores</option>
             <option value="balanced">Equilibrado</option>
@@ -83,6 +84,7 @@
         (<code>$jogar</code>) no chat da Twitch quando quiser.
       </p>
 
+      <div id="leaderGap" class="leader-gap hidden"></div>
       <div id="candidates" class="candidates">
         <span class="muted small">Clique em “Procurar lives” para ver as opções.</span>
       </div>
@@ -177,13 +179,6 @@
       <summary>Preferências rápidas</summary>
       <div class="grid2">
         <label class="field">
-          <span>Tema</span>
-          <select id="theme">
-            <option value="dark">Escuro</option>
-            <option value="light">Claro</option>
-          </select>
-        </label>
-        <label class="field">
           <span>Fonte (px)</span>
           <input id="font" type="number" min="10" max="18" step="1" />
         </label>
@@ -191,6 +186,10 @@
           <span>Ouro reservado</span>
           <input id="goldReserve" type="number" min="0" step="1000" />
         </label>
+        <div class="identity">
+          <span class="mark">V</span>
+          <div><b>RIFT VIOLET</b><small>tema único · visual SynEx</small></div>
+        </div>
         <label class="field">
           <span>Ao abrir live</span>
           <select id="chatMode">
