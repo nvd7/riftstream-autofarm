@@ -4,6 +4,17 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 projeto usa versionamento semântico.
 
+## [3.4.3] - 2026-11-26
+
+### Corrigido
+
+- **Layout do cabeçalho quebrado.** O badge ativo recebia a classe `work`, que
+  colidia com a classe de layout `.work` (`display:grid; flex:1`) — o badge
+  virava um grid de 64 px, o texto quebrava em duas linhas e os botões de
+  cabeçalho persistiam. Agora usa `is-running`, com `white-space:nowrap` e
+  largura fixa. A marca ficou com ellipsis e o cabeçalho perdeu a animação de
+  brilho que criava uma faixa rosa no meio do título.
+
 ## [3.4.2] - 2026-11-26
 
 ### Corrigido

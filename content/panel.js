@@ -190,21 +190,21 @@
     @keyframes synSheen{ to{ background-position:-230% 0; } }
     .badge{
       display:inline-flex; align-items:center; gap:6px; padding:4px 9px; border-radius:20px;
-      border:1px solid #a06bff55; background:#a06bff1c;
-      color:#d9c6ff; font:700 8.5px/1 var(--mono); letter-spacing:1.1px; text-transform:uppercase;
+      border:1px solid #a06bff55; background:#a06bff1c; flex:none; white-space:nowrap;
+      color:#d9c6ff; font:700 8px/1 var(--mono); letter-spacing:.6px; text-transform:uppercase;
     }
-    .badge i{ width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px var(--mint); }
-    .badge.work i{ background:var(--cyan); box-shadow:0 0 8px var(--cyan); animation:pulse 1.1s infinite; }
+    .badge i{ width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px var(--mint); flex:none; }
+    .badge.is-running i{ background:var(--cyan); box-shadow:0 0 8px var(--cyan); animation:pulse 1.1s infinite; }
 
     .head{
       display:flex; align-items:center; gap:10px; padding:9px 10px 9px 12px; cursor:grab;
       background:linear-gradient(100deg,#1b1230 0%,#0e0b18 42%,#26143c 58%,#0e0b18 74%,#1b1230 100%);
-      background-size:230% 100%;
-      animation:synSheen 9s linear infinite;
       border-bottom:1px solid #3d2f5c; user-select:none; flex:none;
     }
     .head:active{ cursor:grabbing; }
-    .brand{ display:flex; align-items:center; gap:9px; flex:1; min-width:0; }
+    .brand{ display:flex; align-items:center; gap:9px; flex:1; min-width:0; overflow:hidden; }
+    .brand > div{ min-width:0; }
+    .brand b, .brand small{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .logo{
       width:28px; height:28px; border-radius:7px; display:grid; place-items:center;
       background:linear-gradient(145deg,#a06bff,#ff5fd2); color:#0a0512;
@@ -212,7 +212,7 @@
     }
     .brand b{ display:block; font:700 11.5px/1.15 var(--mono); letter-spacing:1.6px; }
     .brand small{ display:block; font:600 8.5px/1.2 var(--mono); letter-spacing:1.8px; color:var(--muted); margin-top:2px; }
-    .head-actions{ display:flex; align-items:center; gap:5px; }
+    .head-actions{ display:flex; align-items:center; gap:5px; flex:none; }
     .icon{
       width:24px; height:24px; border-radius:6px; border:1px solid var(--line);
       background:var(--surface); color:var(--muted); cursor:pointer; font-size:12px; line-height:1;
@@ -1595,8 +1595,8 @@
     const ativoBadge = !!(cfg.running && algum);
     q("badgeHeadText").textContent = ativoBadge ? "processo ativo" : "em espera";
     q("badgeText").textContent = ativoBadge ? "processo ativo" : "processo inativo";
-    q("headBadge").classList.toggle("work", dot.classList.contains("work"));
-    q("heroBadge").classList.toggle("work", dot.classList.contains("work"));
+    q("headBadge").classList.toggle("is-running", dot.classList.contains("work"));
+    q("heroBadge").classList.toggle("is-running", dot.classList.contains("work"));
 
     // Base
     const ch = status.character;
